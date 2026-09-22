@@ -55,7 +55,8 @@ its own before moving to the next.
 | 15 — Macros | ✅ Done | `43ef417` |
 | 16 — Combat & Combat Tracker | ✅ Done | `7f1ee21` |
 | 17 — Playlists & Audio | ✅ Done | `e4d1feb` |
-| 18–36 | Not started | — |
+| 18 — RollTables & Cards | ✅ Done | _pending commit_ |
+| 19–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -398,6 +399,53 @@ its own before moving to the next.
   for a live smoke-test (play/stop/pause against a real playlist, including
   verifying `pausedTime` actually resumes correctly) whenever a Foundry
   instance is available.
+- Phase 18 split into two document types, each needing no new work for its
+  own CRUD: RollTable and Cards both reuse the Phase 8
+  `makeDocumentEndpoints()` factory (`documentType: "RollTable"` /
+  `"Cards"`), identical to JournalEntry/Actor/Item/Scene/Macro/Combat/
+  Playlist. PLAN.md's Phase 18 text calls for "draw-from-table" (RollTable)
+  and "card pile operations" (Cards, plural) — hand-rolled in new
+  `shared/src/roll-tables.ts` / `shared/src/cards.ts`,
+  `server/src/endpoints/roll-tables.ts` / `cards.ts`, and
+  `module/src/commands/roll-tables.ts` / `cards.ts`, following the same
+  "factory + extras" shape Phases 9/11/15/16/17 established.
+- RollTable's one extra is `draw`, a thin wrapper over `RollTable#draw()`
+  (Foundry's own table-draw method, which evaluates the table's roll formula
+  and returns the matching `TableResult`(s)); an optional `displayChat` body
+  field is forwarded when given and otherwise left to Foundry's own default
+  (`true`, i.e. posts to chat) — PLAN.md's Phase 18 wording is a single verb
+  ("draw"), so no separate "draw without posting to chat" tool was added, an
+  optional flag was judged sufficient.
+- Cards' "card pile operations" (plural) was read as the three operations
+  Foundry's own `Cards` document actually exposes for moving/reordering
+  cards: `draw` (move cards from a source stack into this one, e.g. a deck
+  into a hand), `shuffle` (randomize this stack in place), and `reset`
+  (recall every card dealt out of this stack back into it) — narrower verbs
+  like `pass`/`deal` (moving cards between two *other* stacks, or one stack
+  to many) exist on Foundry's `Cards` class too but weren't added, consistent
+  with Phase 16's own narrow reading of its "add/remove combatant" wording
+  rather than building out every related method.
+- `draw` returns the drawn Card documents' own data (consistent with every
+  embedded-create descriptor since Phase 10); `shuffle`/`reset` return the
+  affected Cards stack's own `toObject()` (consistent with Phase 11's scene
+  `activate` and Phase 16's turn/round descriptors).
+- Phase 18 added `FoundryRollTable` (`draw()`) and `FoundryCardsStack`
+  (`draw()`/`shuffle()`/`reset()`) to
+  `module/src/types/foundry-globals.d.ts`, layered on the generic
+  `FoundryDocument` shape same as every other document-specific interface
+  since Phase 9. Named `FoundryCardsStack` rather than `FoundryCards` to
+  avoid colliding with Foundry's own global `Cards` document class name.
+  RollTable/Cards CRUD itself uses the generic `FoundryDocument`/
+  `FoundryDocumentClass` shapes unchanged.
+- Phase 18's tests cover the RollTable draw extra and all three Cards extras
+  directly, plus a smoke check per document type that its descriptors mount
+  CRUD under `/api/roll-tables` and `/api/cards` respectively — base CRUD
+  itself is already proven generic by Phase 8's tests. Same
+  untested-against-a-live-instance caveat as Phases 6–17 applies to both new
+  module-side handlers (`module/src/commands/roll-tables.ts`,
+  `module/src/commands/cards.ts`); flagged for a live smoke-test (a real
+  table draw including its chat-post behavior, and a real deck-to-hand
+  draw/shuffle/reset) whenever a Foundry instance is available.
 
 ---
 

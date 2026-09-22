@@ -72,6 +72,14 @@
 // playlist-specific command handlers (module/src/commands/playlists.ts).
 // Playlist CRUD itself uses the generic `FoundryDocument`/
 // `FoundryDocumentClass` shapes above unchanged.
+//
+// Phase 18 added `FoundryRollTable` (`draw()`) to back the roll-table draw
+// command handler (module/src/commands/roll-tables.ts) and
+// `FoundryCardsStack` (`draw()`/`shuffle()`/`reset()`) to back the card-pile
+// command handlers (module/src/commands/cards.ts). RollTable/Cards CRUD
+// itself uses the generic `FoundryDocument`/`FoundryDocumentClass` shapes
+// above unchanged. Named `FoundryCardsStack` rather than `FoundryCards` to
+// avoid colliding with Foundry's own global `Cards` document class.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -229,6 +237,22 @@ interface FoundryPlaylist extends FoundryDocument {
   stopSound(sound: FoundryPlaylistSound): Promise<FoundryPlaylist>;
   /** The playlist's embedded PlaylistSound documents. */
   sounds: Map<string, FoundryPlaylistSound>;
+}
+
+/** A loaded RollTable document — the `FoundryDocument` subset plus the draw API Phase 18 drives. */
+interface FoundryRollTable extends FoundryDocument {
+  /** Evaluates the table's roll formula and draws the matching TableResult(s). */
+  draw(options?: { displayChat?: boolean }): Promise<{ roll: Roll; results: FoundryDocument[] }>;
+}
+
+/** A loaded Cards stack document — the `FoundryDocument` subset plus the pile API Phase 18 drives. */
+interface FoundryCardsStack extends FoundryDocument {
+  /** Draws `number` cards from `source` into this stack, returning the drawn Card documents. */
+  draw(source: FoundryCardsStack, number?: number): Promise<FoundryDocument[]>;
+  /** Shuffles this stack's cards in place. */
+  shuffle(): Promise<FoundryCardsStack>;
+  /** Recalls every card dealt out of this stack back into it. */
+  reset(): Promise<FoundryCardsStack>;
 }
 
 /** One die term's individual roll results within an evaluated `Roll` (e.g. a `2d6` roll's two dice). */

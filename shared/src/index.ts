@@ -82,3 +82,9 @@ export type {
 
 export { PLAYLIST_COMMANDS } from "./playlists.js";
 export type { PlaylistSoundIdInput } from "./playlists.js";
+
+export { ROLL_TABLE_COMMANDS } from "./roll-tables.js";
+export type { RollTableDrawInput, RollTableDrawResult } from "./roll-tables.js";
+
+export { CARDS_COMMANDS } from "./cards.js";
+export type { CardsDrawInput, CardsIdInput } from "./cards.js";
