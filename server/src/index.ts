@@ -3,6 +3,8 @@
 import http from "node:http";
 
 import { createApp } from "./app.js";
+import { FoundryClient } from "./bridge/foundry-client.js";
+import { BridgeGateway } from "./bridge/gateway.js";
 import { ConfigError, loadConfig, type AppConfig } from "./config.js";
 
 function main(): void {
@@ -19,6 +21,17 @@ function main(): void {
 
   const app = createApp({ isDevelopment: config.isDevelopment });
   const server = http.createServer(app);
+
+  // Bridge WS gateway (Phase 3), mounted on the same http.Server/port at
+  // `/bridge`, plus the FoundryClient abstraction route handlers will use
+  // from Phase 6 onward to round-trip commands to the connected module.
+  // Stashed on app.locals so future route modules can reach it via
+  // `req.app.locals.foundryClient` without a separate wiring mechanism.
+  const gateway = new BridgeGateway(server);
+  const foundryClient = new FoundryClient(gateway, {
+    defaultTimeoutMs: config.bridgeTimeoutMs,
+  });
+  app.locals["foundryClient"] = foundryClient;
 
   server.listen(config.port, config.host, () => {
     console.log(
@@ -56,17 +69,28 @@ function main(): void {
     }, config.shutdownTimeoutMs);
     forceExitTimer.unref();
 
-    // Stops accepting new connections; the callback fires once all
-    // in-flight requests/connections have finished.
-    server.close((err) => {
-      clearTimeout(forceExitTimer);
-      if (err) {
-        console.error("Error during shutdown:", err);
-        process.exit(1);
-      }
-      console.log("Shutdown complete.");
-      process.exit(0);
-    });
+    // Close any active bridge connection and stop the WS server first
+    // (independent of the HTTP server's own close below — ws's
+    // WebSocketServer attached via `{ server }` does not close the HTTP
+    // server itself, and vice versa), then stop accepting new HTTP
+    // connections; the server.close() callback fires once all in-flight
+    // requests/connections have finished.
+    gateway
+      .close()
+      .catch((err: unknown) => {
+        console.error("Error closing bridge gateway:", err);
+      })
+      .finally(() => {
+        server.close((err) => {
+          clearTimeout(forceExitTimer);
+          if (err) {
+            console.error("Error during shutdown:", err);
+            process.exit(1);
+          }
+          console.log("Shutdown complete.");
+          process.exit(0);
+        });
+      });
   }
 
   process.on("SIGINT", () => shutdown("SIGINT"));

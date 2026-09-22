@@ -30,6 +30,8 @@ export interface AppConfig {
   isDevelopment: boolean;
   /** Milliseconds to wait for in-flight requests to finish on shutdown. */
   shutdownTimeoutMs: number;
+  /** Default milliseconds `FoundryClient.call` waits for a bridge response before rejecting with a timeout error. */
+  bridgeTimeoutMs: number;
 }
 
 /** Thrown when the environment describes an invalid or unsafe configuration. */
@@ -111,6 +113,17 @@ function parseShutdownTimeout(raw: string | undefined): number {
   return parsed;
 }
 
+function parseBridgeTimeout(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") {
+    return 10_000;
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ConfigError(`Invalid BRIDGE_TIMEOUT_MS "${raw}": must be a positive integer.`);
+  }
+  return parsed;
+}
+
 /**
  * Loads and validates configuration from the environment. Throws
  * {@link ConfigError} on anything invalid or unsafe rather than silently
@@ -124,5 +137,6 @@ export function loadConfig(): AppConfig {
     nodeEnv,
     isDevelopment: nodeEnv === "development",
     shutdownTimeoutMs: parseShutdownTimeout(process.env["SHUTDOWN_TIMEOUT_MS"]),
+    bridgeTimeoutMs: parseBridgeTimeout(process.env["BRIDGE_TIMEOUT_MS"]),
   };
 }
