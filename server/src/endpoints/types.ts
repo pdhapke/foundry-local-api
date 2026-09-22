@@ -1,8 +1,8 @@
-// Endpoint descriptor pattern (Phase 5). One descriptor generates both an
-// Express route (from Phase 6 onward, once a descriptor supplies
-// `method`+`path`) and an MCP tool (always) — see registry.ts. Every later
-// phase defines its endpoints this way rather than hand-rolling a route or a
-// tool separately.
+// Endpoint descriptor pattern (Phase 5, relocated out of mcp/ in Phase 6 —
+// see registry.ts and index.ts). One descriptor generates both an Express
+// route (from Phase 6 onward, once a descriptor supplies `method`+`path`)
+// and an MCP tool (always). This lives outside `mcp/` because it is
+// REST+MCP shared infrastructure, not MCP-specific.
 import type { ZodType } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
@@ -12,7 +12,7 @@ export interface EndpointContext {
 }
 
 export interface EndpointDescriptor<TInput = void, TResult = unknown> {
-  /** MCP tool name, e.g. "foundry_status". */
+  /** MCP tool name, e.g. "foundry_get_world". */
   name: string;
   description: string;
   inputSchema?: ZodType<TInput>;

@@ -8,3 +8,13 @@ export type {
   BridgeError,
   CommandHandler,
 } from "./protocol.js";
+
+export { META_COMMANDS } from "./meta.js";
+export type {
+  StatusResult,
+  WorldInfo,
+  SystemInfo,
+  UserInfo,
+  ModuleInfo,
+  SettingInfo,
+} from "./meta.js";

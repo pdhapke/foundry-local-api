@@ -43,8 +43,9 @@ its own before moving to the next.
 | 3 — Bridge Transport Protocol & Server-Side WS Gateway | ✅ Done | `d3f2887` |
 | 4 — Security Hardening Pass 1 | ✅ Done | `803f9cc` |
 | 5 — MCP Server Interface Scaffold | ✅ Done | `50b1bb2` |
-| 6 — Core Meta/Introspection Endpoints | ⏳ Next up | — |
-| 7–36 | Not started | — |
+| 6 — Core Meta/Introspection Endpoints | ✅ Done | `TBD` |
+| 7 — Settings Read/Write | ⏳ Next up | — |
+| 8–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -55,6 +56,18 @@ its own before moving to the next.
   local process could have hijacked the bridge. It's now gated by the same
   API key via a `?apiKey=` query param (a browser `WebSocket` can't set
   handshake headers).
+- Phase 6 extended `module/src/types/foundry-globals.d.ts` with hand-rolled
+  ambient declarations for `game.release`/`world`/`system`/`user`/`users`/
+  `modules`/`settings.settings`, rather than adopting the community
+  `@league-of-foundry-developers/foundry-vtt-types` package — that package is
+  a large, sometimes version-mismatched type surface, and adopting it without
+  a live instance to validate against was judged riskier than extending the
+  existing minimal file with exactly what Phase 6 needs.
+- Phase 6 was implemented and tested entirely against a mocked bridge client
+  (`server/src/endpoints/meta.test.ts`) — no live Foundry instance was
+  available. The module-side command handlers (`module/src/commands/meta.ts`)
+  build/typecheck cleanly but are unverified against a real `game.*` object;
+  flagged for a live smoke-test whenever a Foundry instance is available.
 
 ---
 
