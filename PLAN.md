@@ -65,8 +65,10 @@ its own before moving to the next.
 - Foundry-side thrown errors normalized into structured REST error bodies
 
 ## Phase 4 — Security Hardening Pass 1
-- API key: generated on first run, stored in server config; required on
-  every `/api/*` request via header
+- API key: simple, static, set via `.env` (`API_KEY`); required on every
+  `/api/*` request via header. No generation/rotation flow or settings UI —
+  if `API_KEY` isn't set, the server refuses to start with a clear error
+  (fail closed, never "no key means no auth")
 - CORS: deny-by-default, explicit allow-list
 - Rate limiting middleware
 - `zod`-based input validation wired into the route-handler pattern used by

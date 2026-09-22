@@ -5,7 +5,12 @@
 // Client). Real Foundry API command handlers beyond the `ping` proof-of-life
 // start Phase 6+.
 
-import { BridgeClient, getConfiguredBridgeUrl, registerBridgeSettings } from "./bridge-client.js";
+import {
+  BridgeClient,
+  getConfiguredApiKey,
+  getConfiguredBridgeUrl,
+  registerBridgeSettings,
+} from "./bridge-client.js";
 import "./command-registry.js";
 
 Hooks.once("init", () => {
@@ -13,6 +18,6 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
-  const client = new BridgeClient(getConfiguredBridgeUrl);
+  const client = new BridgeClient(getConfiguredBridgeUrl, getConfiguredApiKey);
   client.connect();
 });

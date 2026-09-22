@@ -19,7 +19,13 @@ function main(): void {
     throw err;
   }
 
-  const app = createApp({ isDevelopment: config.isDevelopment });
+  const app = createApp({
+    isDevelopment: config.isDevelopment,
+    apiKey: config.apiKey,
+    corsAllowedOrigins: config.corsAllowedOrigins,
+    rateLimitWindowMs: config.rateLimitWindowMs,
+    rateLimitMax: config.rateLimitMax,
+  });
   const server = http.createServer(app);
 
   // Bridge WS gateway (Phase 3), mounted on the same http.Server/port at
@@ -27,7 +33,9 @@ function main(): void {
   // from Phase 6 onward to round-trip commands to the connected module.
   // Stashed on app.locals so future route modules can reach it via
   // `req.app.locals.foundryClient` without a separate wiring mechanism.
-  const gateway = new BridgeGateway(server);
+  // The same API key (Phase 4) gates the WS upgrade, since `/bridge` has no
+  // auth of its own otherwise.
+  const gateway = new BridgeGateway(server, { apiKey: config.apiKey });
   const foundryClient = new FoundryClient(gateway, {
     defaultTimeoutMs: config.bridgeTimeoutMs,
   });

@@ -9,6 +9,7 @@ import { dispatch } from "./command-registry.js";
 
 export const MODULE_ID = "foundry-local-api";
 export const BRIDGE_URL_SETTING = "bridgeUrl";
+export const BRIDGE_API_KEY_SETTING = "bridgeApiKey";
 
 /** Matches the server's Phase 1 default port (`server/src/config.ts`). */
 export const DEFAULT_BRIDGE_URL = "ws://127.0.0.1:3939/bridge";
@@ -46,7 +47,7 @@ export function computeBackoffDelayMs(
   return Math.floor(Math.random() * cappedExponential);
 }
 
-/** Registers the client-scope module setting that holds the bridge URL. */
+/** Registers the client-scope module settings that hold the bridge URL and API key. */
 export function registerBridgeSettings(): void {
   game.settings.register<string>(MODULE_ID, BRIDGE_URL_SETTING, {
     name: "Bridge Server URL",
@@ -56,11 +57,38 @@ export function registerBridgeSettings(): void {
     type: String,
     default: DEFAULT_BRIDGE_URL,
   });
+
+  game.settings.register<string>(MODULE_ID, BRIDGE_API_KEY_SETTING, {
+    name: "Bridge API Key",
+    hint: "Must match the API_KEY the foundry-local-api server was started with.",
+    scope: "client",
+    config: true,
+    type: String,
+    default: "",
+  });
 }
 
 /** Reads the currently configured bridge URL from the module setting. */
 export function getConfiguredBridgeUrl(): string {
   return game.settings.get<string>(MODULE_ID, BRIDGE_URL_SETTING);
+}
+
+/** Reads the currently configured bridge API key from the module setting. */
+export function getConfiguredApiKey(): string {
+  return game.settings.get<string>(MODULE_ID, BRIDGE_API_KEY_SETTING);
+}
+
+/**
+ * Appends `?apiKey=<value>` (URL-encoded, via `URLSearchParams`) to
+ * `baseUrl`. Extracted as a pure function so it's sanity-checkable without a
+ * real socket, same pattern as {@link computeBackoffDelayMs} above.
+ */
+export function buildBridgeConnectionUrl(baseUrl: string, apiKey: string): string {
+  const url = new URL(baseUrl);
+  if (apiKey !== "") {
+    url.searchParams.set("apiKey", apiKey);
+  }
+  return url.toString();
 }
 
 /**
@@ -77,6 +105,7 @@ export class BridgeClient {
 
   constructor(
     private readonly getUrl: () => string,
+    private readonly getApiKey: () => string,
     private readonly backoffOptions: BackoffOptions = DEFAULT_BACKOFF_OPTIONS,
   ) {}
 
@@ -110,7 +139,7 @@ export class BridgeClient {
   }
 
   private openSocket(): void {
-    const url = this.getUrl();
+    const url = buildBridgeConnectionUrl(this.getUrl(), this.getApiKey());
     this.setStatus("connecting");
 
     let socket: WebSocket;

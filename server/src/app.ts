@@ -1,25 +1,36 @@
 // Configured Express app. Kept separate from `index.ts` (which owns
 // `http.listen` + process lifecycle) so the app itself is trivially
 // testable later (e.g. with `supertest`) without binding a real port.
+import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 
+import { createApiKeyAuth } from "./middleware/auth.js";
+import { apiRouter } from "./routes/api.js";
 import { readPackageVersion } from "./version.js";
 
 const startedAt = Date.now();
 
-/** Structure every logger call receives; swap in a real logger without touching call sites. */
+/**
+ * Structure every logger call receives; swap in a real logger without
+ * touching call sites. `authenticated` is only present for requests that
+ * passed through the `/api` mount's auth middleware (Phase 4) — `undefined`
+ * for everything else (e.g. `/health`), which never checks a key.
+ */
 export interface RequestLogEntry {
   method: string;
   path: string;
   status: number;
   durationMs: number;
+  authenticated?: boolean;
 }
 
 export type RequestLogger = (entry: RequestLogEntry) => void;
 
-/** Default logger: single-line, human-readable, stdout. */
-const defaultRequestLogger: RequestLogger = ({ method, path, status, durationMs }) => {
-  console.log(`${method} ${path} ${status} ${durationMs}ms`);
+/** Default logger: single-line, human-readable, stdout — this is the audit log for Phase 4 (console only, no rotation/external service, by design). */
+const defaultRequestLogger: RequestLogger = ({ method, path, status, durationMs, authenticated }) => {
+  const authSuffix = authenticated === undefined ? "" : ` auth=${authenticated}`;
+  console.log(`${method} ${path} ${status} ${durationMs}ms${authSuffix}`);
 };
 
 /** Normalized shape every error response body uses. */
@@ -46,10 +57,25 @@ export class HttpError extends Error {
 export interface CreateAppOptions {
   isDevelopment: boolean;
   requestLogger?: RequestLogger;
+  /** Static API key required on every `/api/*` request (Phase 4). */
+  apiKey: string;
+  /** Origins allowed to make cross-origin requests to `/api/*`. Empty = deny all cross-origin requests. */
+  corsAllowedOrigins: string[];
+  /** Rate-limit window (milliseconds) applied to `/api/*`. */
+  rateLimitWindowMs: number;
+  /** Max requests per `rateLimitWindowMs` per client, applied to `/api/*`. */
+  rateLimitMax: number;
 }
 
 export function createApp(options: CreateAppOptions): Express {
-  const { isDevelopment, requestLogger = defaultRequestLogger } = options;
+  const {
+    isDevelopment,
+    requestLogger = defaultRequestLogger,
+    apiKey,
+    corsAllowedOrigins,
+    rateLimitWindowMs,
+    rateLimitMax,
+  } = options;
   const app = express();
 
   app.disable("x-powered-by");
@@ -59,11 +85,13 @@ export function createApp(options: CreateAppOptions): Express {
     const start = process.hrtime.bigint();
     res.on("finish", () => {
       const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+      const authenticated = res.locals["authenticated"] as boolean | undefined;
       requestLogger({
         method: req.method,
         path: req.originalUrl,
         status: res.statusCode,
         durationMs: Math.round(durationMs * 100) / 100,
+        ...(authenticated === undefined ? {} : { authenticated }),
       });
     });
     next();
@@ -76,6 +104,49 @@ export function createApp(options: CreateAppOptions): Express {
       version: readPackageVersion(),
     });
   });
+
+  // --- `/api` mount (Phase 4) -----------------------------------------
+  // Deny-by-default CORS, then rate limiting, then API-key auth, then the
+  // (currently empty) route table. Order matters: CORS runs first so
+  // preflight `OPTIONS` requests are answered before hitting the rate
+  // limiter/auth, and so even a 401/429 response carries the right CORS
+  // headers for an allowed origin. `authenticated` defaults to `false`
+  // immediately on entry so the audit log always has a value for any
+  // request that reaches this mount, even one rejected by the rate
+  // limiter before ever reaching the auth check.
+  const corsOptions: cors.CorsOptions = {
+    origin(origin, callback) {
+      // No Origin header at all (curl, server-to-server, same-origin) —
+      // nothing for a browser to enforce, so let it through.
+      if (origin === undefined) {
+        callback(null, true);
+        return;
+      }
+      callback(null, corsAllowedOrigins.includes(origin));
+    },
+  };
+
+  const apiRateLimiter = rateLimit({
+    windowMs: rateLimitWindowMs,
+    max: rateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req: Request, _res: Response, next: NextFunction) => {
+      next(new HttpError(429, "Too many requests, please try again later.", "RATE_LIMITED"));
+    },
+  });
+
+  app.use(
+    "/api",
+    cors(corsOptions),
+    (_req: Request, res: Response, next: NextFunction) => {
+      res.locals["authenticated"] = false;
+      next();
+    },
+    apiRateLimiter,
+    createApiKeyAuth(apiKey),
+    apiRouter,
+  );
 
   // 404 for anything unmatched by a route above.
   app.use((req: Request, res: Response) => {

@@ -26,23 +26,56 @@
 // hasn't yet noticed is dead (which rejecting the newcomer could cause).
 // "Last connection wins" is also the simplest policy to reason about and to
 // document for operators.
-import type { Server as HttpServer } from "node:http";
+import type { IncomingMessage, Server as HttpServer } from "node:http";
 
 import { WebSocket, WebSocketServer, type RawData } from "ws";
+
+import { timingSafeEqualStrings } from "../security/api-key.js";
 
 export type BridgeMessageListener = (raw: string) => void;
 /** Fired whenever the previously active connection stops being active, whether it closed on its own or was replaced by a new connection. */
 export type BridgeConnectionLostListener = () => void;
 
+export interface BridgeGatewayOptions {
+  /**
+   * Static API key (Phase 4) required to open a `/bridge` connection.
+   * Browser `WebSocket` can't set custom handshake headers, so this is
+   * checked as a `?apiKey=` query-string param on the upgrade request
+   * instead of a header — same static key as the REST `/api/*` auth
+   * (server/src/middleware/auth.ts), same timing-safe comparison.
+   */
+  apiKey: string;
+}
+
 export class BridgeGateway {
   private readonly wss: WebSocketServer;
+  private readonly apiKey: string;
   private active: WebSocket | null = null;
   private readonly messageListeners = new Set<BridgeMessageListener>();
   private readonly connectionLostListeners = new Set<BridgeConnectionLostListener>();
 
-  constructor(httpServer: HttpServer) {
-    this.wss = new WebSocketServer({ server: httpServer, path: "/bridge" });
+  constructor(httpServer: HttpServer, options: BridgeGatewayOptions) {
+    this.apiKey = options.apiKey;
+    this.wss = new WebSocketServer({
+      server: httpServer,
+      path: "/bridge",
+      verifyClient: (info: { req: IncomingMessage }, callback) => {
+        if (this.isAuthorized(info.req)) {
+          callback(true);
+          return;
+        }
+        console.warn("[bridge] rejected connection attempt with missing/invalid apiKey");
+        callback(false, 401, "Unauthorized");
+      },
+    });
     this.wss.on("connection", (socket: WebSocket) => this.handleConnection(socket));
+  }
+
+  /** Checks the `?apiKey=` query param on an upgrade request's URL against the configured key. */
+  private isAuthorized(req: IncomingMessage): boolean {
+    const url = new URL(req.url ?? "", "http://localhost");
+    const provided = url.searchParams.get("apiKey");
+    return provided !== null && provided.length > 0 && timingSafeEqualStrings(provided, this.apiKey);
   }
 
   /** Whether a bridge client is currently connected and able to receive messages. */
