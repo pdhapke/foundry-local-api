@@ -1,7 +1,7 @@
 {
   "id": "foundry-local-api",
   "title": "Foundry local api and mcp",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
@@ -15,7 +15,7 @@
           "id": "dnd5e",
           "kind": "system",
           "detect": "game.system.id === 'dnd5e'",
-          "description": "Adds dnd5e-specific REST endpoints and MCP tools (ability checks, saves, skills, rests, spell slots, item/activity use) on top of the generic Document API. Core endpoints work without this.",
+          "description": "PLANNED, NOT YET IMPLEMENTED (see PLAN.md Part 2, Phases 32-36 — the integration framework this entry depends on hasn't been built). Will add dnd5e-specific REST endpoints and MCP tools (ability checks, saves, skills, rests, spell slots, item/activity use) on top of the generic Document API. Core endpoints already work without this, regardless of game system.",
           "source": "https://github.com/foundryvtt/dnd5e"
         }
       ]
@@ -26,9 +26,9 @@
       {
         "id": "dnd5e",
         "type": "system",
-        "reason": "Not required. When the world's game system is dnd5e, this module exposes additional dnd5e-specific REST/MCP endpoints (rolls, rests, spell slots)."
+        "reason": "Not required, and not yet implemented (planned for a future phase — see PLAN.md Phases 32-36). Once built, this module will expose additional dnd5e-specific REST/MCP endpoints (rolls, rests, spell slots) when the world's game system is dnd5e."
       }
     ]
   },
-  "description": ""
+  "description": "Local REST API and MCP server for full remote control of a running Foundry VTT world — document CRUD, tokens, combat, dice rolling, canvas placeables, permissions, files, users, and live event streaming."
 }
