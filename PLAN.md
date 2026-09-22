@@ -51,7 +51,7 @@ its own before moving to the next.
 | 11 — Scenes | ✅ Done | `ea2f434` |
 | 12 — Tokens (scene-embedded) | ✅ Done | `12b21e7` |
 | 13 — Journal Entries & Pages | ✅ Done | `246c09e` |
-| 14 — Dice Rolling & Chat Messages | ⏳ Next up | — |
+| 14 — Dice Rolling & Chat Messages | ✅ Done | `844df5f` |
 | 15–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
@@ -255,6 +255,35 @@ its own before moving to the next.
   flagged for a live smoke-test (embedded page CRUD against a real journal
   entry, including page `type` variants like text/image/pdf/video) whenever a
   Foundry instance is available.
+- Phase 14 split into two genuinely different halves. Dice rolling
+  (`shared/src/rolls.ts`, `server/src/endpoints/rolls.ts`,
+  `module/src/commands/rolls.ts`) is hand-rolled from scratch: Foundry's
+  `Roll` class only exists client-side, so this is the first ambient
+  declaration in `foundry-globals.d.ts` that isn't a Document/collection
+  shape. `POST /api/rolls` evaluates a formula and returns a normalized
+  `{formula, total, result, dice}` — it does not post anything to chat,
+  matching PLAN.md's separation of "Roll formula evaluation" from "Chat
+  Messages" into two bullet points.
+- Chat messages, by contrast, needed zero new ambient declarations:
+  `ChatMessage` is a regular Foundry document type already covered by Phase
+  8's generic `game.collections`/`CONFIG` surface. `GET/POST /api/chat`
+  (`shared/src/chat.ts`, `server/src/endpoints/chat.ts`,
+  `module/src/commands/chat.ts`) are still hand-rolled rather than routed
+  through the Phase 8 `makeDocumentEndpoints()` factory, though: PLAN.md's
+  Phase 14 text calls for only create + a bounded "recent log" read, not full
+  CRUD, and letting a caller edit or delete arbitrary past chat history
+  wasn't asked for. `GET /api/chat` takes an optional `limit` (coerced from
+  the query string) and returns the most recent N messages, oldest first,
+  rather than the factory's unbounded full-collection dump.
+- Phase 14's tests cover both new endpoints directly (rolls: formula
+  evaluation, optional roll `data`, validation; chat: list, `limit`,
+  send) — no generic factory backs either, so nothing here is proven by an
+  earlier phase's tests. Same untested-against-a-live-instance caveat as
+  Phases 6–13 applies to both new module-side handlers
+  (`module/src/commands/rolls.ts`, `module/src/commands/chat.ts`); flagged
+  for a live smoke-test (a real dice formula through Foundry's actual `Roll`
+  engine, and a real chat message appearing in a connected client's log)
+  whenever a Foundry instance is available.
 
 ---
 
