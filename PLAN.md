@@ -56,7 +56,7 @@ its own before moving to the next.
 | 16 — Combat & Combat Tracker | ✅ Done | `7f1ee21` |
 | 17 — Playlists & Audio | ✅ Done | `e4d1feb` |
 | 18 — RollTables & Cards | ✅ Done | `403a873` |
-| 19 — Folders | ✅ Done | _pending commit_ |
+| 19 — Folders | ✅ Done | `7493063` |
 | 20–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
