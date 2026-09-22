@@ -71,7 +71,7 @@ its own before moving to the next.
 | 31 — Test Suite & CI | ✅ Done | `e14a08d` |
 | 32 — Optional Integration Plugin Framework | ✅ Done | `0cd10ed` |
 | 33 — Manifest Declaration Convention | ✅ Done | `7cd946c` |
-| 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | _pending commit_ |
+| 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | `0d49eb4` |
 | 35–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
