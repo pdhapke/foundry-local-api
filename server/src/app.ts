@@ -91,9 +91,24 @@ export function createApp(options: CreateAppOptions): Express {
   const app = express();
 
   app.disable("x-powered-by");
-  // Default 100kb is too small for Phase 24's file-upload endpoint, whose
-  // body carries a base64-encoded file (~33% larger than the raw file).
-  app.use(express.json({ limit: "50mb" }));
+  // Phase 24's file-upload endpoint carries a base64-encoded file (~33%
+  // larger than the raw file) in its JSON body, which needs a much higher
+  // limit than every other route. Phase 29 audit: raising the limit to
+  // 50mb *globally* (the original Phase 24 approach) made every route an
+  // unbounded-body DoS vector, including `/health`, which sits ahead of
+  // the `/api` mount's rate limiter and auth check entirely and would
+  // otherwise happily buffer a ~50mb body per request from any caller,
+  // authenticated or not. So the 50mb limit is scoped to the one route
+  // that actually needs it; everything else (every other `/api/*` route,
+  // plus `/health` and any unmatched path) gets a much smaller default.
+  // `read()` in `body-parser`'s internals (`onFinished.isFinished(req)`)
+  // no-ops the second parser once the first has already consumed the
+  // request stream, so stacking these two is safe and only the
+  // path-matched one ever actually parses a given request.
+  const UPLOAD_BODY_LIMIT = "50mb";
+  const DEFAULT_BODY_LIMIT = "2mb";
+  app.use("/api/files/upload", express.json({ limit: UPLOAD_BODY_LIMIT }));
+  app.use(express.json({ limit: DEFAULT_BODY_LIMIT }));
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const start = process.hrtime.bigint();

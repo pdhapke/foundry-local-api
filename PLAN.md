@@ -66,7 +66,8 @@ its own before moving to the next.
 | 26 — Hooks/Event Streaming | ✅ Done | `3717107` |
 | 27 — Localization & Misc Utilities | ✅ Done | `3717107` |
 | 28 — Bulk/Batch & Query Endpoints | ✅ Done | `25e2e26` |
-| 29–36 | Not started | — |
+| 29 — Security Review Pass | ✅ Done | _pending commit_ |
+| 30–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -836,6 +837,53 @@ its own before moving to the next.
   bulk.ts`) — flagged for a live smoke-test (a real batch create/update/
   delete round-trip, and a filtered query against a populated world) whenever
   a Foundry instance is available.
+- Phase 29's re-audit found two real gaps (not documented design tradeoffs)
+  and fixed both:
+  - `module/src/commands/permissions.ts`'s `SET_OWNERSHIP`/`SET_USER_ROLE`
+    handlers (Phase 23) had no `requireGM()` gate, unlike every other
+    privilege-elevating write in the codebase (Phase 7's world-scope
+    settings, Phase 25's user CRUD) — a non-GM caller could grant themselves
+    `OWNER` on any document or promote their own account to `GAMEMASTER`.
+    `server/src/endpoints/permissions.ts`'s `setUserRoleDescriptor`
+    description already claimed "GM only," so this was a real enforcement
+    gap, not an intentional narrowing. Fixed by adding the same
+    `requireGM()` pattern Phase 7/25 established; the two reads (get
+    ownership, get role) stay ungated, consistent with every other read in
+    the codebase.
+  - `server/src/app.ts`'s `express.json({ limit: "50mb" })` (raised globally
+    for Phase 24's file-upload endpoint) applied to every route, including
+    `/health`, which sits entirely outside the `/api` mount's rate
+    limiter/auth chain — an unauthenticated caller could repeatedly send
+    ~50mb bodies to `/health` (or any other route) with zero rate limiting.
+    Fixed by scoping the 50mb limit to `POST /api/files/upload` only (a
+    second `express.json()` mounted ahead of the default one, matched by
+    path; `body-parser`'s internal `onFinished.isFinished(req)` check makes
+    stacking two parsers safe) and dropping the app-wide default to 2mb.
+  - Everything else audited clean: localhost-only bind (`parseHost` in
+    `server/src/config.ts`) still refuses non-loopback without
+    `ALLOW_REMOTE_BIND=true`; every `/api/*` route — including the Phase 26
+    SSE endpoint and the Phase 24 upload route — is mounted on `apiRouter`
+    behind the same CORS/rate-limit/auth chain (`server/src/app.ts`); rate
+    limiting (`express-rate-limit`) covers that whole chain, nothing is
+    mounted around it; the bridge `?apiKey=` query param
+    (`server/src/bridge/gateway.ts`) is never logged (only generic
+    "rejected"/"replaced" strings go to `console.warn`, and the Express
+    request logger only runs on `/health`/`/api/*`, which never see the
+    `/bridge` upgrade URL); the centralized error handler
+    (`server/src/app.ts`) never returns a stack trace or `err.message` for
+    5xx responses, only a fixed "Internal server error" string (`err`/its
+    message is still logged server-side to the console for operators); the
+    macro-execute `destructiveHint` annotation and warning text are still
+    accurate; Phase 28's batch create/update/delete call the same
+    ungated `.create()`/`.update()`/`.delete()`-equivalent Foundry static
+    methods individual CRUD does, so batch doesn't bypass any check
+    individual CRUD had (neither path has document-level permission checks
+    — consistent with the rest of the codebase's "server/module trust the
+    single API key" model). The Phase 24 file-upload endpoint's path
+    handling (`FilePicker.browse`/`upload`/`createDirectory`) remains an
+    intentional thin pass-through to Foundry's own upload security model,
+    per Phase 24's existing deviation-log entry — not reimplemented or
+    changed here.
 
 ---
 

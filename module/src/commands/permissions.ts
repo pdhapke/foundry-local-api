@@ -10,6 +10,16 @@
 // standard `toObject()`/`update()` surface every Document already exposes.
 // User role resolves off `game.users` instead, since a User isn't part of
 // `game.collections`.
+//
+// Phase 29 audit: both writes here (setting a document's ownership map and
+// changing a user's world role) are privilege-elevating in exactly the way
+// Phase 7's world-scope settings write and Phase 25's user CRUD already are
+// — a non-GM caller could otherwise grant themselves OWNER on any document
+// or promote their own account to GAMEMASTER — so they get the same
+// module-side `requireGM()` gate as those, for the same reason (the server
+// has no concept of which Foundry user is calling beyond the single static
+// API key). The two reads (get ownership, get role) stay ungated, same
+// convention as every other read in this codebase.
 import {
   PERMISSION_COMMANDS,
   type DocumentOwnershipInput,
@@ -40,6 +50,12 @@ function requireUser(userId: string): FoundryUser {
   return user;
 }
 
+function requireGM(action: string): void {
+  if (!game.user.isGM) {
+    throw new Error(`Only a GM may ${action}.`);
+  }
+}
+
 function ownershipOf(doc: FoundryDocument): DocumentOwnershipMap {
   return (doc.toObject()["ownership"] as DocumentOwnershipMap | undefined) ?? {};
 }
@@ -60,6 +76,7 @@ registerCommand(
     documentId,
     ownership,
   }: DocumentSetOwnershipInput): Promise<DocumentOwnershipResult> => {
+    requireGM("change a document's ownership");
     const doc = requireDocument(documentType, documentId);
     await doc.update({ ownership });
     return { documentType, documentId, ownership: ownershipOf(doc) };
@@ -74,6 +91,7 @@ registerCommand(
 registerCommand(
   PERMISSION_COMMANDS.SET_USER_ROLE,
   async ({ userId, role }: UserSetRoleInput): Promise<UserRoleResult> => {
+    requireGM("change a user's role");
     const user = await requireUser(userId).update({ role });
     return { userId, role: user.role };
   },

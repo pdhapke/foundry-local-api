@@ -49,7 +49,7 @@ const setOwnershipDescriptor: EndpointDescriptor<DocumentSetOwnershipInput, Docu
   name: "foundry_set_document_ownership",
   description:
     "Sets a document's ownership map. Pass a full replacement map (e.g. " +
-    '{ "default": 0, "<userId>": 3 }) using CONST.DOCUMENT_OWNERSHIP_LEVELS values.',
+    '{ "default": 0, "<userId>": 3 }) using CONST.DOCUMENT_OWNERSHIP_LEVELS values. GM only.',
   method: "put",
   path: "/documents/:documentType/:documentId/ownership",
   inputSchema: setOwnershipSchema,
