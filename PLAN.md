@@ -55,7 +55,7 @@ its own before moving to the next.
 | 15 — Macros | ✅ Done | `43ef417` |
 | 16 — Combat & Combat Tracker | ✅ Done | `7f1ee21` |
 | 17 — Playlists & Audio | ✅ Done | `e4d1feb` |
-| 18 — RollTables & Cards | ✅ Done | _pending commit_ |
+| 18 — RollTables & Cards | ✅ Done | `403a873` |
 | 19–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
