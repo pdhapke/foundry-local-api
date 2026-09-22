@@ -9157,6 +9157,455 @@
         }
       }
     },
+    "/api/integrations/dnd5e/actors/{id}/roll/ability-check": {
+      "post": {
+        "operationId": "dnd5e_roll_ability_check",
+        "summary": "Rolls a dnd5e ability check for an actor (e.g.",
+        "description": "Rolls a dnd5e ability check for an actor (e.g. a Strength check).",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ability": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["ability"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/actors/{id}/roll/saving-throw": {
+      "post": {
+        "operationId": "dnd5e_roll_saving_throw",
+        "summary": "Rolls a dnd5e saving throw for an actor (e.g.",
+        "description": "Rolls a dnd5e saving throw for an actor (e.g. a Dexterity save).",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ability": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["ability"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/actors/{id}/roll/skill": {
+      "post": {
+        "operationId": "dnd5e_roll_skill",
+        "summary": "Rolls a dnd5e skill check for an actor (e.g.",
+        "description": "Rolls a dnd5e skill check for an actor (e.g. Stealth).",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skill": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["skill"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/actors/{id}/roll/death-save": {
+      "post": {
+        "operationId": "dnd5e_roll_death_save",
+        "summary": "Rolls a dnd5e death saving throw for an actor.",
+        "description": "Rolls a dnd5e death saving throw for an actor.",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/actors/{id}/rest": {
+      "post": {
+        "operationId": "dnd5e_rest",
+        "summary": "Runs a short or long rest for an actor (HP/resource recovery).",
+        "description": "Runs a short or long rest for an actor (HP/resource recovery).",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["short", "long"]
+                  }
+                },
+                "required": ["type"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/actors/{id}/spell-slots": {
+      "post": {
+        "operationId": "dnd5e_adjust_spell_slot",
+        "summary": "Spends or restores one dnd5e spell slot for an actor (negative delta spends, positive restores).",
+        "description": "Spends or restores one dnd5e spell slot for an actor (negative delta spends, positive restores).",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9
+                      },
+                      {
+                        "type": "string",
+                        "const": "pact"
+                      }
+                    ]
+                  },
+                  "delta": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["level", "delta"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/items/{id}/use": {
+      "post": {
+        "operationId": "dnd5e_use_item",
+        "summary": "Triggers a dnd5e item's use (e.g.",
+        "description": "Triggers a dnd5e item's use (e.g. consuming a charge, activating an activity), searched across world items and every actor's embedded items.",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
     "/health": {
       "get": {
         "operationId": "health",

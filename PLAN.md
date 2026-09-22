@@ -72,7 +72,8 @@ its own before moving to the next.
 | 32 — Optional Integration Plugin Framework | ✅ Done | `0cd10ed` |
 | 33 — Manifest Declaration Convention | ✅ Done | `7cd946c` |
 | 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | `0d49eb4` |
-| 35–36 | Not started | — |
+| 35 — dnd5e Integration: Actions | ✅ Done | _pending commit_ |
+| 36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -1144,6 +1145,94 @@ its own before moving to the next.
     documented `import "../../app.js"` circular-import workaround (omitting
     it reproduces the exact `__name is not a function` runtime error
     `router.test.ts`'s header comment warns about).
+- Phase 35 adds the seven write-action endpoints/tools on top of Phase 34's
+  three read-only ones, under the same `/dnd5e/...` REST namespace and
+  `dnd5e_`-prefixed MCP tools, following the exact descriptor/command/test
+  pattern Phase 34 established. Same no-live-instance constraint as every
+  phase since Phase 6, but this phase's blast radius if a guess is wrong is
+  larger than Phase 34's: Phase 34 only reads game state, Phase 35 *writes*
+  it (HP changes from rests, spent spell slots, consumed item charges) — so
+  it's flagged for live smoke-testing at least as strongly as Phase 34, if
+  not more so.
+  - The single most important design decision this phase makes is
+    `callFirstAvailableMethod()` (`module/src/commands/dnd5e.ts`): rather
+    than picking one dnd5e roll-method name per action and hoping it matches
+    whatever dnd5e version is actually installed — a real risk, since
+    PLAN.md's own Phase 35 text says these names "have changed materially
+    across dnd5e's 2.x -> 3.x -> 4.x releases" — each roll action tries a
+    short list of plausible candidate names in order and calls the first one
+    that exists as a function on the actor at runtime. This means the call
+    succeeds against whichever dnd5e version is actually connected as long
+    as it exposes ANY of the listed names, and fails with a clear,
+    diagnosable error naming every candidate tried (pointing at this
+    deviation-log entry) rather than a cryptic `TypeError: actor.
+    rollAbilityTest is not a function`, if none of them exist. The candidate
+    lists used: ability check `["rollAbilityTest", "rollAbilityCheck"]`,
+    saving throw `["rollSavingThrow", "rollAbilitySave"]`, skill check
+    `["rollSkill"]` (believed stable across versions, so one candidate was
+    judged sufficient), death save `["rollDeathSave"]`. `shortRest`/
+    `longRest` (the rest action) go through the same existence-check pattern
+    inline rather than via the shared helper, since there's exactly one
+    candidate per rest type with no ambiguity to resolve.
+  - Every roll-action call passes `{fastForward: true, chatMessage: true}` as
+    its options argument — `fastForward` skips dnd5e's advantage/
+    disadvantage confirmation dialog and rolls immediately (there's no human
+    in this headless, API-driven call to click through it), and
+    `chatMessage: true` matches Foundry's own default of posting the result
+    to chat, so a GM watching the table still sees the API-triggered roll.
+    The rest action passes `{dialog: false, chat: true}` to `shortRest()`/
+    `longRest()` for the identical headless-context reason (skip the
+    rest-configuration dialog, still post to chat).
+  - Roll results are normalized via `toRollActionResult()`
+    (`module/src/commands/dnd5e.ts`) into the exact same `{formula, total,
+    result, dice}` shape Phase 14's plain dice-formula evaluation already
+    uses (`RollEvaluateResult`, `shared/src/rolls.ts`) — dnd5e's roll methods
+    return a `Roll`/`D20Roll` instance with the identical fields, so this is
+    shape reuse, not a new convention. `shared/src/dnd5e.ts`'s
+    `Dnd5eRollActionResult` redefines those same three fields inline rather
+    than importing `RollEvaluateResult` from `./rolls.ts` — this file already
+    has an explicit precedent (its own header comment, from Phase 34) of
+    defining its own one-field id input rather than cross-importing
+    `ActorIdInput` from `./actors.ts`, and no other shared domain file in
+    this codebase cross-imports a type from another one, so introducing the
+    first such cross-file type dependency here — for a three-field shape —
+    wasn't judged worth breaking that pattern.
+  - Spell-slot spend/restore (`dnd5e_adjust_spell_slot`) deliberately does
+    NOT call any dnd5e-specific method: there is no stable, documented
+    "adjust one spell slot" method in dnd5e's public API — slot spending
+    normally happens internally as a side effect of using a spellcasting
+    Activity, not as a standalone callable action. Instead it reads and
+    writes the actor's own `system.spells.<key>.value` field directly via
+    the generic `Document#update()` Phase 8 already proved reliable
+    (clamping the result between 0 and the slot's `max`) — a deliberate
+    choice to build on already-proven core Foundry API rather than guess at
+    a dnd5e method that may not exist.
+  - Item use (`dnd5e_use_item`) calls only the item's own top-level `use()`
+    method, with no way to target one specific Activity when dnd5e 3.x+'s
+    Activities system gives an item several. PLAN.md's own Phase 35 wording
+    is "trigger an item/activity use" with no activity-id input in the
+    route or request body, so calling the item's own `use()` — which
+    internally handles activity selection on dnd5e versions that have
+    one — is the faithful, minimal reading of that bullet, consistent with
+    this project's running precedent (Phases 16/17/19) of reading a phase's
+    own wording narrowly rather than building out every related method. The
+    item itself is located generically (`findItemById()`,
+    `module/src/commands/dnd5e.ts`): the route is `/dnd5e/items/:id/use`
+    with no actor segment, so it searches world items first, then every
+    actor's embedded items, matching PLAN.md's own path shape.
+  - The rest action's result shape (`dhp`/`newDay` on whatever
+    `shortRest()`/`longRest()` resolve with) is dnd5e's own documented but
+    version-uncertain convention — both fields are read defensively (`?? 0`/
+    `?? false`, with `deltaHitPoints` also falling back to a `deltaHitPoints`
+    key in case a version names it differently) rather than assumed present,
+    consistent with every field read in Phase 34's own actor-sheet/inventory
+    normalization.
+  - As with Phase 34, none of Phase 35's module-side handlers have a direct
+    unit test (Phase 31's established precedent — they need a real/heavily-
+    mocked `game` global); `server/src/integrations/dnd5e/endpoints.test.ts`
+    gained one happy-path assertion per new route, extending the same
+    fake-`FoundryClient` harness Phase 34 set up rather than building new
+    test infrastructure.
 
 ---
 

@@ -18,14 +18,84 @@
 // codebase's existing precedent (every domain with an id-only input, e.g.
 // `SceneIdInput`/`MacroIdInput`/`PackEntryIdInput`, defines its own rather
 // than sharing one).
+// Phase 35 — dnd5e Integration: Actions. Adds seven write-action commands
+// (ability check/saving throw/skill/death-save rolls, rest, spell-slot
+// adjustment, item use) on top of Phase 34's three read-only ones. Same
+// no-live-instance caveat as Phase 34 applies here too, plus a stronger one:
+// dnd5e's actor roll-method names have themselves changed across its
+// 2.x/3.x/4.x releases (PLAN.md's own Phase 35 text) — see this phase's
+// PLAN.md deviation-log entry and module/src/commands/dnd5e.ts's
+// `callFirstAvailableMethod` for the multi-candidate-name mitigation this
+// uses instead of committing to one method name per action.
+//
+// `Dnd5eRollActionResult` intentionally redefines the same three fields
+// `RollEvaluateResult` (./rolls.ts) already declares, rather than importing
+// it — matching this file's own existing precedent (see the header comment
+// above) of not cross-importing a shape from another domain file even when
+// it's structurally identical.
 export const DND5E_COMMANDS = {
   CONFIG: "dnd5eConfig",
   ACTOR_SHEET: "dnd5eActorSheet",
   ACTOR_INVENTORY: "dnd5eActorInventory",
+  ROLL_ABILITY_CHECK: "dnd5eRollAbilityCheck",
+  ROLL_SAVING_THROW: "dnd5eRollSavingThrow",
+  ROLL_SKILL: "dnd5eRollSkill",
+  ROLL_DEATH_SAVE: "dnd5eRollDeathSave",
+  REST: "dnd5eRest",
+  ADJUST_SPELL_SLOT: "dnd5eAdjustSpellSlot",
+  USE_ITEM: "dnd5eUseItem",
 } as const;
 
 export interface Dnd5eActorIdInput {
   id: string;
+}
+
+export interface Dnd5eAbilityRollInput extends Dnd5eActorIdInput {
+  ability: string;
+}
+
+export interface Dnd5eSkillRollInput extends Dnd5eActorIdInput {
+  skill: string;
+}
+
+export interface Dnd5eRestInput extends Dnd5eActorIdInput {
+  type: "short" | "long";
+}
+
+export interface Dnd5eSpellSlotInput extends Dnd5eActorIdInput {
+  level: number | "pact";
+  delta: number;
+}
+
+export interface Dnd5eItemUseInput {
+  id: string;
+}
+
+/** Normalized roll result — the same shape as `RollEvaluateResult` (./rolls.ts). */
+export interface Dnd5eRollActionResult {
+  formula: string;
+  total: number;
+  /** The resolved expression with each die replaced by its rolled value, e.g. "(4 + 2)". */
+  result: string;
+  dice: { faces: number; results: number[] }[];
+}
+
+export interface Dnd5eRestResult {
+  type: "short" | "long";
+  deltaHitPoints: number;
+  newDay: boolean;
+}
+
+export interface Dnd5eSpellSlotResult {
+  level: number | "pact";
+  value: number;
+  max: number;
+}
+
+export interface Dnd5eItemUseResult {
+  id: string;
+  name: string;
+  used: boolean;
 }
 
 export interface Dnd5eConfigResult {

@@ -182,4 +182,13 @@ export type {
   Dnd5eConfigResult,
   Dnd5eActorSheetResult,
   Dnd5eInventoryItem,
+  Dnd5eAbilityRollInput,
+  Dnd5eSkillRollInput,
+  Dnd5eRestInput,
+  Dnd5eSpellSlotInput,
+  Dnd5eItemUseInput,
+  Dnd5eRollActionResult,
+  Dnd5eRestResult,
+  Dnd5eSpellSlotResult,
+  Dnd5eItemUseResult,
 } from "./dnd5e.js";

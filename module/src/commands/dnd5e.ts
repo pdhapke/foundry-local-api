@@ -27,12 +27,30 @@
 // directly (Phase 31's deviation log: they need a real/heavily-mocked
 // `game` global) — only pure extracted helpers are. This file follows that
 // same precedent rather than inventing new test infrastructure for it.
+//
+// Phase 35 adds the seven write-action commands below the Phase 34 read-only
+// ones (roll actions, rest, spell-slot adjustment, item use). It carries the
+// SAME strengthened no-live-instance caveat above, plus a further wrinkle
+// unique to it: this phase's actions genuinely mutate game state (HP, spent
+// spell slots, consumed item charges), so a wrong assumption here has a
+// bigger blast radius than a wrong read. See PLAN.md's Phase 35 deviation
+// log for the `callFirstAvailableMethod` multi-candidate-name strategy this
+// uses instead of committing to one dnd5e method name per action.
 import {
   DND5E_COMMANDS,
+  type Dnd5eAbilityRollInput,
   type Dnd5eActorIdInput,
   type Dnd5eActorSheetResult,
   type Dnd5eConfigResult,
   type Dnd5eInventoryItem,
+  type Dnd5eItemUseInput,
+  type Dnd5eItemUseResult,
+  type Dnd5eRestInput,
+  type Dnd5eRestResult,
+  type Dnd5eRollActionResult,
+  type Dnd5eSkillRollInput,
+  type Dnd5eSpellSlotInput,
+  type Dnd5eSpellSlotResult,
 } from "@foundry-local-api/shared";
 
 import { registerCommand } from "../command-registry.js";
@@ -44,6 +62,93 @@ function requireActor(id: string): FoundryActor {
     throw new Error(`Actor "${id}" not found`);
   }
   return actor;
+}
+
+/**
+ * Calls the first of `candidates` that exists as a function on `target`,
+ * with `args`. dnd5e's actor roll-method names have changed across its
+ * 2.x/3.x/4.x releases (see this file's header comment and PLAN.md's Phase
+ * 35 deviation log) — trying several plausible names at runtime, rather than
+ * committing to one, means whichever dnd5e version is actually installed,
+ * the call succeeds if it exposes ANY of them, and fails with a clear,
+ * diagnosable error (naming every candidate tried) if none exist, instead of
+ * a cryptic TypeError.
+ */
+async function callFirstAvailableMethod<T>(
+  target: Record<string, unknown>,
+  candidates: string[],
+  args: unknown[],
+): Promise<T> {
+  for (const name of candidates) {
+    const fn = target[name];
+    if (typeof fn === "function") {
+      return (fn as (...a: unknown[]) => Promise<T>).apply(target, args);
+    }
+  }
+  throw new Error(
+    `None of the expected dnd5e methods (${candidates.join(", ")}) exist on this object — the installed dnd5e version may use a different API than this integration was built against. See PLAN.md's Phase 35 deviation log.`,
+  );
+}
+
+/**
+ * Normalizes whatever dnd5e's roll-action methods return (a `Roll`/`D20Roll`
+ * instance, or an array of them on some dnd5e versions) into the same
+ * `{formula, total, result, dice}` shape Phase 14's plain formula evaluation
+ * already uses — dnd5e's roll classes carry the exact same fields. Throws a
+ * diagnosable error rather than returning a garbage result if the call was
+ * cancelled (e.g. a dialog this integration can't click through) or the
+ * installed dnd5e version's return shape differs from what's expected here.
+ */
+function toRollActionResult(rollLike: unknown): Dnd5eRollActionResult {
+  const roll = Array.isArray(rollLike) ? rollLike[0] : rollLike;
+  const r = roll as
+    { formula?: unknown; total?: unknown; result?: unknown; dice?: unknown } | null | undefined;
+  if (!r || typeof r.total !== "number") {
+    throw new Error(
+      "The dnd5e roll action did not return a completed roll — it may have been cancelled (e.g. a dialog this integration couldn't skip), or this dnd5e version's return shape differs from what was expected.",
+    );
+  }
+  const dice = Array.isArray(r.dice) ? r.dice : [];
+  return {
+    formula: String(r.formula ?? ""),
+    total: r.total,
+    result: String(r.result ?? ""),
+    dice: dice.map((d) => {
+      const die = d as { faces?: unknown; results?: unknown };
+      const results = Array.isArray(die.results) ? die.results : [];
+      return {
+        faces: Number(die.faces ?? 0),
+        results: results.map((x) => Number((x as { result?: unknown })?.result ?? 0)),
+      };
+    }),
+  };
+}
+
+/** Passed to every roll-action call — see this file's header comment for why. */
+const ROLL_ACTION_OPTIONS = { fastForward: true, chatMessage: true };
+
+/**
+ * Locates an Item by id across both world items and every actor's embedded
+ * items — the `/dnd5e/items/:id/use` route has no actor segment (per
+ * PLAN.md's own Phase 35 path), so the item must be found generically rather
+ * than assumed to live under one known parent.
+ */
+function findItemById(id: string): FoundryItem {
+  const worldItems = game.collections.get("Item") as Map<string, FoundryItem> | undefined;
+  const worldMatch = worldItems?.get(id);
+  if (worldMatch) {
+    return worldMatch;
+  }
+  const actors = game.collections.get("Actor") as Map<string, FoundryActor> | undefined;
+  for (const actor of actors?.values() ?? []) {
+    const match = actor.items.get(id) as FoundryItem | undefined;
+    if (match) {
+      return match;
+    }
+  }
+  throw new Error(
+    `Item "${id}" not found (searched world items and every actor's embedded items).`,
+  );
 }
 
 /** A `CONFIG.DND5E.<slice>` entry, as documented across dnd5e 2.x-4.x. */
@@ -220,4 +325,126 @@ registerCommand(DND5E_COMMANDS.ACTOR_INVENTORY, ({ id }: Dnd5eActorIdInput): Dnd
       activities: extractActivities(itemSys),
     };
   }),
+);
+
+// --- Phase 35 — write actions -------------------------------------------
+
+registerCommand(
+  DND5E_COMMANDS.ROLL_ABILITY_CHECK,
+  async ({ id, ability }: Dnd5eAbilityRollInput): Promise<Dnd5eRollActionResult> => {
+    const actor = requireActor(id);
+    const roll = await callFirstAvailableMethod(
+      actor as unknown as Record<string, unknown>,
+      ["rollAbilityTest", "rollAbilityCheck"],
+      [ability, ROLL_ACTION_OPTIONS],
+    );
+    return toRollActionResult(roll);
+  },
+);
+
+registerCommand(
+  DND5E_COMMANDS.ROLL_SAVING_THROW,
+  async ({ id, ability }: Dnd5eAbilityRollInput): Promise<Dnd5eRollActionResult> => {
+    const actor = requireActor(id);
+    const roll = await callFirstAvailableMethod(
+      actor as unknown as Record<string, unknown>,
+      ["rollSavingThrow", "rollAbilitySave"],
+      [ability, ROLL_ACTION_OPTIONS],
+    );
+    return toRollActionResult(roll);
+  },
+);
+
+registerCommand(
+  DND5E_COMMANDS.ROLL_SKILL,
+  async ({ id, skill }: Dnd5eSkillRollInput): Promise<Dnd5eRollActionResult> => {
+    const actor = requireActor(id);
+    const roll = await callFirstAvailableMethod(
+      actor as unknown as Record<string, unknown>,
+      ["rollSkill"],
+      [skill, ROLL_ACTION_OPTIONS],
+    );
+    return toRollActionResult(roll);
+  },
+);
+
+registerCommand(
+  DND5E_COMMANDS.ROLL_DEATH_SAVE,
+  async ({ id }: Dnd5eActorIdInput): Promise<Dnd5eRollActionResult> => {
+    const actor = requireActor(id);
+    const roll = await callFirstAvailableMethod(
+      actor as unknown as Record<string, unknown>,
+      ["rollDeathSave"],
+      [ROLL_ACTION_OPTIONS],
+    );
+    return toRollActionResult(roll);
+  },
+);
+
+registerCommand(
+  DND5E_COMMANDS.REST,
+  async ({ id, type }: Dnd5eRestInput): Promise<Dnd5eRestResult> => {
+    const actor = requireActor(id);
+    const methodName = type === "short" ? "shortRest" : "longRest";
+    const fn = (actor as unknown as Record<string, unknown>)[methodName];
+    if (typeof fn !== "function") {
+      throw new Error(
+        `Actor has no ${methodName}() method — unexpected for a dnd5e actor; the installed dnd5e version may differ from what this integration was built against.`,
+      );
+    }
+    const result = await (fn as (opts: unknown) => Promise<unknown>).call(actor, {
+      dialog: false,
+      chat: true,
+    });
+    // dnd5e's own rest-result object shape (`dhp`/`newDay`) is documented but
+    // not confidently stable across versions — see this file's header
+    // comment and PLAN.md's Phase 35 deviation log — so both fields are
+    // defaulted defensively rather than assumed present.
+    const r = (result ?? {}) as Record<string, unknown>;
+    return {
+      type,
+      deltaHitPoints: Number(r["dhp"] ?? r["deltaHitPoints"] ?? 0),
+      newDay: Boolean(r["newDay"] ?? false),
+    };
+  },
+);
+
+registerCommand(
+  DND5E_COMMANDS.ADJUST_SPELL_SLOT,
+  async ({ id, level, delta }: Dnd5eSpellSlotInput): Promise<Dnd5eSpellSlotResult> => {
+    const actor = requireActor(id);
+    // Deliberately not calling any dnd5e-specific method: there's no stable,
+    // documented "spend/restore one spell slot" method in dnd5e's public
+    // API (slot spending normally happens internally during spellcasting-
+    // activity use). Instead this reads/writes the actor's own
+    // `system.spells.<key>.value` field directly via the generic
+    // `Document#update()` Phase 8 already proved reliable.
+    const key = level === "pact" ? "pact" : `spell${level}`;
+    const sys = actor.system as Record<string, any>;
+    const slot = (sys?.["spells"]?.[key] ?? {}) as { value?: number; max?: number };
+    const max = Number(slot.max ?? 0);
+    const current = Number(slot.value ?? 0);
+    const next = Math.max(0, Math.min(max, current + delta));
+    await actor.update({ [`system.spells.${key}.value`]: next });
+    return { level, value: next, max };
+  },
+);
+
+registerCommand(
+  DND5E_COMMANDS.USE_ITEM,
+  async ({ id }: Dnd5eItemUseInput): Promise<Dnd5eItemUseResult> => {
+    const item = findItemById(id);
+    // Deliberately calls the item's own top-level use() rather than
+    // targeting a specific Activity by id: PLAN.md's own Phase 35 wording is
+    // just "trigger an item/activity use" with no activity-id input, and on
+    // dnd5e 3.x+ (Activities), an item's use() already handles activity
+    // selection internally — the faithful, minimal reading of that bullet.
+    const fn = (item as unknown as Record<string, unknown>)["use"];
+    if (typeof fn !== "function") {
+      throw new Error(`Item "${id}" has no use() method on this dnd5e version.`);
+    }
+    await (fn as () => Promise<unknown>).call(item);
+    const obj = item.toObject() as Record<string, unknown>;
+    return { id: item.id, name: String(obj["name"] ?? ""), used: true };
+  },
 );

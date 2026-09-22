@@ -1847,6 +1847,18 @@ _No input._
 
 _These tools only appear when system `dnd5e` is active in the connected Foundry world — see PLAN.md's Phase 32._
 
+### `dnd5e_adjust_spell_slot`
+
+Spends or restores one dnd5e spell slot for an actor (negative delta spends, positive restores).
+
+REST: `POST /api/integrations/dnd5e/actors/:id/spell-slots`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `level` | any | yes |  |
+| `delta` | integer | yes |  |
+
 ### `dnd5e_get_actor_inventory`
 
 An actor's items with dnd5e-specific fields: quantity, equipped, attuned, activities.
@@ -1874,4 +1886,68 @@ Relevant slices of dnd5e's CONFIG.DND5E (abilities, skills, damage types, condit
 REST: `GET /api/integrations/dnd5e/config`
 
 _No input._
+
+### `dnd5e_rest`
+
+Runs a short or long rest for an actor (HP/resource recovery).
+
+REST: `POST /api/integrations/dnd5e/actors/:id/rest`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `type` | string | yes |  |
+
+### `dnd5e_roll_ability_check`
+
+Rolls a dnd5e ability check for an actor (e.g. a Strength check).
+
+REST: `POST /api/integrations/dnd5e/actors/:id/roll/ability-check`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `ability` | string | yes |  |
+
+### `dnd5e_roll_death_save`
+
+Rolls a dnd5e death saving throw for an actor.
+
+REST: `POST /api/integrations/dnd5e/actors/:id/roll/death-save`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
+### `dnd5e_roll_saving_throw`
+
+Rolls a dnd5e saving throw for an actor (e.g. a Dexterity save).
+
+REST: `POST /api/integrations/dnd5e/actors/:id/roll/saving-throw`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `ability` | string | yes |  |
+
+### `dnd5e_roll_skill`
+
+Rolls a dnd5e skill check for an actor (e.g. Stealth).
+
+REST: `POST /api/integrations/dnd5e/actors/:id/roll/skill`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `skill` | string | yes |  |
+
+### `dnd5e_use_item`
+
+Triggers a dnd5e item's use (e.g. consuming a charge, activating an activity), searched across world items and every actor's embedded items.
+
+REST: `POST /api/integrations/dnd5e/items/:id/use`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
 
