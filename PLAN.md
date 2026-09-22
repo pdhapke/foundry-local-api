@@ -47,8 +47,9 @@ its own before moving to the next.
 | 7 — Settings Read/Write | ✅ Done | `c7dfa86` |
 | 8 — Generic Document CRUD Core | ✅ Done | `e03d360` |
 | 9 — Actors | ✅ Done | `9ee8cfb` |
-| 10 — Items | ⏳ Next up | — |
-| 11–36 | Not started | — |
+| 10 — Items | ✅ Done | — |
+| 11 — Scenes | ⏳ Next up | — |
+| 12–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -138,6 +139,33 @@ its own before moving to the next.
   module-side handlers (`module/src/commands/actors.ts`); flagged for a live
   smoke-test (roll data and items against a real system like dnd5e)
   whenever a Foundry instance is available.
+- Phase 10 split cleanly into two halves per PLAN.md's own wording ("`/api/
+  items` (world items) + embedded actor-item CRUD"): world-level Item CRUD
+  again reuses the Phase 8 `makeDocumentEndpoints()` factory with
+  `documentType: "Item"`, identical to JournalEntry/Actor; embedded
+  actor-item CRUD (`/api/actors/:actorId/items[/:itemId]`) is hand-rolled in
+  a new `shared/src/items.ts` (`EMBEDDED_ITEM_COMMANDS`) plus
+  `server/src/endpoints/items.ts` and `module/src/commands/items.ts`, since
+  an embedded item lives under its owning actor, not its own top-level
+  document collection. The embedded item *list* endpoint already existed as
+  `foundry_list_actor_items` (Phase 9) — Phase 10 only adds get/create/
+  update/delete for a single embedded item.
+- Phase 10 found that get/update/delete of a single embedded item need no
+  new Foundry API surface: an embedded `Item` is itself a `FoundryDocument`,
+  and Foundry routes `.update()`/`.delete()` on it through its parent actor
+  automatically, so Phase 9's `FoundryActor#items` map plus Phase 8's
+  existing `FoundryDocument` methods were already enough. Only embedded
+  creation needed a new ambient declaration,
+  `FoundryActor#createEmbeddedDocuments()`
+  (`module/src/types/foundry-globals.d.ts`), since there's no "create" method
+  on an item that doesn't exist yet.
+- Phase 10's tests only cover the four embedded-item extras plus one smoke
+  check that `itemEndpointDescriptors` mounts CRUD under `/api/items` — same
+  rationale as Phase 9 (full generic CRUD is already proven by Phase 8's
+  tests). Same untested-against-a-live-instance caveat as Phases 6–9 applies
+  to the module-side handlers (`module/src/commands/items.ts`); flagged for
+  a live smoke-test (embedded item create/update/delete against a real
+  system like dnd5e) whenever a Foundry instance is available.
 
 ---
 

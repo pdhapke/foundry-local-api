@@ -23,6 +23,13 @@
 // collection) to back the actor-specific command handlers
 // (module/src/commands/actors.ts). Actor CRUD itself uses the generic
 // `FoundryDocument`/`FoundryDocumentClass` shapes above unchanged.
+//
+// Phase 10 added `FoundryActor#createEmbeddedDocuments()` to back embedded
+// Item creation (module/src/commands/items.ts). Get/update/delete of a
+// single embedded item need no new API surface — an embedded item is itself
+// a `FoundryDocument` (Foundry routes `.update()`/`.delete()` on it through
+// its parent actor automatically), so the existing `items` map plus
+// `FoundryDocument`'s own methods are enough.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -88,6 +95,11 @@ interface FoundryActor extends FoundryDocument {
   getRollData(): Record<string, unknown>;
   /** The actor's embedded Item documents. */
   items: Map<string, FoundryDocument>;
+  /** Creates one or more embedded documents of the given type (e.g. "Item") on this actor. */
+  createEmbeddedDocuments(
+    embeddedName: string,
+    data: Record<string, unknown>[],
+  ): Promise<FoundryDocument[]>;
 }
 
 declare const game: {

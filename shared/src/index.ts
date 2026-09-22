@@ -34,3 +34,10 @@ export type {
 
 export { ACTOR_COMMANDS } from "./actors.js";
 export type { ActorIdInput, ActorRollData } from "./actors.js";
+
+export { EMBEDDED_ITEM_COMMANDS } from "./items.js";
+export type {
+  EmbeddedItemIdInput,
+  EmbeddedItemCreateInput,
+  EmbeddedItemUpdateInput,
+} from "./items.js";
