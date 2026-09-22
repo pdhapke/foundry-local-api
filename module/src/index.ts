@@ -14,6 +14,7 @@ import {
 import "./command-registry.js";
 import "./commands/meta.js";
 import "./commands/settings.js";
+import "./commands/documents.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

@@ -12,6 +12,12 @@
 //
 // Phase 7 added `GameSettings#set` to back the settings write command
 // handler (module/src/commands/settings.ts).
+//
+// Phase 8 added `game.collections`/`CONFIG` plus the minimal `Document`/
+// `DocumentClass` shapes to back the generic document CRUD command handlers
+// (module/src/commands/documents.ts). `game.collections` and `CONFIG` are
+// intentionally untyped past this — every Foundry document type's specific
+// data schema stays out of scope for this generic layer.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -59,6 +65,19 @@ interface FoundryModule {
   version: string;
 }
 
+/** A loaded Foundry Document instance — the subset of its API this module drives generically. */
+interface FoundryDocument {
+  id: string;
+  toObject(): Record<string, unknown>;
+  update(changes: Record<string, unknown>): Promise<FoundryDocument>;
+  delete(): Promise<FoundryDocument>;
+}
+
+/** A document type's class, as found at `CONFIG.<Type>.documentClass`. */
+interface FoundryDocumentClass {
+  create(data: Record<string, unknown>): Promise<FoundryDocument | undefined>;
+}
+
 declare const game: {
   settings: GameSettings;
   release: {
@@ -79,6 +98,13 @@ declare const game: {
   user: FoundryUser;
   users: Map<string, FoundryUser>;
   modules: Map<string, FoundryModule>;
+  /** Keyed by Foundry document type name (e.g. "JournalEntry"), each a Map of that type's documents keyed by id. */
+  collections: Map<string, Map<string, FoundryDocument>>;
+};
+
+/** Keyed by Foundry document type name (e.g. "JournalEntry"). */
+declare const CONFIG: {
+  [documentType: string]: { documentClass: FoundryDocumentClass } | undefined;
 };
 
 declare const Hooks: {

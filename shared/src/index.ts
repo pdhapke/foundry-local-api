@@ -21,3 +21,13 @@ export type {
 
 export { SETTINGS_COMMANDS } from "./settings.js";
 export type { GetSettingInput, SetSettingInput, SettingValue } from "./settings.js";
+
+export { DOCUMENT_COMMANDS } from "./documents.js";
+export type {
+  DocumentTypeInput,
+  DocumentIdInput,
+  DocumentCreateInput,
+  DocumentUpdateInput,
+  DocumentData,
+  DocumentDeleteResult,
+} from "./documents.js";
