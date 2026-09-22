@@ -53,6 +53,11 @@
 // Chat messages needed no new declarations at all: `ChatMessage` is a
 // regular document type, already covered by Phase 8's generic
 // `game.collections`/`CONFIG` surface (module/src/commands/chat.ts).
+//
+// Phase 15 added `FoundryMacro` (`execute()`) to back the macro execution
+// command handler (module/src/commands/macros.ts). Macro CRUD itself uses
+// the generic `FoundryDocument`/`FoundryDocumentClass` shapes above
+// unchanged.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -163,6 +168,12 @@ interface FoundryJournalEntry extends FoundryDocument {
     embeddedName: string,
     data: Record<string, unknown>[],
   ): Promise<FoundryDocument[]>;
+}
+
+/** A loaded Macro document — the `FoundryDocument` subset plus the execution API Phase 15 drives. */
+interface FoundryMacro extends FoundryDocument {
+  /** Runs the macro's stored script/chat command, exactly as Foundry's own macro bar does. */
+  execute(): Promise<unknown>;
 }
 
 /** One die term's individual roll results within an evaluated `Roll` (e.g. a `2d6` roll's two dice). */

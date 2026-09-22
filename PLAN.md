@@ -52,7 +52,8 @@ its own before moving to the next.
 | 12 — Tokens (scene-embedded) | ✅ Done | `12b21e7` |
 | 13 — Journal Entries & Pages | ✅ Done | `246c09e` |
 | 14 — Dice Rolling & Chat Messages | ✅ Done | `844df5f` |
-| 15–36 | Not started | — |
+| 15 — Macros | ✅ Done | _pending commit_ |
+| 16–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -283,6 +284,40 @@ its own before moving to the next.
   (`module/src/commands/rolls.ts`, `module/src/commands/chat.ts`); flagged
   for a live smoke-test (a real dice formula through Foundry's actual `Roll`
   engine, and a real chat message appearing in a connected client's log)
+  whenever a Foundry instance is available.
+- Phase 15 needed no new work for Macro CRUD itself: it reuses the Phase 8
+  `makeDocumentEndpoints()` factory with `documentType: "Macro"`, identical
+  to JournalEntry/Actor/Item/Scene. The one macro-specific extra PLAN.md's
+  Phase 15 text calls for — execution — is hand-rolled in new `shared/src/
+  macros.ts` (`MACRO_COMMANDS`), `server/src/endpoints/macros.ts`, and
+  `module/src/commands/macros.ts`, following the same "factory + extras"
+  shape Phases 9/11 established.
+- Phase 15's "explicit safety flag/scope" requirement (PLAN.md's own wording)
+  is implemented as a new optional `annotations` field on `EndpointDescriptor`
+  (`server/src/endpoints/types.ts`), carrying the MCP SDK's own
+  `ToolAnnotations` hint object (`title`/`destructiveHint`/`openWorldHint`/
+  etc.) through `registerMcpTool()` (`server/src/endpoints/registry.ts`) to
+  `mcpServer.registerTool()`. `foundry_execute_macro` is the first (and so
+  far only) descriptor to set it — `destructiveHint: true` plus a title
+  calling out that it runs arbitrary JavaScript. Per the MCP spec these
+  annotations are advisory hints only, not server-enforced, so the
+  descriptor's `description` string also states the danger in plain
+  language for any human or LLM reading the tool catalog; nothing about
+  actual execution privilege changed (the bridge has always been
+  single-API-key, full-privilege, per Phase 4's design).
+- Phase 15 added `FoundryMacro` (`execute()`) to
+  `module/src/types/foundry-globals.d.ts`, layered on the generic
+  `FoundryDocument` shape same as every other document-specific interface
+  since Phase 9 — Foundry routes a macro's stored script/chat command through
+  its own `execute()` method exactly as the in-client macro bar does, so no
+  other new ambient surface was needed.
+- Phase 15's tests cover the execute extra (including a direct assertion
+  that its descriptor carries `destructiveHint: true`) plus a smoke check
+  that `macroEndpointDescriptors` mounts CRUD under `/api/macros` — base
+  CRUD itself is already proven generic by Phase 8's tests. Same
+  untested-against-a-live-instance caveat as Phases 6–14 applies to the
+  module-side handler (`module/src/commands/macros.ts`); flagged for a live
+  smoke-test (both script-type and chat-type macros against a real world)
   whenever a Foundry instance is available.
 
 ---

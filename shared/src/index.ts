@@ -68,3 +68,6 @@ export type { RollEvaluateInput, RollDieResult, RollEvaluateResult } from "./rol
 
 export { CHAT_COMMANDS } from "./chat.js";
 export type { ChatListInput, ChatSendInput, ChatMessageData } from "./chat.js";
+
+export { MACRO_COMMANDS } from "./macros.js";
+export type { MacroIdInput, MacroExecuteResult } from "./macros.js";

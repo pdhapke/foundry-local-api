@@ -3,6 +3,7 @@
 // route (from Phase 6 onward, once a descriptor supplies `method`+`path`)
 // and an MCP tool (always). This lives outside `mcp/` because it is
 // REST+MCP shared infrastructure, not MCP-specific.
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodType } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
@@ -30,6 +31,16 @@ export interface EndpointDescriptor<TInput = void, TResult = unknown> {
    */
   method?: "get" | "post" | "put" | "delete";
   path?: string;
+  /**
+   * MCP tool annotation hints (Phase 15) — surfaced to MCP clients alongside
+   * the tool definition. Per the MCP spec these are advisory only, not
+   * enforced by the server, so a genuinely dangerous descriptor (e.g. Macro
+   * execution, which runs arbitrary JS with full Foundry client privileges)
+   * must also say so in plain language in `description` — `annotations` is
+   * the structured "safety flag" PLAN.md's Phase 15 calls for, `description`
+   * is what actually reaches a human/LLM reading the tool catalog.
+   */
+  annotations?: ToolAnnotations;
 }
 
 /**

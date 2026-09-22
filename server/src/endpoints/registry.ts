@@ -114,7 +114,7 @@ function registerMcpTool<TInput, TResult>(
   mcpServer: McpServer,
   ctx: EndpointContext,
 ): void {
-  const { name, description, inputSchema, handler } = descriptor;
+  const { name, description, inputSchema, handler, annotations } = descriptor;
 
   if (inputSchema) {
     // The MCP SDK's registerTool() wants the raw shape object (a plain
@@ -127,9 +127,33 @@ function registerMcpTool<TInput, TResult>(
       );
     }
     const shape = inputSchema.shape as ZodRawShape;
-    mcpServer.registerTool(name, { description, inputSchema: shape }, async (args) => {
+    mcpServer.registerTool(
+      name,
+      { description, inputSchema: shape, ...(annotations ? { annotations } : {}) },
+      async (args) => {
+        try {
+          const result = await handler(args as TInput, ctx);
+          return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+        } catch (err) {
+          if (err instanceof FoundryBridgeError) {
+            return {
+              content: [{ type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` }],
+              isError: true,
+            };
+          }
+          throw err;
+        }
+      },
+    );
+    return;
+  }
+
+  mcpServer.registerTool(
+    name,
+    { description, ...(annotations ? { annotations } : {}) },
+    async () => {
       try {
-        const result = await handler(args as TInput, ctx);
+        const result = await handler(undefined as TInput, ctx);
         return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
       } catch (err) {
         if (err instanceof FoundryBridgeError) {
@@ -140,22 +164,6 @@ function registerMcpTool<TInput, TResult>(
         }
         throw err;
       }
-    });
-    return;
-  }
-
-  mcpServer.registerTool(name, { description }, async () => {
-    try {
-      const result = await handler(undefined as TInput, ctx);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
-    } catch (err) {
-      if (err instanceof FoundryBridgeError) {
-        return {
-          content: [{ type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` }],
-          isError: true,
-        };
-      }
-      throw err;
-    }
-  });
+    },
+  );
 }

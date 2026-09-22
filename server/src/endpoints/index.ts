@@ -7,6 +7,7 @@ import { journalEntryEndpointDescriptors } from "./documents.js";
 import { healthEndpointDescriptor } from "./health.js";
 import { itemEndpointDescriptors } from "./items.js";
 import { journalPageEndpointDescriptors } from "./journal-pages.js";
+import { macroEndpointDescriptors } from "./macros.js";
 import { metaEndpointDescriptors } from "./meta.js";
 import { rollEndpointDescriptors } from "./rolls.js";
 import { sceneEndpointDescriptors } from "./scenes.js";
@@ -26,6 +27,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...tokenEndpointDescriptors,
   ...rollEndpointDescriptors,
   ...chatEndpointDescriptors,
+  ...macroEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";
