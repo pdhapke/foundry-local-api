@@ -59,7 +59,10 @@ its own before moving to the next.
 | 19 — Folders | ✅ Done | `7493063` |
 | 20 — Compendium Packs | ✅ Done | `a851624` |
 | 21 — Active Effects | ✅ Done | `3669275` |
-| 22–36 | Not started | — |
+| 22 — Canvas & Scene Placeables | ✅ Done | `4d2a48a` |
+| 23 — Permissions & Ownership | ✅ Done | `4d2a48a` |
+| 24 — File/Asset Management | ✅ Done | `4d2a48a` |
+| 25–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -565,6 +568,80 @@ its own before moving to the next.
   handler; flagged for a live smoke-test (creating/toggling/deleting a real
   ActiveEffect on both an Actor and an owned Item) whenever a Foundry
   instance is available.
+- Phase 22 is the first Batch A phase, worked sequentially in one sitting
+  rather than in parallel (the batching in "Execution Batching" above exists
+  to bound merge-conflict risk when phases run as separate parallel agents;
+  working them one after another in a single session makes that risk moot,
+  but the phase boundaries and independent-file ownership still held).
+- Phase 22 has six placeable document types (Drawing, Note, AmbientLight,
+  AmbientSound, Wall, MeasuredTemplate) all embedded on the same parent
+  (Scene) — the mirror image of Phase 21's ActiveEffect (one embedded type,
+  two possible parents). So it defines one factory,
+  `makeEmbeddedPlaceableEndpoints({documentType, routeBase, toolPrefix})`
+  (`server/src/endpoints/placeables.ts`), called once per placeable type,
+  with `documentType` baked in via closure — the same shape as Phase 21's
+  `makeEmbeddedEffectEndpoints()` with the axis of variation flipped.
+- Module-side, Phase 22 resolves each placeable type's embedded collection
+  generically via a new `FoundryScene#getEmbeddedCollection(embeddedName)`
+  ambient method (`module/src/types/foundry-globals.d.ts`) rather than
+  hand-naming all six of Scene's actual collection properties (`drawings`/
+  `notes`/`lights`/`sounds`/`walls`/`templates`) — Foundry's own Document API
+  already exposes this generic accessor, and using it means adding a
+  placeable type later needs no new per-type property mapping.
+- The camera pan/zoom extra PLAN.md's Phase 22 text calls for is
+  scene-independent (it pans whatever the connected client currently has
+  rendered, via Foundry's own `canvas.animatePan()`), so it's a single
+  `POST /api/canvas/pan {x?, y?, scale?}` endpoint rather than nested under
+  any one scene's route. It throws if no canvas is currently active (no
+  scene being viewed) rather than silently no-opping.
+- Phase 22 reconfirmed the `exactOptionalPropertyTypes` convention Phase
+  14/18 established: an optional field on a shared payload interface must be
+  typed `field?: T | undefined`, not just `field?: T`, or the zod schema
+  that backs it fails to type-check against it.
+- Phase 23's document-ownership extra is generic across document type, like
+  Phase 19's folder-move, but unlike folder-move it fits a natural resource
+  path — so it introduces the first cross-document-type REST route base,
+  `/api/documents/:documentType/:documentId/ownership`, with `documentType`
+  as a path segment rather than a body field. No new ambient module-side
+  surface was needed: ownership is just the standard `ownership` field
+  already covered by `FoundryDocument#toObject()`/`update()`.
+- Phase 23 reads PLAN.md's "world permission levels per user" narrowly, as a
+  User document's own `role` field (`CONST.USER_ROLES`), exposed as
+  `GET/PUT /api/users/:userId/role` — not full User CRUD, which PLAN.md's
+  own Phase 25 text calls for separately. Consistent with Phase 16/17/19's
+  precedent of reading a phase's own wording narrowly. This needed one new
+  ambient method, `FoundryUser#update()` (a User is itself a Document, so
+  setting `role` is the same generic `.update(changes)` every other
+  document-specific interface already exposes).
+- Phase 24's upload endpoint carries file content as base64 in the JSON
+  body — the bridge protocol (`shared/src/protocol.ts`) is JSON-only end to
+  end, with no multipart/binary channel, so this was the only option without
+  redesigning the transport. The module decodes it into a real `File` before
+  handing it to Foundry's own `FilePicker.upload()`. This pushed the
+  default 100kb `express.json()` body limit (`server/src/app.ts`) up to
+  50mb — too small a limit would make the endpoint unusable for realistic
+  image/audio assets (base64 already inflates size ~33%), and Foundry's own
+  server still enforces its real upload rules (extension allow-list, size
+  caps, per-source permissions) independently of this limit.
+- Phase 24 is a thin pass-through to Foundry's own `FilePicker` static class
+  (browse/upload/createDirectory) — no attempt was made to reimplement
+  Foundry's upload security model client- or server-side, consistent with
+  the phase's own "respecting Foundry's upload security model" wording
+  meaning "don't bypass it," not "reimplement it here."
+- Phase 24 added the `FilePicker` ambient class
+  (`module/src/types/foundry-globals.d.ts`) — the second ambient declaration
+  in this file that isn't a Document/collection shape (after Phase 14's
+  `Roll`).
+- Phases 22–24's tests all cover their descriptors directly against a mocked
+  Express app + fake `FoundryClient`, the same integration-test template
+  every phase since Phase 20 uses. Same untested-against-a-live-instance
+  caveat as every phase since 6 applies to all three new module-side
+  handlers (`module/src/commands/placeables.ts`,
+  `module/src/commands/permissions.ts`, `module/src/commands/files.ts`);
+  flagged for a live smoke-test (placeable CRUD and camera pan against a
+  real scene, ownership get/set and a role change against a real user, and
+  a real file browse/upload/directory-create against a running Foundry data
+  directory) whenever a Foundry instance is available.
 
 ---
 
@@ -686,6 +763,35 @@ its own before moving to the next.
 
 ## Phase 21 — Active Effects
 - CRUD on embedded `ActiveEffect`s for actors/items
+
+## Execution Batching (Phases 22–36)
+
+Phases 22–28 are mutually independent domain additions — each owns its own
+`shared/`, `server/src/endpoints/`, and `module/src/commands/` files,
+following the same self-contained pattern proven in Phases 9–21. They don't
+depend on each other's output, but they all register into the same shared
+aggregator files (`allEndpointDescriptors`, the MCP registry index,
+`foundry-globals.d.ts`), so working them fully in parallel risks merge
+conflicts on those files. To keep that manageable, they're batched in chunks
+of 3:
+
+- **Batch A:** 22 (Canvas & Scene Placeables), 23 (Permissions & Ownership),
+  24 (File/Asset Management)
+- **Batch B:** 25 (Users & Client State), 26 (Hooks/Event Streaming), 27
+  (Localization & Misc Utilities)
+- **Batch C:** 28 (Bulk/Batch & Query Endpoints) — leftover single phase
+
+Phases 29–31 (Security Review, Documentation & Packaging, Test Suite & CI)
+run **sequentially, in that order, after Batches A–C all land** — each needs
+the full core endpoint surface (all of Phases 8–28) to audit, document, or
+test against.
+
+Phases 32–36 (Part 2) form a **strict dependency chain** — 32 → 33 → 34 → 35
+→ 36 — and cannot be batched or parallelized: each phase's code requires the
+previous phase's code to exist (the integration framework before the
+manifest convention, the framework + convention before dnd5e detection, the
+dnd5e read-only slice before dnd5e actions, both dnd5e phases before the
+template extraction).
 
 ## Phase 22 — Canvas & Scene Placeables
 - Drawings, Notes, AmbientLight, AmbientSound, Wall, MeasuredTemplate CRUD
