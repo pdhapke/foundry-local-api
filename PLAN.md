@@ -47,7 +47,7 @@ its own before moving to the next.
 | 7 — Settings Read/Write | ✅ Done | `c7dfa86` |
 | 8 — Generic Document CRUD Core | ✅ Done | `e03d360` |
 | 9 — Actors | ✅ Done | `9ee8cfb` |
-| 10 — Items | ✅ Done | — |
+| 10 — Items | ✅ Done | `22e7a8e` |
 | 11 — Scenes | ⏳ Next up | — |
 | 12–36 | Not started | — |
 
