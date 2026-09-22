@@ -62,7 +62,10 @@ its own before moving to the next.
 | 22 — Canvas & Scene Placeables | ✅ Done | `4d2a48a` |
 | 23 — Permissions & Ownership | ✅ Done | `4d2a48a` |
 | 24 — File/Asset Management | ✅ Done | `4d2a48a` |
-| 25–36 | Not started | — |
+| 25 — Users & Client State | ✅ Done | `3717107` |
+| 26 — Hooks/Event Streaming | ✅ Done | `3717107` |
+| 27 — Localization & Misc Utilities | ✅ Done | `3717107` |
+| 28–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -642,6 +645,162 @@ its own before moving to the next.
   real scene, ownership get/set and a role change against a real user, and
   a real file browse/upload/directory-create against a running Foundry data
   directory) whenever a Foundry instance is available.
+- Phase 25 (Batch B) did not re-implement `GET /api/users` (list): it already
+  exists as `foundry_list_users` from Phase 6's read-only enumeration.
+  Re-registering it would either collide with Phase 6's route (Express: first
+  registered handler wins) or need a duplicate MCP tool name (`registerTool`
+  throws on a name collision) — so "User CRUD" here is get-by-id/create/
+  update/delete only (`shared/src/users.ts`'s `USER_COMMANDS`,
+  `server/src/endpoints/users.ts`, `module/src/commands/users.ts`), list
+  stays Phase 6's. The get-by-id tool is named `foundry_get_user_by_id`, not
+  `foundry_get_user` — that name is already taken by Phase 6's "current
+  connected user" descriptor (`GET /api/user`, no id).
+- Phase 25's create/update/delete are GM-only, enforced module-side
+  (`requireGM()` throwing a plain `Error`, turned into a `HANDLER_ERROR` 500
+  by the existing bridge-error plumbing) — same convention as Phase 7's
+  world-scope settings write, since the server has no notion of which
+  Foundry user is making a request beyond the single static API key. User
+  creation needed no new ambient "static creator" declaration:
+  `CONFIG.User.documentClass` already exists via Phase 8's generic `CONFIG`
+  surface (User is a regular registered Document type in real Foundry, same
+  as Actor/Item/etc.).
+- Phase 25's canvas selection (`GET /api/canvas/selection`) is read-only and
+  scene-independent, a direct sibling of Phase 22's `/api/canvas/pan` — same
+  "no active canvas" thrown-error precedent. It returns `{sceneId,
+  tokenIds}`, reading `canvas.tokens.controlled` (Token placeables) and
+  mapping each to its underlying `.document.id` (TokenDocument), not the
+  placeable's own `.id`. This needed a new `FoundryPlaceable` ambient
+  interface (`id`/`document`) and widened the ambient `canvas` type with
+  `scene`/`tokens.controlled` (`module/src/types/foundry-globals.d.ts`). User
+  targeting (`game.user.targets`) was deliberately skipped — PLAN.md's own
+  Phase 25 wording anchors "current selection/targeting" specifically to the
+  parenthetical `canvas.tokens.controlled`, and adding targeting would mean a
+  second, differently-shaped (`Set`-based, per-user) ambient surface for
+  something the phase text doesn't distinctly ask for.
+- Phase 27 (Batch B) wraps both `game.i18n.localize(key)` and
+  `game.i18n.format(key, data)` behind one `GET /api/localize`
+  (`shared/src/localization.ts`, `server/src/endpoints/localization.ts`,
+  `module/src/commands/localization.ts`), branching module-side on whether
+  `data` is present — one action with an optional interpolation payload,
+  consistent with Phase 16's roll-initiative branching precedent, rather than
+  two separate tools. This needed the first ambient `game.i18n` declaration
+  (`GameI18n` interface: `localize`/`format`/`has`) in
+  `module/src/types/foundry-globals.d.ts`.
+- Phase 27's `/api/localize` hit a real Express 5 gotcha: this project's
+  Express version defaults to the "simple" query parser (plain Node
+  `querystring`), not Express 4's `qs`-backed "extended" parser, so
+  bracket-notation (`data[name]=Bob`) does not nest into an object on `GET`.
+  Fixed by carrying `data` as a JSON-encoded string in the query param
+  instead, parsed via a zod `.transform()` that raises a proper 400
+  (`ctx.addIssue`) on malformed JSON rather than a raw parse-time 500 — this
+  is the pattern any future GET endpoint needing a structured query value
+  should copy.
+- Phase 27's HTML enrichment (`POST /api/enrich-html`) is a thin pass-through
+  to Foundry's `TextEditor.enrichHTML(content)` — `{content}` in, `{html}`
+  out, no `options` passthrough, since PLAN.md's own wording is just "HTML
+  enrichment," not "with full options control." This is the third
+  non-Document/collection ambient declaration in `foundry-globals.d.ts`
+  (after Phase 14's `Roll` and Phase 24's `FilePicker`), a hand-rolled
+  minimal `TextEditor` class with just `static enrichHTML()`.
+- Phase 27's "in-world search, if applicable" was implemented, not skipped:
+  `GET /api/search?query=...&types=Actor,Item` (types optional,
+  comma-separated, defaults to every `game.collections` entry), doing
+  case-insensitive substring matching against each document's
+  `toObject().name`. This needed zero new ambient declarations — it resolves
+  entirely off the already-declared generic `game.collections`/
+  `FoundryDocument` surface from Phase 8. Foundry's real `SearchFilter` class
+  was deliberately rejected as the basis: it's a UI-focused utility built for
+  the sidebar's live filter box, not a clean queryable API, matching the risk
+  the plan's own "if applicable" hedge was flagging.
+- Phase 26 (Batch B) is the first phase where the *module* pushes unsolicited
+  data to the server, rather than only replying to a server-initiated
+  `FoundryClient.call()`. The bridge protocol
+  (`shared/src/protocol.ts`) gained `BridgeEventMessage<TPayload>` — a
+  `{kind: "event", event, payload}` shape distinguished from
+  `BridgeRequest`/`BridgeResponse` by the `kind` field neither of those has
+  ever carried, so detection in `FoundryClient.handleMessage()`
+  (`server/src/bridge/foundry-client.ts`) is unambiguous with no schema
+  versioning needed. `FoundryClient` gained `onEvent(listener): () =>
+  void`, a `Set`-based listener registry mirroring
+  `BridgeGateway.onMessage`/`onConnectionLost`
+  (`server/src/bridge/gateway.ts`), checked before the existing
+  response-shape parsing so normal request/response handling is untouched.
+- Phase 26's server-side event fan-out is a new dependency-free
+  `FoundryEventBus` (`server/src/events/event-bus.ts`): `publish`/
+  `subscribe` (returns an unsubscribe fn) for live listeners, plus a
+  200-entry ring buffer read via `recent(limit?)` for polling. It's wired in
+  `server/src/index.ts` (`foundryClient.onEvent(...) → eventBus.publish(...)`)
+  and stashed on `app.locals["eventBus"]`, resolved per-request the same way
+  `foundryClient` already is (`server/src/endpoints/registry.ts`'s documented
+  convention) — deliberately NOT added to `CreateAppOptions`
+  (`server/src/app.ts`), which would have forced every one of the ~20
+  existing `*.test.ts` files' `createApp({...})` calls to change.
+  `EndpointContext.eventBus` (`server/src/endpoints/types.ts`) is optional
+  for the same reason.
+- Phase 26's REST side, `GET /api/events` (SSE), doesn't fit the
+  `EndpointDescriptor` pattern (a descriptor handler runs once and
+  `res.json()`s its result; SSE holds the connection open and `res.write()`s
+  repeatedly) — hand-rolled in `server/src/endpoints/events-sse.ts` and
+  mounted directly on `apiRouter` in `server/src/routes/api.ts`, after
+  `mountRestEndpoints()`, the same "pattern doesn't fit, hand-roll instead"
+  precedent as `/health` and Phase 20's pack routing. It still runs behind
+  the `/api` mount's CORS/rate-limit/auth chain since it shares `apiRouter`.
+  The handler function is exported standalone specifically so it's
+  unit-testable against fake req/res objects — a genuinely open SSE response
+  never resolves a normal supertest request, so no live-streaming supertest
+  assertion was attempted (`server/src/endpoints/events-sse.test.ts`).
+- Phase 26's MCP side reads PLAN.md's "subscribable resource/notification
+  stream" narrowly, as a plain descriptor-pattern polling tool
+  (`foundry_get_recent_events`, `GET /api/events/recent?limit=N`,
+  `server/src/endpoints/events.ts`) rather than true MCP resource
+  subscriptions: the installed `@modelcontextprotocol/sdk@1.30.0` has
+  `registerResource()`/`sendResourceUpdated()`/`sendResourceListChanged()`
+  but implements no `resources/subscribe`/`unsubscribe` request handling at
+  either the `McpServer` or low-level `Server` layer (verified against its
+  `.d.ts` files) — real subscriptions would mean hand-rolling protocol-level
+  request handlers, a materially larger change than this phase's own
+  "if applicable"-adjacent scope warrants, consistent with the project's
+  precedent (Phase 15/21/22) of preferring a working, well-tested narrower
+  solution. `shared/src/events.ts` is the first shared domain file with no
+  `*_COMMANDS` map: recent events are read straight off the server-side
+  `FoundryEventBus`, never round-tripped through the bridge — the first
+  server-only (not module-backed) endpoint in the codebase.
+- Phase 26's module-side hook forwarding lives at `module/src/hooks.ts`, not
+  under `commands/`: every file in `commands/` registers inbound
+  `BridgeRequest` handlers via `command-registry.ts`'s `dispatch()`; this
+  file only originates outbound pushes and never participates in `dispatch()`.
+  `registerHookForwarding(client)` is called once from `module/src/index.ts`'s
+  `ready` hook, right after constructing the `BridgeClient` — inversion of
+  control was preferred over exporting the client instance, keeping the diff
+  to `index.ts`'s `ready` hook body to one line. `module/src/bridge-client.ts`
+  gained a public `sendEvent(event, payload)`, a sibling to the existing
+  private `send()`, mirroring its readyState-check idiom.
+- Phase 26's curated hook list is `createActor/updateActor/deleteActor`,
+  `createItem/updateItem/deleteItem`, `createToken/updateToken/deleteToken`,
+  `createChatMessage` — narrow and explicit, consistent with Phase 16/17/19's
+  precedent of not building out every related hook/method. PLAN.md's own
+  wording names `chatMessage` as an example, but that isn't a real Foundry
+  hook name; `createChatMessage` (ChatMessage is a regular lifecycle-hooked
+  Document) is the real equivalent, used instead. Hook callback args are
+  normalized via a `toObject()` duck-type check before forwarding, matching
+  every `module/src/commands/*.ts` handler's existing convention of returning
+  `.toObject()` rather than raw Document instances.
+- Phases 25–27's tests all cover their descriptors directly against a mocked
+  Express app + fake `FoundryClient`, the same integration-test template
+  every phase since Phase 20 uses; Phase 26 additionally adds
+  `server/src/bridge/foundry-client.test.ts` (new — none existed before this
+  phase, covering both the pre-existing `call()`/response-handling behavior
+  and the new `onEvent` behavior) and a standalone `FoundryEventBus` unit
+  test with no Express involved. Same untested-against-a-live-Foundry-instance
+  caveat as every phase since 6 applies to all four new module-side handlers
+  (`module/src/commands/users.ts`, `module/src/commands/localization.ts`,
+  `module/src/hooks.ts`, and `module/src/bridge-client.ts`'s new `sendEvent`);
+  flagged for a live smoke-test (GM-gated user CRUD, canvas selection, a real
+  localization key with/without interpolation data, a real `@UUID[...]`
+  content-link enrichment, a search across a populated world, and real hook
+  firings — actor/item/token create/update/delete, a chat message — actually
+  reaching a connected SSE client and the `foundry_get_recent_events` tool)
+  whenever a Foundry instance is available.
 
 ---
 
