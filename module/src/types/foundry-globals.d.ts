@@ -65,6 +65,13 @@
 // shape Phase 9/10 gave `FoundryActor` for Items and Phase 11/12 gave
 // `FoundryScene` for Tokens. Combat CRUD itself uses the generic
 // `FoundryDocument`/`FoundryDocumentClass` shapes above unchanged.
+//
+// Phase 17 added `FoundryPlaylist` (`playSound()`/`stopSound()`, embedded
+// `sounds`) and `FoundryPlaylistSound` (`playing`/`pausedTime` plus the
+// underlying `sound.currentTime` used to implement pause) to back the
+// playlist-specific command handlers (module/src/commands/playlists.ts).
+// Playlist CRUD itself uses the generic `FoundryDocument`/
+// `FoundryDocumentClass` shapes above unchanged.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -204,6 +211,24 @@ interface FoundryCombat extends FoundryDocument {
     embeddedName: string,
     data: Record<string, unknown>[],
   ): Promise<FoundryDocument[]>;
+}
+
+/** A loaded PlaylistSound document — the `FoundryDocument` subset plus the playback state Phase 17 drives. */
+interface FoundryPlaylistSound extends FoundryDocument {
+  playing: boolean;
+  pausedTime: number | null;
+  /** The underlying Web Audio helper backing playback, present once the sound has been loaded. */
+  sound?: { currentTime: number } | null;
+}
+
+/** A loaded Playlist document — the `FoundryDocument` subset plus the play/stop API Phase 17 drives. */
+interface FoundryPlaylist extends FoundryDocument {
+  /** Starts playback of one embedded sound, managing which others keep playing. */
+  playSound(sound: FoundryPlaylistSound): Promise<FoundryPlaylist>;
+  /** Stops playback of one embedded sound. */
+  stopSound(sound: FoundryPlaylistSound): Promise<FoundryPlaylist>;
+  /** The playlist's embedded PlaylistSound documents. */
+  sounds: Map<string, FoundryPlaylistSound>;
 }
 
 /** One die term's individual roll results within an evaluated `Roll` (e.g. a `2d6` roll's two dice). */

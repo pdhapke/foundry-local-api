@@ -79,3 +79,6 @@ export type {
   CombatRemoveCombatantInput,
   CombatRollInitiativeInput,
 } from "./combats.js";
+
+export { PLAYLIST_COMMANDS } from "./playlists.js";
+export type { PlaylistSoundIdInput } from "./playlists.js";

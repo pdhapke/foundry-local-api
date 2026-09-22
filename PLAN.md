@@ -54,7 +54,8 @@ its own before moving to the next.
 | 14 — Dice Rolling & Chat Messages | ✅ Done | `844df5f` |
 | 15 — Macros | ✅ Done | `43ef417` |
 | 16 — Combat & Combat Tracker | ✅ Done | `7f1ee21` |
-| 17–36 | Not started | — |
+| 17 — Playlists & Audio | ✅ Done | _pending commit_ |
+| 18–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -359,6 +360,44 @@ its own before moving to the next.
   smoke-test (starting a real encounter, turn/round advancement, and
   initiative rolling against a connected system) whenever a Foundry instance
   is available.
+- Phase 17 needed no new work for Playlist CRUD itself: it reuses the Phase 8
+  `makeDocumentEndpoints()` factory with `documentType: "Playlist"`, identical
+  to JournalEntry/Actor/Item/Scene/Macro/Combat. The extras PLAN.md's Phase 17
+  text calls for (play/stop/pause sound) are hand-rolled in new `shared/src/
+  playlists.ts` (`PLAYLIST_COMMANDS`), `server/src/endpoints/playlists.ts`,
+  and `module/src/commands/playlists.ts`, following the same "factory +
+  extras" shape Phases 9/11/15/16 established. PLAN.md's wording is "play/
+  stop/pause sound" (singular), so only single-sound operations were added —
+  no `playAll`/`stopAll`, consistent with Phase 16's narrow reading of its own
+  "add/remove combatant" wording.
+- Foundry's `Playlist` class only exposes `playSound()`/`stopSound()`
+  (confirmed against the current Foundry API docs) — there is no dedicated
+  "pause" method. Foundry's own playlist sidebar implements pausing as a
+  plain `PlaylistSound#update()` that flips `playing` to `false` and records
+  the sound's current position in `pausedTime`, which a later `playSound()`
+  resumes from; Phase 17's pause handler
+  (`module/src/commands/playlists.ts`) replicates that directly rather than
+  inventing new Foundry API surface.
+- All three extras return the affected embedded `PlaylistSound`'s own
+  `toObject()` (not the parent Playlist's), even though `playSound()`/
+  `stopSound()` themselves resolve with the updated Playlist — re-reading the
+  specific sound off the playlist's `sounds` map after the call keeps the
+  return shape consistent across all three extras (a caller asked about one
+  sound gets that sound back), consistent with how every embedded-create
+  descriptor since Phase 10 returns the created child, not the parent.
+- Phase 17 added `FoundryPlaylist` (`playSound()`/`stopSound()`, embedded
+  `sounds`) and `FoundryPlaylistSound` (`playing`/`pausedTime`/the underlying
+  `sound.currentTime`) to `module/src/types/foundry-globals.d.ts`, layered on
+  the generic `FoundryDocument` shape same as every other document-specific
+  interface since Phase 9 — no other new ambient surface was needed.
+- Phase 17's tests cover all three extras directly (play/stop/pause) plus a
+  smoke check that `playlistEndpointDescriptors` mounts CRUD under
+  `/api/playlists` — base CRUD itself is already proven generic by Phase 8's
+  tests. Same untested-against-a-live-instance caveat as Phases 6–16 applies
+  to the module-side handler (`module/src/commands/playlists.ts`); flagged
+  for a live smoke-test (play/stop/pause against a real playlist, including
+  verifying `pausedTime` actually resumes correctly) whenever a Foundry
+  instance is available.
 
 ---
 

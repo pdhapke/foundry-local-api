@@ -10,6 +10,7 @@ import { itemEndpointDescriptors } from "./items.js";
 import { journalPageEndpointDescriptors } from "./journal-pages.js";
 import { macroEndpointDescriptors } from "./macros.js";
 import { metaEndpointDescriptors } from "./meta.js";
+import { playlistEndpointDescriptors } from "./playlists.js";
 import { rollEndpointDescriptors } from "./rolls.js";
 import { sceneEndpointDescriptors } from "./scenes.js";
 import { settingsEndpointDescriptors } from "./settings.js";
@@ -30,6 +31,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...chatEndpointDescriptors,
   ...macroEndpointDescriptors,
   ...combatEndpointDescriptors,
+  ...playlistEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";
