@@ -20,6 +20,8 @@ import "./commands/items.js";
 import "./commands/scenes.js";
 import "./commands/tokens.js";
 import "./commands/journal-pages.js";
+import "./commands/rolls.js";
+import "./commands/chat.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

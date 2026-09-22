@@ -47,6 +47,12 @@
 // `FoundryActor`/`FoundryScene` for their own embedded collections.
 // JournalEntry CRUD itself uses the generic `FoundryDocument`/
 // `FoundryDocumentClass` shapes above unchanged.
+//
+// Phase 14 added the `Roll` class (module/src/commands/rolls.ts) — the first
+// ambient declaration in this file that isn't a Document/collection shape.
+// Chat messages needed no new declarations at all: `ChatMessage` is a
+// regular document type, already covered by Phase 8's generic
+// `game.collections`/`CONFIG` surface (module/src/commands/chat.ts).
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -157,6 +163,23 @@ interface FoundryJournalEntry extends FoundryDocument {
     embeddedName: string,
     data: Record<string, unknown>[],
   ): Promise<FoundryDocument[]>;
+}
+
+/** One die term's individual roll results within an evaluated `Roll` (e.g. a `2d6` roll's two dice). */
+interface FoundryDieTerm {
+  faces: number;
+  results: Array<{ result: number; active: boolean }>;
+}
+
+/** Foundry's dice-rolling engine — the subset of its API Phase 14 drives. */
+declare class Roll {
+  constructor(formula: string, data?: Record<string, unknown>);
+  formula: string;
+  total: number;
+  /** The resolved expression with each die replaced by its rolled value, e.g. "(4 + 2)". */
+  result: string;
+  dice: FoundryDieTerm[];
+  evaluate(): Promise<Roll>;
 }
 
 declare const game: {

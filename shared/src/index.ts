@@ -62,3 +62,9 @@ export type {
   JournalPageCreateInput,
   JournalPageUpdateInput,
 } from "./journal-pages.js";
+
+export { ROLL_COMMANDS } from "./rolls.js";
+export type { RollEvaluateInput, RollDieResult, RollEvaluateResult } from "./rolls.js";
+
+export { CHAT_COMMANDS } from "./chat.js";
+export type { ChatListInput, ChatSendInput, ChatMessageData } from "./chat.js";
