@@ -23,7 +23,7 @@ import { ZodObject, type ZodRawShape } from "zod";
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { FoundryBridgeError, foundryBridgeErrorToHttpError } from "../bridge/errors.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
-import type { EndpointContext, EndpointDescriptor } from "./types.js";
+import type { AnyEndpointDescriptor, EndpointContext, EndpointDescriptor } from "./types.js";
 
 /**
  * Mounts every descriptor that supplies both `method` and `path` as a real
@@ -31,7 +31,7 @@ import type { EndpointContext, EndpointDescriptor } from "./types.js";
  * `foundry_status`) are skipped here entirely — they only ever become MCP
  * tools.
  */
-export function mountRestEndpoints(router: Router, descriptors: EndpointDescriptor[]): void {
+export function mountRestEndpoints(router: Router, descriptors: AnyEndpointDescriptor[]): void {
   for (const descriptor of descriptors) {
     if (descriptor.method && descriptor.path) {
       registerRestRoute(descriptor, descriptor.method, descriptor.path, router);
@@ -100,7 +100,7 @@ function registerRestRoute<TInput, TResult>(
  */
 export function registerMcpTools(
   mcpServer: McpServer,
-  descriptors: EndpointDescriptor[],
+  descriptors: AnyEndpointDescriptor[],
   foundryClient: FoundryClient,
 ): void {
   const ctx: EndpointContext = { foundryClient };

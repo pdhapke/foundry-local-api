@@ -9,6 +9,9 @@
 // meta/introspection command handlers (module/src/commands/meta.ts) — still
 // hand-rolled, still deliberately minimal, not the community package (see
 // PLAN.md's Phase 6 deviations note for why).
+//
+// Phase 7 added `GameSettings#set` to back the settings write command
+// handler (module/src/commands/settings.ts).
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -32,12 +35,9 @@ declare namespace ClientSettings {
 }
 
 interface GameSettings {
-  register<T>(
-    namespace: string,
-    key: string,
-    data: ClientSettings.RegisterOptions<T>,
-  ): void;
+  register<T>(namespace: string, key: string, data: ClientSettings.RegisterOptions<T>): void;
   get<T>(namespace: string, key: string): T;
+  set<T>(namespace: string, key: string, value: T): Promise<T>;
   /** Every registered setting, keyed `"${namespace}.${key}"` (Foundry v10+). */
   settings: Map<string, ClientSettings.RegisteredSetting>;
 }

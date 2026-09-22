@@ -3,11 +3,13 @@
 // own descriptor array here.
 import { healthEndpointDescriptor } from "./health.js";
 import { metaEndpointDescriptors } from "./meta.js";
-import type { EndpointDescriptor } from "./types.js";
+import { settingsEndpointDescriptors } from "./settings.js";
+import type { AnyEndpointDescriptor } from "./types.js";
 
-export const allEndpointDescriptors: EndpointDescriptor[] = [
+export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   healthEndpointDescriptor,
   ...metaEndpointDescriptors,
+  ...settingsEndpointDescriptors,
 ];
 
-export type { EndpointContext, EndpointDescriptor } from "./types.js";
+export type { AnyEndpointDescriptor, EndpointContext, EndpointDescriptor } from "./types.js";

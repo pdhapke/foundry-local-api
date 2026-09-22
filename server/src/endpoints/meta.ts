@@ -13,7 +13,7 @@ import {
   type WorldInfo,
 } from "@foundry-local-api/shared";
 
-import type { EndpointDescriptor } from "./types.js";
+import type { AnyEndpointDescriptor, EndpointDescriptor } from "./types.js";
 
 const statusDescriptor: EndpointDescriptor<void, StatusResult> = {
   name: "foundry_get_status",
@@ -75,7 +75,7 @@ const settingsDescriptor: EndpointDescriptor<void, SettingInfo[]> = {
     foundryClient.call<undefined, SettingInfo[]>(META_COMMANDS.SETTINGS),
 };
 
-export const metaEndpointDescriptors: EndpointDescriptor[] = [
+export const metaEndpointDescriptors: AnyEndpointDescriptor[] = [
   statusDescriptor,
   worldDescriptor,
   systemDescriptor,

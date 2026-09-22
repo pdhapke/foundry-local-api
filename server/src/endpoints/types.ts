@@ -31,3 +31,16 @@ export interface EndpointDescriptor<TInput = void, TResult = unknown> {
   method?: "get" | "post" | "put" | "delete";
   path?: string;
 }
+
+/**
+ * A descriptor with its concrete `TInput`/`TResult` erased. Every collection
+ * that holds descriptors of differing input/result types side by side
+ * (`allEndpointDescriptors`, and the `mountRestEndpoints`/`registerMcpTools`
+ * parameters that consume it) needs this: TypeScript's structural checking
+ * of `inputSchema: ZodType<TInput>` is effectively invariant in `TInput`
+ * under `exactOptionalPropertyTypes`, so a bare `EndpointDescriptor[]`
+ * (defaulting to `EndpointDescriptor<void, unknown>`) only accepts
+ * void-input descriptors — first hit in Phase 7, whose settings descriptors
+ * are the first with a real (non-void) input type.
+ */
+export type AnyEndpointDescriptor = EndpointDescriptor<any, any>;

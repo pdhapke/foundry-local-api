@@ -13,6 +13,7 @@ import {
 } from "./bridge-client.js";
 import "./command-registry.js";
 import "./commands/meta.js";
+import "./commands/settings.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

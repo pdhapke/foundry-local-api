@@ -18,3 +18,6 @@ export type {
   ModuleInfo,
   SettingInfo,
 } from "./meta.js";
+
+export { SETTINGS_COMMANDS } from "./settings.js";
+export type { GetSettingInput, SetSettingInput, SettingValue } from "./settings.js";
