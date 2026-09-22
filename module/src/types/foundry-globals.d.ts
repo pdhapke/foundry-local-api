@@ -150,6 +150,16 @@
 // forwarding registration (module/src/hooks.ts). `Hooks.once`'s signature is
 // unchanged: every existing caller (`init`/`ready`) uses it with a
 // zero-arg callback and no phase has needed otherwise.
+//
+// Phase 28 added `createDocuments()`/`updateDocuments()`/`deleteDocuments()`
+// static methods to `FoundryDocumentClass` to back the generic batch command
+// handlers (module/src/commands/bulk.ts) — Foundry's own native bulk-CRUD
+// API, the same class Phase 8's single `create()` already lives on. Using
+// these instead of looping N individual `.create()`/`.update()`/`.delete()`
+// calls is the actual point of Phase 28: one bridge round-trip and one
+// Foundry hook cycle per batch, not N. The query command needed no new
+// ambient surface at all: it resolves entirely off Phase 8's existing
+// `game.collections`/`FoundryDocument#toObject()` shapes.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -223,6 +233,18 @@ interface FoundryDocumentClass {
     data: Record<string, unknown>,
     options?: Record<string, unknown>,
   ): Promise<FoundryDocument | undefined>;
+  /** Creates many documents of this type in one call — Foundry's native bulk-create API. */
+  createDocuments(
+    data: Record<string, unknown>[],
+    options?: Record<string, unknown>,
+  ): Promise<FoundryDocument[]>;
+  /** Updates many documents of this type in one call — each entry must carry its target's `_id`. */
+  updateDocuments(
+    updates: (Record<string, unknown> & { _id: string })[],
+    options?: Record<string, unknown>,
+  ): Promise<FoundryDocument[]>;
+  /** Deletes many documents of this type by id in one call, returning the ids actually deleted. */
+  deleteDocuments(ids: string[], options?: Record<string, unknown>): Promise<string[]>;
 }
 
 /** A loaded Actor document — the `FoundryDocument` subset plus the actor-specific API Phase 9 drives. */

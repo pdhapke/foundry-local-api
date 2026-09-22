@@ -23,7 +23,7 @@ import {
 
 import { registerCommand } from "../command-registry.js";
 
-function requireCollection(documentType: string): Map<string, FoundryDocument> {
+export function requireCollection(documentType: string): Map<string, FoundryDocument> {
   const collection = game.collections.get(documentType);
   if (!collection) {
     throw new Error(`Unknown document type "${documentType}"`);
@@ -39,7 +39,7 @@ function requireDocument(documentType: string, id: string): FoundryDocument {
   return doc;
 }
 
-function requireDocumentClass(documentType: string): FoundryDocumentClass {
+export function requireDocumentClass(documentType: string): FoundryDocumentClass {
   const cls = CONFIG[documentType]?.documentClass;
   if (!cls) {
     throw new Error(`Unknown document type "${documentType}"`);

@@ -36,6 +36,7 @@ import "./commands/permissions.js";
 import "./commands/files.js";
 import "./commands/users.js";
 import "./commands/localization.js";
+import "./commands/bulk.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

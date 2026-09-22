@@ -33,6 +33,16 @@ export type {
   DocumentDeleteResult,
 } from "./documents.js";
 
+export { BULK_COMMANDS } from "./bulk.js";
+export type {
+  DocumentQueryInput,
+  DocumentBatchCreateInput,
+  DocumentBatchUpdateEntry,
+  DocumentBatchUpdateInput,
+  DocumentBatchDeleteInput,
+  DocumentBatchDeleteResult,
+} from "./bulk.js";
+
 export { ACTOR_COMMANDS } from "./actors.js";
 export type { ActorIdInput, ActorRollData } from "./actors.js";
 
