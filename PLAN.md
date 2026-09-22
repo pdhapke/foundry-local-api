@@ -46,8 +46,9 @@ its own before moving to the next.
 | 6 — Core Meta/Introspection Endpoints | ✅ Done | `2b1ab95` |
 | 7 — Settings Read/Write | ✅ Done | `c7dfa86` |
 | 8 — Generic Document CRUD Core | ✅ Done | `e03d360` |
-| 9 — Actors | ⏳ Next up | — |
-| 10–36 | Not started | — |
+| 9 — Actors | ✅ Done | `9ee8cfb` |
+| 10 — Items | ⏳ Next up | — |
+| 11–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -118,6 +119,25 @@ its own before moving to the next.
   `game.collections`/`CONFIG` object; flagged for a live smoke-test
   (starting with `JournalEntry` CRUD) whenever a Foundry instance is
   available.
+- Phase 9 did not add any new commands for Actor CRUD itself — it calls the
+  same generic `makeDocumentEndpoints()` factory Phase 8 built, with
+  `documentType: "Actor"`, identical to how `JournalEntry` is wired. Only
+  the two actor-specific extras (`GET /api/actors/:id/roll-data`,
+  `GET /api/actors/:id/items`) needed new commands (`shared/src/actors.ts`'s
+  `ACTOR_COMMANDS`), since `Actor#getRollData()` and the embedded `items`
+  collection aren't part of the generic `Document` shape Phase 8 modeled.
+- Phase 9 extended `module/src/types/foundry-globals.d.ts` with a minimal
+  `FoundryActor` interface (`getRollData()` + `items: Map<string,
+  FoundryDocument>`) layered on top of Phase 8's generic `FoundryDocument`,
+  same hand-rolled/minimal approach as every earlier phase's globals.
+- Phase 9's tests only cover the two new extras plus one smoke check that
+  `actorEndpointDescriptors` mounts CRUD under `/api/actors` — full CRUD
+  behavior is already proven generic by Phase 8's
+  `makeDocumentEndpoints()` tests and isn't re-tested per document type.
+  Same untested-against-a-live-instance caveat as Phases 6–8 applies to the
+  module-side handlers (`module/src/commands/actors.ts`); flagged for a live
+  smoke-test (roll data and items against a real system like dnd5e)
+  whenever a Foundry instance is available.
 
 ---
 
