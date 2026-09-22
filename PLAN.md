@@ -50,7 +50,7 @@ its own before moving to the next.
 | 10 — Items | ✅ Done | `22e7a8e` |
 | 11 — Scenes | ✅ Done | `ea2f434` |
 | 12 — Tokens (scene-embedded) | ✅ Done | `12b21e7` |
-| 13 — Journal Entries & Pages | ✅ Done | — |
+| 13 — Journal Entries & Pages | ✅ Done | `246c09e` |
 | 14 — Dice Rolling & Chat Messages | ⏳ Next up | — |
 | 15–36 | Not started | — |
 
