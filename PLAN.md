@@ -65,7 +65,8 @@ its own before moving to the next.
 | 25 — Users & Client State | ✅ Done | `3717107` |
 | 26 — Hooks/Event Streaming | ✅ Done | `3717107` |
 | 27 — Localization & Misc Utilities | ✅ Done | `3717107` |
-| 28–36 | Not started | — |
+| 28 — Bulk/Batch & Query Endpoints | ✅ Done | `25e2e26` |
+| 29–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -801,6 +802,40 @@ its own before moving to the next.
   firings — actor/item/token create/update/delete, a chat message — actually
   reaching a connected SSE client and the `foundry_get_recent_events` tool)
   whenever a Foundry instance is available.
+- Phase 28's four descriptors (`foundry_query_documents`,
+  `foundry_batch_create_documents`, `foundry_batch_update_documents`,
+  `foundry_batch_delete_documents`) are a new `shared/src/bulk.ts` /
+  `server/src/endpoints/bulk.ts` / `module/src/commands/bulk.ts` trio rather
+  than a sixth+ addition to Phase 8's `DOCUMENT_COMMANDS`/`documents.ts`:
+  like Phase 8's own five commands, `documentType` travels in every payload,
+  but these four are mounted once each (`/api/documents/query`,
+  `/batch-create`, `/batch-update`, `/batch-delete`), not once per document
+  type the way `makeDocumentEndpoints()`'s output is — so they don't fit the
+  per-type-factory shape `documents.ts` is built around.
+- Phase 28's batch create/update/delete call Foundry's native static
+  bulk methods (`createDocuments()`/`updateDocuments()`/`deleteDocuments()`,
+  new on `FoundryDocumentClass` in `module/src/types/foundry-globals.d.ts`)
+  rather than looping N individual `.create()`/`.update()`/`.delete()` calls
+  — one Foundry hook cycle and one bridge round-trip per batch, not N, which
+  is the actual point of "cut round-trips for larger operations." Batch
+  update sends each entry as `{_id: id, ...changes}`, matching
+  `updateDocuments()`'s real Foundry signature (each update object carries
+  its own target id rather than a separate id/changes pair).
+- Phase 28's query endpoint is exact-match equality on a document's
+  top-level `toObject()` fields only — no nested-field paths, no operators
+  beyond equality, no sort — kept as small as PLAN.md's own one-line spec
+  ("Generic filtered-query endpoint across document collections") calls for.
+  It needed no new ambient Foundry surface at all, resolving entirely off
+  Phase 8's existing `game.collections`/`FoundryDocument#toObject()` shapes.
+  `module/src/commands/documents.ts`'s `requireCollection`/
+  `requireDocumentClass` helpers were exported (previously module-private)
+  so `bulk.ts` reuses the same "unknown document type" lookup/error logic
+  instead of duplicating it.
+- Same untested-against-a-live-Foundry-instance caveat as every phase since
+  6 applies to Phase 28's module-side handlers (`module/src/commands/
+  bulk.ts`) — flagged for a live smoke-test (a real batch create/update/
+  delete round-trip, and a filtered query against a populated world) whenever
+  a Foundry instance is available.
 
 ---
 
