@@ -50,7 +50,9 @@ its own before moving to the next.
 | 10 — Items | ✅ Done | `22e7a8e` |
 | 11 — Scenes | ✅ Done | `ea2f434` |
 | 12 — Tokens (scene-embedded) | ✅ Done | `12b21e7` |
-| 13–36 | Not started | — |
+| 13 — Journal Entries & Pages | ✅ Done | — |
+| 14 — Dice Rolling & Chat Messages | ⏳ Next up | — |
+| 15–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -222,6 +224,37 @@ its own before moving to the next.
   module-side handlers (`module/src/commands/tokens.ts`); flagged for a live
   smoke-test (embedded token CRUD, move, and visibility toggle against a
   real scene) whenever a Foundry instance is available.
+- Phase 13 needed no new work for `JournalEntry` CRUD itself: Phase 8 already
+  proved the `makeDocumentEndpoints()` factory against `JournalEntry` first
+  (it's the "simplest document type" Phase 8's own plan text names), so
+  `journalEntryEndpointDescriptors` (`server/src/endpoints/documents.ts`) was
+  already registered under `/api/journal-entries` before this phase started.
+  Phase 13's actual work is the second half of its plan text: embedded
+  `JournalEntryPage` CRUD.
+- Unlike embedded Items (Phase 10) but like embedded Tokens (Phase 12), a
+  `JournalEntryPage` has no existing "list" command to fall back on — nothing
+  prior needed to enumerate a journal entry's pages — so Phase 13 hand-rolls
+  all five of list/get/create/update/delete in new `shared/src/
+  journal-pages.ts` (`JOURNAL_PAGE_COMMANDS`), `server/src/endpoints/
+  journal-pages.ts`, and `module/src/commands/journal-pages.ts`, under
+  `/api/journal-entries/:journalEntryId/pages[/:pageId]`, following the same
+  `<parent>Id`/`<child>Id` embedded-id shape as Phases 10/12.
+- Phase 13 extended `module/src/types/foundry-globals.d.ts` with
+  `FoundryJournalEntry` (`pages`/`createEmbeddedDocuments()`), the same shape
+  Phase 9/10 gave `FoundryActor` for embedded Items and Phase 11/12 gave
+  `FoundryScene` for embedded Tokens — no new ambient shape needed beyond
+  that, since an embedded JournalEntryPage is itself a `FoundryDocument` and
+  get/update/delete route through it automatically (same finding as Phase
+  10).
+- Phase 13's tests cover the five embedded-page descriptors directly, since
+  none of them are backed by an already-tested generic factory (same
+  rationale as Phase 12's tokens); `JournalEntry`'s own base CRUD is already
+  covered by Phase 8's `makeDocumentEndpoints()` tests and isn't re-tested
+  here. Same untested-against-a-live-instance caveat as Phases 6–12 applies
+  to the module-side handlers (`module/src/commands/journal-pages.ts`);
+  flagged for a live smoke-test (embedded page CRUD against a real journal
+  entry, including page `type` variants like text/image/pdf/video) whenever a
+  Foundry instance is available.
 
 ---
 

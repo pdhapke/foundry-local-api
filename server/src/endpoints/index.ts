@@ -5,6 +5,7 @@ import { actorEndpointDescriptors } from "./actors.js";
 import { journalEntryEndpointDescriptors } from "./documents.js";
 import { healthEndpointDescriptor } from "./health.js";
 import { itemEndpointDescriptors } from "./items.js";
+import { journalPageEndpointDescriptors } from "./journal-pages.js";
 import { metaEndpointDescriptors } from "./meta.js";
 import { sceneEndpointDescriptors } from "./scenes.js";
 import { settingsEndpointDescriptors } from "./settings.js";
@@ -16,6 +17,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...metaEndpointDescriptors,
   ...settingsEndpointDescriptors,
   ...journalEntryEndpointDescriptors,
+  ...journalPageEndpointDescriptors,
   ...actorEndpointDescriptors,
   ...itemEndpointDescriptors,
   ...sceneEndpointDescriptors,

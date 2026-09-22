@@ -54,3 +54,11 @@ export type {
   SceneTokenMoveInput,
   SceneTokenVisibilityInput,
 } from "./tokens.js";
+
+export { JOURNAL_PAGE_COMMANDS } from "./journal-pages.js";
+export type {
+  JournalPageListInput,
+  JournalPageIdInput,
+  JournalPageCreateInput,
+  JournalPageUpdateInput,
+} from "./journal-pages.js";

@@ -40,6 +40,13 @@
 // the scene-embedded Token command handlers (module/src/commands/tokens.ts),
 // the same shape Phase 9/10 already gave `FoundryActor` for its embedded
 // Items.
+//
+// Phase 13 added `FoundryJournalEntry` (`pages`/`createEmbeddedDocuments()`)
+// to back the embedded JournalEntryPage command handlers
+// (module/src/commands/journal-pages.ts), the same shape already given to
+// `FoundryActor`/`FoundryScene` for their own embedded collections.
+// JournalEntry CRUD itself uses the generic `FoundryDocument`/
+// `FoundryDocumentClass` shapes above unchanged.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -135,6 +142,17 @@ interface FoundryScene extends FoundryDocument {
   /** The scene's embedded Token documents. */
   tokens: Map<string, FoundryDocument>;
   /** Creates one or more embedded documents of the given type (e.g. "Token") on this scene. */
+  createEmbeddedDocuments(
+    embeddedName: string,
+    data: Record<string, unknown>[],
+  ): Promise<FoundryDocument[]>;
+}
+
+/** A loaded JournalEntry document — the `FoundryDocument` subset plus the embedded-page API Phase 13 drives. */
+interface FoundryJournalEntry extends FoundryDocument {
+  /** The journal entry's embedded JournalEntryPage documents. */
+  pages: Map<string, FoundryDocument>;
+  /** Creates one or more embedded documents of the given type (e.g. "JournalEntryPage") on this journal entry. */
   createEmbeddedDocuments(
     embeddedName: string,
     data: Record<string, unknown>[],
