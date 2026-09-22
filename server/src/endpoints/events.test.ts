@@ -61,9 +61,7 @@ void describe("Phase 26 recent events (MCP polling fallback)", () => {
     eventBus.publish("updateToken", { _id: "t1" });
     const app = buildApp(eventBus);
 
-    const res = await request(app)
-      .get("/api/events/recent?limit=1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).get("/api/events/recent?limit=1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(

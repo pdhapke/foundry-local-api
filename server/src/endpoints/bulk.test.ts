@@ -146,7 +146,9 @@ void describe("Phase 28 bulk/batch & query endpoints", () => {
 
   void it("propagates a module-side rejection (e.g. unknown document type) as a 500", async () => {
     const app = buildApp((() =>
-      Promise.reject(new FoundryBridgeError("HANDLER_ERROR", 'Unknown document type "Bogus"'))) as FoundryClient["call"]);
+      Promise.reject(
+        new FoundryBridgeError("HANDLER_ERROR", 'Unknown document type "Bogus"'),
+      )) as FoundryClient["call"]);
 
     const res = await request(app)
       .post("/api/documents/query")

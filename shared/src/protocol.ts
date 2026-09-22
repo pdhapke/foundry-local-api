@@ -37,8 +37,7 @@ export interface BridgeErrorResponse {
 
 /** Discriminated union of every possible reply to a {@link BridgeRequest}. */
 export type BridgeResponse<TResult = unknown> =
-  | BridgeSuccessResponse<TResult>
-  | BridgeErrorResponse;
+  BridgeSuccessResponse<TResult> | BridgeErrorResponse;
 
 /**
  * The shape of a single command handler. Used both by the module's command

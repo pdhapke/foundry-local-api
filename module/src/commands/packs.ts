@@ -44,18 +44,16 @@ async function requirePackEntry(
   return entry;
 }
 
-registerCommand(
-  PACK_COMMANDS.LIST,
-  (): PackInfo[] =>
-    Array.from(game.packs.values()).map((pack) => ({
-      id: pack.metadata.id,
-      label: pack.metadata.label,
-      type: pack.metadata.type,
-      package: pack.metadata.package,
-      packageType: pack.metadata.packageType,
-      ...(pack.metadata.system !== undefined ? { system: pack.metadata.system } : {}),
-      path: pack.metadata.path,
-    })),
+registerCommand(PACK_COMMANDS.LIST, (): PackInfo[] =>
+  Array.from(game.packs.values()).map((pack) => ({
+    id: pack.metadata.id,
+    label: pack.metadata.label,
+    type: pack.metadata.type,
+    package: pack.metadata.package,
+    packageType: pack.metadata.packageType,
+    ...(pack.metadata.system !== undefined ? { system: pack.metadata.system } : {}),
+    path: pack.metadata.path,
+  })),
 );
 
 registerCommand(

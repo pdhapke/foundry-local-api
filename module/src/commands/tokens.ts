@@ -39,16 +39,12 @@ function requireToken(scene: FoundryScene, tokenId: string): FoundryDocument {
   return token;
 }
 
-registerCommand(
-  TOKEN_COMMANDS.LIST,
-  ({ sceneId }: SceneTokenListInput): DocumentData[] =>
-    Array.from(requireScene(sceneId).tokens.values()).map((token) => token.toObject()),
+registerCommand(TOKEN_COMMANDS.LIST, ({ sceneId }: SceneTokenListInput): DocumentData[] =>
+  Array.from(requireScene(sceneId).tokens.values()).map((token) => token.toObject()),
 );
 
-registerCommand(
-  TOKEN_COMMANDS.GET,
-  ({ sceneId, tokenId }: SceneTokenIdInput): DocumentData =>
-    requireToken(requireScene(sceneId), tokenId).toObject(),
+registerCommand(TOKEN_COMMANDS.GET, ({ sceneId, tokenId }: SceneTokenIdInput): DocumentData =>
+  requireToken(requireScene(sceneId), tokenId).toObject(),
 );
 
 registerCommand(

@@ -11,7 +11,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { BridgeConnectionLostListener, BridgeGateway, BridgeMessageListener } from "./gateway.js";
+import type {
+  BridgeConnectionLostListener,
+  BridgeGateway,
+  BridgeMessageListener,
+} from "./gateway.js";
 import { FoundryClient } from "./foundry-client.js";
 
 class FakeGateway {
@@ -85,14 +89,16 @@ void describe("FoundryClient", () => {
     await assert.rejects(pending, /boom/);
   });
 
-  void it("onEvent() receives a kind:\"event\" message and does not resolve/reject any pending call", async () => {
+  void it('onEvent() receives a kind:"event" message and does not resolve/reject any pending call', async () => {
     const { client, gateway } = buildClient();
     const received: Array<{ event: string; payload: unknown }> = [];
     client.onEvent((event, payload) => received.push({ event, payload }));
 
     const pending = client.call("foundryPing");
 
-    gateway.emitMessage(JSON.stringify({ kind: "event", event: "createActor", payload: { _id: "a1" } }));
+    gateway.emitMessage(
+      JSON.stringify({ kind: "event", event: "createActor", payload: { _id: "a1" } }),
+    );
 
     assert.deepEqual(received, [{ event: "createActor", payload: { _id: "a1" } }]);
     assert.equal(client.pendingCount, 1, "the unrelated pending call must still be waiting");

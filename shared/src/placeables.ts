@@ -27,12 +27,7 @@ export const CANVAS_COMMANDS = {
 
 /** The six placeable document types embedded on a Scene that this phase covers. */
 export type PlaceableDocumentType =
-  | "Drawing"
-  | "Note"
-  | "AmbientLight"
-  | "AmbientSound"
-  | "Wall"
-  | "MeasuredTemplate";
+  "Drawing" | "Note" | "AmbientLight" | "AmbientSound" | "Wall" | "MeasuredTemplate";
 
 export interface PlaceableParentInput {
   documentType: PlaceableDocumentType;

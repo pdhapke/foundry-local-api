@@ -83,9 +83,7 @@ void describe("Phase 16 combats", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .post("/api/combats/c1/next-turn")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).post("/api/combats/c1/next-turn").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "c1", turn: 1 });
@@ -99,9 +97,7 @@ void describe("Phase 16 combats", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .post("/api/combats/c1/next-round")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).post("/api/combats/c1/next-round").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "c1", round: 2 });

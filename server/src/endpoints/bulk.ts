@@ -57,7 +57,7 @@ const queryDescriptor: EndpointDescriptor<DocumentQueryInput, DocumentData[]> = 
   name: "foundry_query_documents",
   description:
     "Lists documents of the given type, filtered by exact-match equality on top-level fields " +
-    "(e.g. {\"name\": \"Goblin\"}), optionally capped to `limit` results.",
+    '(e.g. {"name": "Goblin"}), optionally capped to `limit` results.',
   method: "post",
   path: "/documents/query",
   inputSchema: querySchema,
@@ -77,7 +77,8 @@ const batchCreateDescriptor: EndpointDescriptor<DocumentBatchCreateInput, Docume
 
 const batchUpdateDescriptor: EndpointDescriptor<DocumentBatchUpdateInput, DocumentData[]> = {
   name: "foundry_batch_update_documents",
-  description: "Updates many documents of the given type in one call, each identified by its own id.",
+  description:
+    "Updates many documents of the given type in one call, each identified by its own id.",
   method: "post",
   path: "/documents/batch-update",
   inputSchema: batchUpdateSchema,
@@ -85,7 +86,10 @@ const batchUpdateDescriptor: EndpointDescriptor<DocumentBatchUpdateInput, Docume
     foundryClient.call<DocumentBatchUpdateInput, DocumentData[]>(BULK_COMMANDS.BATCH_UPDATE, input),
 };
 
-const batchDeleteDescriptor: EndpointDescriptor<DocumentBatchDeleteInput, DocumentBatchDeleteResult> = {
+const batchDeleteDescriptor: EndpointDescriptor<
+  DocumentBatchDeleteInput,
+  DocumentBatchDeleteResult
+> = {
   name: "foundry_batch_delete_documents",
   description:
     "Permanently deletes every document of the given type whose id is listed. This cannot be " +

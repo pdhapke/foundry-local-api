@@ -75,7 +75,9 @@ export class BridgeGateway {
   private isAuthorized(req: IncomingMessage): boolean {
     const url = new URL(req.url ?? "", "http://localhost");
     const provided = url.searchParams.get("apiKey");
-    return provided !== null && provided.length > 0 && timingSafeEqualStrings(provided, this.apiKey);
+    return (
+      provided !== null && provided.length > 0 && timingSafeEqualStrings(provided, this.apiKey)
+    );
   }
 
   /** Whether a bridge client is currently connected and able to receive messages. */

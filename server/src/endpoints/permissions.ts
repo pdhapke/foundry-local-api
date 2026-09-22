@@ -32,20 +32,24 @@ const setOwnershipSchema = ownershipIdSchema.extend({
 const userIdSchema = z.object({ userId: z.string().min(1) });
 const setUserRoleSchema = userIdSchema.extend({ role: z.number().int() });
 
-const getOwnershipDescriptor: EndpointDescriptor<DocumentOwnershipInput, DocumentOwnershipResult> = {
-  name: "foundry_get_document_ownership",
-  description: "Reads a document's ownership map (default level plus any per-user overrides).",
-  method: "get",
-  path: "/documents/:documentType/:documentId/ownership",
-  inputSchema: ownershipIdSchema,
-  handler: (input, { foundryClient }) =>
-    foundryClient.call<DocumentOwnershipInput, DocumentOwnershipResult>(
-      PERMISSION_COMMANDS.GET_OWNERSHIP,
-      input,
-    ),
-};
+const getOwnershipDescriptor: EndpointDescriptor<DocumentOwnershipInput, DocumentOwnershipResult> =
+  {
+    name: "foundry_get_document_ownership",
+    description: "Reads a document's ownership map (default level plus any per-user overrides).",
+    method: "get",
+    path: "/documents/:documentType/:documentId/ownership",
+    inputSchema: ownershipIdSchema,
+    handler: (input, { foundryClient }) =>
+      foundryClient.call<DocumentOwnershipInput, DocumentOwnershipResult>(
+        PERMISSION_COMMANDS.GET_OWNERSHIP,
+        input,
+      ),
+  };
 
-const setOwnershipDescriptor: EndpointDescriptor<DocumentSetOwnershipInput, DocumentOwnershipResult> = {
+const setOwnershipDescriptor: EndpointDescriptor<
+  DocumentSetOwnershipInput,
+  DocumentOwnershipResult
+> = {
   name: "foundry_set_document_ownership",
   description:
     "Sets a document's ownership map. Pass a full replacement map (e.g. " +

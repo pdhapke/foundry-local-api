@@ -147,7 +147,9 @@ function registerMcpTool<TInput, TResult>(
         } catch (err) {
           if (err instanceof FoundryBridgeError) {
             return {
-              content: [{ type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` }],
+              content: [
+                { type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` },
+              ],
               isError: true,
             };
           }
@@ -168,7 +170,9 @@ function registerMcpTool<TInput, TResult>(
       } catch (err) {
         if (err instanceof FoundryBridgeError) {
           return {
-            content: [{ type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` }],
+            content: [
+              { type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` },
+            ],
             isError: true,
           };
         }

@@ -128,7 +128,11 @@ interface OpenApiParameter {
   description?: string;
 }
 
-function buildOperation(descriptor: AnyEndpointDescriptor, method: string, path: string): JsonSchemaObject {
+function buildOperation(
+  descriptor: AnyEndpointDescriptor,
+  method: string,
+  path: string,
+): JsonSchemaObject {
   const pathParamNames = extractPathParamNames(path);
   const fullSchema = descriptor.inputSchema ? toInputJsonSchema(descriptor.inputSchema) : undefined;
   const allProperties = fullSchema ? propertiesOf(fullSchema) : {};
@@ -278,7 +282,12 @@ function buildOpenApiDocument(): JsonSchemaObject {
         "exists as an MCP tool with an identical input shape — see docs/mcp-tools.md. See PLAN.md's Phase 29 for the " +
         "current security posture (localhost-only bind by default, static API key, rate limiting).",
     },
-    servers: [{ url: "http://127.0.0.1:3939", description: "Default local server (PORT/HOST configurable via .env)" }],
+    servers: [
+      {
+        url: "http://127.0.0.1:3939",
+        description: "Default local server (PORT/HOST configurable via .env)",
+      },
+    ],
     security: [{ apiKeyAuth: [] }],
     tags: Array.from(new Set(allEndpointDescriptors.map(tagFor)))
       .sort()
@@ -290,7 +299,8 @@ function buildOpenApiDocument(): JsonSchemaObject {
           type: "apiKey",
           in: "header",
           name: API_KEY_HEADER,
-          description: "Static API key (see server/.env.example's API_KEY, auto-provisioned on first startup).",
+          description:
+            "Static API key (see server/.env.example's API_KEY, auto-provisioned on first startup).",
         },
       },
       responses: {
@@ -307,7 +317,8 @@ function buildOpenApiDocument(): JsonSchemaObject {
           content: { "application/json": { schema: {} } },
         },
         ServerError: {
-          description: "Internal server error (message intentionally generic — see PLAN.md Phase 29).",
+          description:
+            "Internal server error (message intentionally generic — see PLAN.md Phase 29).",
           content: { "application/json": { schema: {} } },
         },
       },

@@ -86,7 +86,7 @@ const enrichHtmlDescriptor: EndpointDescriptor<EnrichHtmlInput, EnrichHtmlResult
 const searchDescriptor: EndpointDescriptor<SearchInput, SearchResult> = {
   name: "foundry_search",
   description:
-    "Case-insensitive name-substring search across world document collections (game.collections). `types` optionally limits the search to a comma-separated list of document type names (e.g. \"Actor,Item\"); omit to search every collection.",
+    'Case-insensitive name-substring search across world document collections (game.collections). `types` optionally limits the search to a comma-separated list of document type names (e.g. "Actor,Item"); omit to search every collection.',
   method: "get",
   path: "/search",
   inputSchema: searchSchema,

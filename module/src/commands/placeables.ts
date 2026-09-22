@@ -72,7 +72,12 @@ registerCommand(
 
 registerCommand(
   EMBEDDED_PLACEABLE_COMMANDS.UPDATE,
-  async ({ documentType, sceneId, placeableId, changes }: PlaceableUpdateInput): Promise<DocumentData> => {
+  async ({
+    documentType,
+    sceneId,
+    placeableId,
+    changes,
+  }: PlaceableUpdateInput): Promise<DocumentData> => {
     const placeable = requirePlaceable(requireScene(sceneId), documentType, placeableId);
     await placeable.update(changes);
     return placeable.toObject();
@@ -81,7 +86,11 @@ registerCommand(
 
 registerCommand(
   EMBEDDED_PLACEABLE_COMMANDS.DELETE,
-  async ({ documentType, sceneId, placeableId }: PlaceableIdInput): Promise<DocumentDeleteResult> => {
+  async ({
+    documentType,
+    sceneId,
+    placeableId,
+  }: PlaceableIdInput): Promise<DocumentDeleteResult> => {
     const placeable = requirePlaceable(requireScene(sceneId), documentType, placeableId);
     await placeable.delete();
     return { id: placeableId };

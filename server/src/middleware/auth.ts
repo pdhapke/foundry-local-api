@@ -19,7 +19,9 @@ export function createApiKeyAuth(apiKey: string) {
   return function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
     const provided = req.header(API_KEY_HEADER);
     const authenticated =
-      typeof provided === "string" && provided.length > 0 && timingSafeEqualStrings(provided, apiKey);
+      typeof provided === "string" &&
+      provided.length > 0 &&
+      timingSafeEqualStrings(provided, apiKey);
 
     res.locals["authenticated"] = authenticated;
 

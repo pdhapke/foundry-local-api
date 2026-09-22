@@ -24,8 +24,7 @@ import { registerCommand } from "../command-registry.js";
 
 function requireJournalEntry(id: string): FoundryJournalEntry {
   const collection = game.collections.get("JournalEntry") as
-    | Map<string, FoundryJournalEntry>
-    | undefined;
+    Map<string, FoundryJournalEntry> | undefined;
   const journalEntry = collection?.get(id);
   if (!journalEntry) {
     throw new Error(`JournalEntry "${id}" not found`);

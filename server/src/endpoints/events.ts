@@ -38,7 +38,11 @@ const recentEventsDescriptor: EndpointDescriptor<RecentEventsInput, RecentEvents
   inputSchema: recentEventsSchema,
   handler: ({ limit }, { eventBus }) => {
     if (!eventBus) {
-      throw new HttpError(503, "No event bus is currently wired up on this server.", "NO_EVENT_BUS");
+      throw new HttpError(
+        503,
+        "No event bus is currently wired up on this server.",
+        "NO_EVENT_BUS",
+      );
     }
     return { events: eventBus.recent(limit) };
   },

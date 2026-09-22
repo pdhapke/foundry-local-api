@@ -79,7 +79,8 @@ registerCommand(META_COMMANDS.SETTINGS, (): SettingInfo[] =>
       hint: cfg.hint ?? null,
       scope: cfg.scope,
       config: cfg.config,
-      typeName: typeof cfg.type === "function" ? (cfg.type as { name: string }).name : String(cfg.type),
+      typeName:
+        typeof cfg.type === "function" ? (cfg.type as { name: string }).name : String(cfg.type),
     };
   }),
 );

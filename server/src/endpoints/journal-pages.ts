@@ -81,7 +81,10 @@ const deletePageDescriptor: EndpointDescriptor<JournalPageIdInput, DocumentDelet
   path: "/journal-entries/:journalEntryId/pages/:pageId",
   inputSchema: pageIdSchema,
   handler: (input, { foundryClient }) =>
-    foundryClient.call<JournalPageIdInput, DocumentDeleteResult>(JOURNAL_PAGE_COMMANDS.DELETE, input),
+    foundryClient.call<JournalPageIdInput, DocumentDeleteResult>(
+      JOURNAL_PAGE_COMMANDS.DELETE,
+      input,
+    ),
 };
 
 export const journalPageEndpointDescriptors: AnyEndpointDescriptor[] = [

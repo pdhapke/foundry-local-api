@@ -487,7 +487,11 @@ declare class FilePicker {
     options?: Record<string, unknown>,
   ): Promise<{ path: string } | false>;
   /** Creates a new directory at `target` on the given storage `source`. */
-  static createDirectory(source: string, target: string, options?: Record<string, unknown>): Promise<string>;
+  static createDirectory(
+    source: string,
+    target: string,
+    options?: Record<string, unknown>,
+  ): Promise<string>;
 }
 
 /** Foundry's HTML enrichment engine — the subset of its static API Phase 27 drives. */

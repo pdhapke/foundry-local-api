@@ -45,14 +45,11 @@ registerCommand(COMBAT_COMMANDS.START, async ({ id }: CombatIdInput): Promise<Do
   return combat.toObject();
 });
 
-registerCommand(
-  COMBAT_COMMANDS.NEXT_TURN,
-  async ({ id }: CombatIdInput): Promise<DocumentData> => {
-    const combat = requireCombat(id);
-    await combat.nextTurn();
-    return combat.toObject();
-  },
-);
+registerCommand(COMBAT_COMMANDS.NEXT_TURN, async ({ id }: CombatIdInput): Promise<DocumentData> => {
+  const combat = requireCombat(id);
+  await combat.nextTurn();
+  return combat.toObject();
+});
 
 registerCommand(
   COMBAT_COMMANDS.NEXT_ROUND,

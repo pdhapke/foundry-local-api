@@ -69,9 +69,7 @@ void describe("Phase 12 tokens", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .get("/api/scenes/s1/tokens/t1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).get("/api/scenes/s1/tokens/t1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "t1", name: "Goblin" });
@@ -119,9 +117,7 @@ void describe("Phase 12 tokens", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .delete("/api/scenes/s1/tokens/t1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).delete("/api/scenes/s1/tokens/t1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { id: "t1" });

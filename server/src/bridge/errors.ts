@@ -20,10 +20,7 @@ import { HttpError } from "../app.js";
  * open-ended string.
  */
 export type FoundryBridgeErrorCode =
-  | "NOT_CONNECTED"
-  | "TIMEOUT"
-  | "UNKNOWN_COMMAND"
-  | "HANDLER_ERROR";
+  "NOT_CONNECTED" | "TIMEOUT" | "UNKNOWN_COMMAND" | "HANDLER_ERROR";
 
 /** Thrown/rejected by `FoundryClient.call` for every failure mode. */
 export class FoundryBridgeError extends Error {

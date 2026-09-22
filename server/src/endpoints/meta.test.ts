@@ -49,7 +49,9 @@ const FIXTURES: {
     { id: "user1", name: "Gamemaster", role: 4, isGM: true, active: true },
     { id: "user2", name: "Player One", role: 1, isGM: false, active: false },
   ],
-  modules: [{ id: "foundry-local-api", title: "Foundry Local API", active: true, version: "0.0.1" }],
+  modules: [
+    { id: "foundry-local-api", title: "Foundry Local API", active: true, version: "0.0.1" },
+  ],
   settings: [
     {
       namespace: "core",
@@ -114,7 +116,10 @@ void describe("Phase 6 meta/introspection endpoints", () => {
   void it("propagates a FoundryBridgeError as a normalized HTTP error (NOT_CONNECTED -> 503)", async () => {
     const app = buildApp((() =>
       Promise.reject(
-        new FoundryBridgeError("NOT_CONNECTED", "No Foundry client is currently connected to the bridge."),
+        new FoundryBridgeError(
+          "NOT_CONNECTED",
+          "No Foundry client is currently connected to the bridge.",
+        ),
       )) as FoundryClient["call"]);
 
     const res = await request(app).get("/api/world").set(API_KEY_HEADER, API_KEY);

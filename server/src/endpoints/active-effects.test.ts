@@ -68,9 +68,7 @@ void describe("Phase 21 active effects", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .get("/api/actors/a1/effects/e1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).get("/api/actors/a1/effects/e1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "e1", name: "Poisoned" });
@@ -127,9 +125,7 @@ void describe("Phase 21 active effects", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .delete("/api/actors/a1/effects/e1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).delete("/api/actors/a1/effects/e1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { id: "e1" });

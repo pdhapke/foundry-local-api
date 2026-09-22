@@ -32,10 +32,7 @@ const moveDocumentDescriptor: EndpointDescriptor<FolderMoveDocumentInput, Docume
   path: "/folders/move-document",
   inputSchema: moveDocumentSchema,
   handler: (input, { foundryClient }) =>
-    foundryClient.call<FolderMoveDocumentInput, DocumentData>(
-      FOLDER_COMMANDS.MOVE_DOCUMENT,
-      input,
-    ),
+    foundryClient.call<FolderMoveDocumentInput, DocumentData>(FOLDER_COMMANDS.MOVE_DOCUMENT, input),
 };
 
 export const folderEndpointDescriptors: AnyEndpointDescriptor[] = [

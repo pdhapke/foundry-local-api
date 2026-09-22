@@ -71,9 +71,7 @@ void describe("Phase 22 canvas & scene placeables", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .get("/api/scenes/s1/drawings/d1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).get("/api/scenes/s1/drawings/d1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "d1" });

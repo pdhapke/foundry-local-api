@@ -16,7 +16,10 @@ import { readPackageVersion } from "../version.js";
  * this codebase, but keeping the param optional avoids forcing one on any
  * future caller) still get a working server.
  */
-export function createMcpServer(foundryClient: FoundryClient, eventBus?: FoundryEventBus): McpServer {
+export function createMcpServer(
+  foundryClient: FoundryClient,
+  eventBus?: FoundryEventBus,
+): McpServer {
   const mcpServer = new McpServer({
     name: "foundry-local-api",
     version: readPackageVersion(),

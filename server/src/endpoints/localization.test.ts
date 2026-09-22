@@ -101,7 +101,10 @@ void describe("Phase 27 localization & misc utilities", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app).get("/api/search").query({ query: "gob" }).set(API_KEY_HEADER, API_KEY);
+    const res = await request(app)
+      .get("/api/search")
+      .query({ query: "gob" })
+      .set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, {

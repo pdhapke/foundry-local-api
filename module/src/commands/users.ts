@@ -55,22 +55,18 @@ function requireGM(action: string): void {
   }
 }
 
-registerCommand(
-  USER_COMMANDS.GET,
-  ({ userId }: UserIdInput): DocumentData => requireUser(userId).toObject(),
+registerCommand(USER_COMMANDS.GET, ({ userId }: UserIdInput): DocumentData =>
+  requireUser(userId).toObject(),
 );
 
-registerCommand(
-  USER_COMMANDS.CREATE,
-  async ({ data }: UserCreateInput): Promise<DocumentData> => {
-    requireGM("create a user");
-    const created = await requireUserDocumentClass().create(data);
-    if (!created) {
-      throw new Error("Failed to create user");
-    }
-    return created.toObject();
-  },
-);
+registerCommand(USER_COMMANDS.CREATE, async ({ data }: UserCreateInput): Promise<DocumentData> => {
+  requireGM("create a user");
+  const created = await requireUserDocumentClass().create(data);
+  if (!created) {
+    throw new Error("Failed to create user");
+  }
+  return created.toObject();
+});
 
 registerCommand(
   USER_COMMANDS.UPDATE,
@@ -92,13 +88,10 @@ registerCommand(
   },
 );
 
-registerCommand(
-  USER_COMMANDS.GET_STATUS,
-  ({ userId }: UserIdInput): UserStatusResult => {
-    const user = requireUser(userId);
-    return { userId, active: user.active };
-  },
-);
+registerCommand(USER_COMMANDS.GET_STATUS, ({ userId }: UserIdInput): UserStatusResult => {
+  const user = requireUser(userId);
+  return { userId, active: user.active };
+});
 
 registerCommand(USER_COMMANDS.GET_CANVAS_SELECTION, (): CanvasSelectionResult => {
   if (!canvas) {

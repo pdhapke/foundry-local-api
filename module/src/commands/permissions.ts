@@ -83,10 +83,10 @@ registerCommand(
   },
 );
 
-registerCommand(
-  PERMISSION_COMMANDS.GET_USER_ROLE,
-  ({ userId }: UserRoleInput): UserRoleResult => ({ userId, role: requireUser(userId).role }),
-);
+registerCommand(PERMISSION_COMMANDS.GET_USER_ROLE, ({ userId }: UserRoleInput): UserRoleResult => ({
+  userId,
+  role: requireUser(userId).role,
+}));
 
 registerCommand(
   PERMISSION_COMMANDS.SET_USER_ROLE,

@@ -67,9 +67,7 @@ void describe("Phase 10 items", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .get("/api/actors/a1/items/i1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).get("/api/actors/a1/items/i1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "i1", name: "Sword" });
@@ -117,9 +115,7 @@ void describe("Phase 10 items", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .delete("/api/actors/a1/items/i1")
-      .set(API_KEY_HEADER, API_KEY);
+    const res = await request(app).delete("/api/actors/a1/items/i1").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { id: "i1" });

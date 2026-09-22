@@ -29,15 +29,18 @@ const updateSchema = entryIdSchema.extend({ changes: documentDataSchema });
 
 const listPacksDescriptor: EndpointDescriptor<void, PackInfo[]> = {
   name: "foundry_list_packs",
-  description: "Lists every compendium pack available in the world (id, label, document type, source package).",
+  description:
+    "Lists every compendium pack available in the world (id, label, document type, source package).",
   method: "get",
   path: "/packs",
-  handler: (_input, { foundryClient }) => foundryClient.call<undefined, PackInfo[]>(PACK_COMMANDS.LIST),
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, PackInfo[]>(PACK_COMMANDS.LIST),
 };
 
 const getPackIndexDescriptor: EndpointDescriptor<PackIdInput, PackIndexEntry[]> = {
   name: "foundry_get_pack_index",
-  description: "Reads a compendium pack's index: lightweight entries (id, name, and a few other fields) without loading each full document.",
+  description:
+    "Reads a compendium pack's index: lightweight entries (id, name, and a few other fields) without loading each full document.",
   method: "get",
   path: "/packs/:packId/index",
   inputSchema: packIdSchema,
@@ -87,7 +90,8 @@ const deletePackEntryDescriptor: EndpointDescriptor<PackEntryIdInput, DocumentDe
 
 const importPackEntryDescriptor: EndpointDescriptor<PackEntryIdInput, DocumentData> = {
   name: "foundry_import_pack_entry",
-  description: "Imports a compendium entry into the world, creating a new document in the matching world collection.",
+  description:
+    "Imports a compendium entry into the world, creating a new document in the matching world collection.",
   method: "post",
   path: "/packs/:packId/entries/:entryId/import",
   inputSchema: entryIdSchema,

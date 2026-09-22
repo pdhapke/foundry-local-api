@@ -72,22 +72,20 @@ export function makeEmbeddedPlaceableEndpoints(
       }),
   };
 
-  const getDescriptor: EndpointDescriptor<
-    { sceneId: string; placeableId: string },
-    DocumentData
-  > = {
-    name: `foundry_get_scene_${toolPrefix}`,
-    description: `Reads a single embedded ${documentType} document from a scene by id.`,
-    method: "get",
-    path: `/scenes/:sceneId/${routeBase}/:placeableId`,
-    inputSchema: placeableIdSchema,
-    handler: ({ sceneId, placeableId }, { foundryClient }) =>
-      foundryClient.call<PlaceableIdInput, DocumentData>(EMBEDDED_PLACEABLE_COMMANDS.GET, {
-        documentType,
-        sceneId,
-        placeableId,
-      }),
-  };
+  const getDescriptor: EndpointDescriptor<{ sceneId: string; placeableId: string }, DocumentData> =
+    {
+      name: `foundry_get_scene_${toolPrefix}`,
+      description: `Reads a single embedded ${documentType} document from a scene by id.`,
+      method: "get",
+      path: `/scenes/:sceneId/${routeBase}/:placeableId`,
+      inputSchema: placeableIdSchema,
+      handler: ({ sceneId, placeableId }, { foundryClient }) =>
+        foundryClient.call<PlaceableIdInput, DocumentData>(EMBEDDED_PLACEABLE_COMMANDS.GET, {
+          documentType,
+          sceneId,
+          placeableId,
+        }),
+    };
 
   const createDescriptor: EndpointDescriptor<
     { sceneId: string; data: Record<string, unknown> },
@@ -160,7 +158,11 @@ export const placeableEndpointDescriptors: AnyEndpointDescriptor[] = [
     routeBase: "drawings",
     toolPrefix: "drawing",
   }),
-  ...makeEmbeddedPlaceableEndpoints({ documentType: "Note", routeBase: "notes", toolPrefix: "note" }),
+  ...makeEmbeddedPlaceableEndpoints({
+    documentType: "Note",
+    routeBase: "notes",
+    toolPrefix: "note",
+  }),
   ...makeEmbeddedPlaceableEndpoints({
     documentType: "AmbientLight",
     routeBase: "lights",
@@ -171,7 +173,11 @@ export const placeableEndpointDescriptors: AnyEndpointDescriptor[] = [
     routeBase: "sounds",
     toolPrefix: "sound",
   }),
-  ...makeEmbeddedPlaceableEndpoints({ documentType: "Wall", routeBase: "walls", toolPrefix: "wall" }),
+  ...makeEmbeddedPlaceableEndpoints({
+    documentType: "Wall",
+    routeBase: "walls",
+    toolPrefix: "wall",
+  }),
   ...makeEmbeddedPlaceableEndpoints({
     documentType: "MeasuredTemplate",
     routeBase: "templates",

@@ -27,10 +27,12 @@ const statusDescriptor: EndpointDescriptor<void, StatusResult> = {
 
 const worldDescriptor: EndpointDescriptor<void, WorldInfo> = {
   name: "foundry_get_world",
-  description: "Details of the currently active Foundry world (id, title, description, system, background).",
+  description:
+    "Details of the currently active Foundry world (id, title, description, system, background).",
   method: "get",
   path: "/world",
-  handler: (_input, { foundryClient }) => foundryClient.call<undefined, WorldInfo>(META_COMMANDS.WORLD),
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, WorldInfo>(META_COMMANDS.WORLD),
 };
 
 const systemDescriptor: EndpointDescriptor<void, SystemInfo> = {
@@ -38,15 +40,18 @@ const systemDescriptor: EndpointDescriptor<void, SystemInfo> = {
   description: "Details of the active game system (id, title, version).",
   method: "get",
   path: "/system",
-  handler: (_input, { foundryClient }) => foundryClient.call<undefined, SystemInfo>(META_COMMANDS.SYSTEM),
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, SystemInfo>(META_COMMANDS.SYSTEM),
 };
 
 const userDescriptor: EndpointDescriptor<void, UserInfo> = {
   name: "foundry_get_user",
-  description: "Details of the current Foundry user connected via the bridge (id, name, role, isGM, active).",
+  description:
+    "Details of the current Foundry user connected via the bridge (id, name, role, isGM, active).",
   method: "get",
   path: "/user",
-  handler: (_input, { foundryClient }) => foundryClient.call<undefined, UserInfo>(META_COMMANDS.USER),
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, UserInfo>(META_COMMANDS.USER),
 };
 
 const usersDescriptor: EndpointDescriptor<void, UserInfo[]> = {
@@ -54,7 +59,8 @@ const usersDescriptor: EndpointDescriptor<void, UserInfo[]> = {
   description: "Every user in the world (id, name, role, isGM, active).",
   method: "get",
   path: "/users",
-  handler: (_input, { foundryClient }) => foundryClient.call<undefined, UserInfo[]>(META_COMMANDS.USERS),
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, UserInfo[]>(META_COMMANDS.USERS),
 };
 
 const modulesDescriptor: EndpointDescriptor<void, ModuleInfo[]> = {
@@ -68,7 +74,8 @@ const modulesDescriptor: EndpointDescriptor<void, ModuleInfo[]> = {
 
 const settingsDescriptor: EndpointDescriptor<void, SettingInfo[]> = {
   name: "foundry_list_settings",
-  description: "Every registered game setting (namespace, key, name, hint, scope, config, typeName).",
+  description:
+    "Every registered game setting (namespace, key, name, hint, scope, config, typeName).",
   method: "get",
   path: "/settings",
   handler: (_input, { foundryClient }) =>

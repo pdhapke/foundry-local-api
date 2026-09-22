@@ -58,15 +58,19 @@ const updateEmbeddedItemDescriptor: EndpointDescriptor<EmbeddedItemUpdateInput, 
     foundryClient.call<EmbeddedItemUpdateInput, DocumentData>(EMBEDDED_ITEM_COMMANDS.UPDATE, input),
 };
 
-const deleteEmbeddedItemDescriptor: EndpointDescriptor<EmbeddedItemIdInput, DocumentDeleteResult> = {
-  name: "foundry_delete_actor_item",
-  description: "Deletes an embedded Item document from an actor by id.",
-  method: "delete",
-  path: "/actors/:actorId/items/:itemId",
-  inputSchema: embeddedIdSchema,
-  handler: (input, { foundryClient }) =>
-    foundryClient.call<EmbeddedItemIdInput, DocumentDeleteResult>(EMBEDDED_ITEM_COMMANDS.DELETE, input),
-};
+const deleteEmbeddedItemDescriptor: EndpointDescriptor<EmbeddedItemIdInput, DocumentDeleteResult> =
+  {
+    name: "foundry_delete_actor_item",
+    description: "Deletes an embedded Item document from an actor by id.",
+    method: "delete",
+    path: "/actors/:actorId/items/:itemId",
+    inputSchema: embeddedIdSchema,
+    handler: (input, { foundryClient }) =>
+      foundryClient.call<EmbeddedItemIdInput, DocumentDeleteResult>(
+        EMBEDDED_ITEM_COMMANDS.DELETE,
+        input,
+      ),
+  };
 
 export const itemEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...makeDocumentEndpoints({

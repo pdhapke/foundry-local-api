@@ -93,15 +93,12 @@ void describe("Phase 24 file/asset management", () => {
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
-    const res = await request(app)
-      .post("/api/files/upload")
-      .set(API_KEY_HEADER, API_KEY)
-      .send({
-        path: "worlds/my-world/assets",
-        fileName: "token.png",
-        contentBase64: "aGVsbG8=",
-        mimeType: "image/png",
-      });
+    const res = await request(app).post("/api/files/upload").set(API_KEY_HEADER, API_KEY).send({
+      path: "worlds/my-world/assets",
+      fileName: "token.png",
+      contentBase64: "aGVsbG8=",
+      mimeType: "image/png",
+    });
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { path: "worlds/my-world/assets/token.png" });

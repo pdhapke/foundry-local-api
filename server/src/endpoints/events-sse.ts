@@ -22,7 +22,10 @@ export const eventsSseHandler: RequestHandler = (req: Request, res: Response) =>
   const eventBus = req.app.locals["eventBus"] as FoundryEventBus | undefined;
   if (!eventBus) {
     res.status(503).json({
-      error: { message: "No event bus is currently wired up on this server.", code: "NO_EVENT_BUS" },
+      error: {
+        message: "No event bus is currently wired up on this server.",
+        code: "NO_EVENT_BUS",
+      },
     });
     return;
   }
