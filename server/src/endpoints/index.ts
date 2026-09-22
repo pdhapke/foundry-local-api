@@ -7,11 +7,13 @@ import { cardsEndpointDescriptors } from "./cards.js";
 import { chatEndpointDescriptors } from "./chat.js";
 import { combatEndpointDescriptors } from "./combats.js";
 import { journalEntryEndpointDescriptors } from "./documents.js";
+import { eventEndpointDescriptors } from "./events.js";
 import { folderEndpointDescriptors } from "./folders.js";
 import { healthEndpointDescriptor } from "./health.js";
 import { itemEndpointDescriptors } from "./items.js";
 import { fileEndpointDescriptors } from "./files.js";
 import { journalPageEndpointDescriptors } from "./journal-pages.js";
+import { localizationEndpointDescriptors } from "./localization.js";
 import { macroEndpointDescriptors } from "./macros.js";
 import { metaEndpointDescriptors } from "./meta.js";
 import { packEndpointDescriptors } from "./packs.js";
@@ -24,6 +26,7 @@ import { sceneEndpointDescriptors } from "./scenes.js";
 import { settingsEndpointDescriptors } from "./settings.js";
 import { tokenEndpointDescriptors } from "./tokens.js";
 import type { AnyEndpointDescriptor } from "./types.js";
+import { userEndpointDescriptors } from "./users.js";
 
 export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   healthEndpointDescriptor,
@@ -48,6 +51,9 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...placeableEndpointDescriptors,
   ...permissionEndpointDescriptors,
   ...fileEndpointDescriptors,
+  ...userEndpointDescriptors,
+  ...localizationEndpointDescriptors,
+  ...eventEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";

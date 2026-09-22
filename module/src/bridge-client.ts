@@ -4,7 +4,7 @@
 // today's server will fail and retry via the backoff loop below — that is
 // expected until Phase 3 lands, not a bug in this file.
 
-import type { BridgeRequest, BridgeResponse } from "@foundry-local-api/shared";
+import type { BridgeEventMessage, BridgeRequest, BridgeResponse } from "@foundry-local-api/shared";
 import { dispatch } from "./command-registry.js";
 
 export const MODULE_ID = "foundry-local-api";
@@ -212,6 +212,21 @@ export class BridgeClient {
   private send(response: BridgeResponse): void {
     if (this.socket !== null && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(response));
+    }
+  }
+
+  /**
+   * Sends an unsolicited `{kind: "event"}` message to the server (Phase 26)
+   * — the bridge's first push-not-reply shape (shared/src/protocol.ts's
+   * `BridgeEventMessage`), used by hook-forwarding (module/src/hooks.ts)
+   * rather than the request/response `dispatch()` path. Public sibling of
+   * the private `send()` above (which only ever sends replies to inbound
+   * requests); mirrors its readyState-check idiom.
+   */
+  sendEvent(event: string, payload: unknown): void {
+    if (this.socket !== null && this.socket.readyState === WebSocket.OPEN) {
+      const message: BridgeEventMessage = { kind: "event", event, payload };
+      this.socket.send(JSON.stringify(message));
     }
   }
 }

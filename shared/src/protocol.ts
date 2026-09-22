@@ -49,3 +49,18 @@ export type BridgeResponse<TResult = unknown> =
 export type CommandHandler<TPayload = unknown, TResult = unknown> = (
   payload: TPayload,
 ) => TResult | Promise<TResult>;
+
+/**
+ * An unsolicited message pushed from the module to the server (Phase 26) —
+ * the first bridge message that isn't a reply to a {@link BridgeRequest}.
+ * Distinguished from `BridgeRequest`/`BridgeResponse` by the `kind: "event"`
+ * discriminator: neither of those shapes has ever carried a `kind` field, so
+ * a message with one is unambiguously an event, checked before falling back
+ * to the existing request/response parsing on both ends of the bridge.
+ */
+export interface BridgeEventMessage<TPayload = unknown> {
+  kind: "event";
+  /** Foundry hook name, e.g. "createActor". */
+  event: string;
+  payload: TPayload;
+}

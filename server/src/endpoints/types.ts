@@ -7,9 +7,20 @@ import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodType } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
+import type { FoundryEventBus } from "../events/event-bus.js";
 
 export interface EndpointContext {
   foundryClient: FoundryClient;
+  /**
+   * The server-side event bus (Phase 26), present once `server/src/index.ts`
+   * wires one up. Optional — and resolved from `app.locals`/passed
+   * separately rather than added to `FoundryClientOptions` or similar —
+   * because most descriptors never touch it; only the recent-events polling
+   * tool (server/src/endpoints/events.ts) does. Undefined in any test that
+   * builds a bare `{foundryClient}` context, same as every other phase's
+   * existing tests.
+   */
+  eventBus?: FoundryEventBus | undefined;
 }
 
 export interface EndpointDescriptor<TInput = void, TResult = unknown> {

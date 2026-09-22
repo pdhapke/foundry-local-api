@@ -8,6 +8,7 @@ import { createApp, createDefaultRequestLogger } from "./app.js";
 import { FoundryClient } from "./bridge/foundry-client.js";
 import { BridgeGateway } from "./bridge/gateway.js";
 import { ConfigError, loadConfig, type AppConfig } from "./config.js";
+import { FoundryEventBus } from "./events/event-bus.js";
 import { connectMcpStdio } from "./mcp/index.js";
 
 function main(): void {
@@ -49,13 +50,23 @@ function main(): void {
   });
   app.locals["foundryClient"] = foundryClient;
 
+  // Server-side event bus (Phase 26) — buffers/fans out the module's pushed
+  // hook events (FoundryClient.onEvent()) to the SSE route
+  // (server/src/endpoints/events-sse.ts) and the MCP recent-events tool
+  // (server/src/endpoints/events.ts). Stashed on app.locals the same way and
+  // for the same reason as foundryClient above (see endpoints/registry.ts's
+  // header comment).
+  const eventBus = new FoundryEventBus();
+  foundryClient.onEvent((event, payload) => eventBus.publish(event, payload));
+  app.locals["eventBus"] = eventBus;
+
   // MCP stdio server (Phase 5) — opt-in via MCP_STDIO, for MCP clients
   // (Claude Desktop/Code) that spawn this process directly. While it's on,
   // stdout is reserved exclusively for the MCP JSON-RPC stream, so this
   // (like the banner below) logs via console.error rather than console.log.
   let mcpServer: McpServer | undefined;
   if (config.mcpStdio) {
-    connectMcpStdio(foundryClient)
+    connectMcpStdio(foundryClient, eventBus)
       .then((connectedMcpServer) => {
         mcpServer = connectedMcpServer;
         console.error("MCP stdio server connected (MCP_STDIO=true).");

@@ -122,6 +122,34 @@
 // `createDirectory()`) to back the file/asset command handlers
 // (module/src/commands/files.ts) — the second ambient declaration in this
 // file (after Phase 14's `Roll`) that isn't a Document/collection shape.
+//
+// Phase 25 added `FoundryUser#toObject()`/`delete()` to back User CRUD
+// (module/src/commands/users.ts) — a User is itself a Document, so no new
+// static creator declaration was needed either: `CONFIG.User.documentClass`
+// already exists via Phase 8's generic `CONFIG` surface, and Foundry's real
+// `User` document class supports the same static `create()` as every other
+// document type. Also added `FoundryPlaceable` (`id`/`document`) and
+// `canvas.scene`/`canvas.tokens.controlled` to back the read-only canvas
+// selection command handler — `canvas.tokens.controlled` is an array of
+// Token placeable objects (not TokenDocuments), each carrying the actual
+// TokenDocument at `.document`.
+//
+// Phase 27 added `game.i18n` (`localize()`/`format()`/`has()`) to back the
+// localization command handler and the `TextEditor` static class
+// (`enrichHTML()`) to back HTML enrichment — the third ambient declaration
+// in this file that isn't a Document/collection shape (after Phase 14's
+// `Roll` and Phase 24's `FilePicker`). In-world search needed no new ambient
+// surface at all: it resolves entirely off the already-declared
+// `game.collections`/`FoundryDocument` shapes from Phase 8.
+//
+// Phase 26 widened `Hooks.on`'s callback signature to accept Foundry's real
+// hook-specific positional args (`(...args: unknown[]) => void`) and to
+// return the numeric hook id Foundry's real API returns (used with
+// `Hooks.off`, which this phase doesn't need — nothing here unregisters a
+// hook, so `Hooks.off` itself wasn't added) — needed to back the hook-
+// forwarding registration (module/src/hooks.ts). `Hooks.once`'s signature is
+// unchanged: every existing caller (`init`/`ready`) uses it with a
+// zero-arg callback and no phase has needed otherwise.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -152,6 +180,13 @@ interface GameSettings {
   settings: Map<string, ClientSettings.RegisteredSetting>;
 }
 
+/** Foundry's localization engine — the subset of its API Phase 27 drives. */
+interface GameI18n {
+  localize(key: string): string;
+  format(key: string, data?: Record<string, unknown>): string;
+  has(key: string): boolean;
+}
+
 /** Shape of `game.user` and each value in `game.users`. */
 interface FoundryUser {
   id: string;
@@ -159,8 +194,10 @@ interface FoundryUser {
   role: number;
   isGM: boolean;
   active: boolean;
+  toObject(): Record<string, unknown>;
   /** Updates this user document's fields (e.g. `{ role }`) — a User is itself a Document. */
   update(changes: Record<string, unknown>): Promise<FoundryUser>;
+  delete(): Promise<FoundryUser>;
 }
 
 /** Shape of each value in `game.modules`. */
@@ -376,6 +413,7 @@ declare class Roll {
 
 declare const game: {
   settings: GameSettings;
+  i18n: GameI18n;
   release: {
     version: string;
   };
@@ -407,7 +445,8 @@ declare const CONFIG: {
 
 declare const Hooks: {
   once(hook: string, callback: () => void): void;
-  on(hook: string, callback: () => void): void;
+  /** Returns the numeric hook id Foundry's real `Hooks.on` returns (usable with `Hooks.off`). */
+  on(hook: string, callback: (...args: unknown[]) => void): number;
 };
 
 /** Foundry's file/directory browser and uploader — the subset of its API Phase 24 drives. */
@@ -429,6 +468,18 @@ declare class FilePicker {
   static createDirectory(source: string, target: string, options?: Record<string, unknown>): Promise<string>;
 }
 
+/** Foundry's HTML enrichment engine — the subset of its static API Phase 27 drives. */
+declare class TextEditor {
+  /** Resolves content links (@UUID/@Actor/...), inline rolls, etc. in `content` into real HTML. */
+  static enrichHTML(content: string, options?: Record<string, unknown>): Promise<string>;
+}
+
+/** A rendered canvas object (e.g. a Token) — distinct from its underlying Document, found at `.document`. */
+interface FoundryPlaceable {
+  id: string;
+  document: FoundryDocument;
+}
+
 /** The currently-rendered game canvas, `null` before a scene has been activated/viewed. */
 declare const canvas:
   | {
@@ -441,6 +492,10 @@ declare const canvas:
         y?: number | undefined;
         scale?: number | undefined;
       }): Promise<void>;
+      /** The Scene document currently being viewed. */
+      scene: FoundryDocument | null;
+      /** The token layer, whose `controlled` array holds the currently-selected Token placeables. */
+      tokens: { controlled: FoundryPlaceable[] };
     }
   | null
   | undefined;

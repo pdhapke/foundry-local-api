@@ -6,10 +6,12 @@
 // per-call timeouts.
 import { randomUUID } from "node:crypto";
 
-import type { BridgeRequest, BridgeResponse } from "@foundry-local-api/shared";
+import type { BridgeEventMessage, BridgeRequest, BridgeResponse } from "@foundry-local-api/shared";
 
 import { FoundryBridgeError, normalizeBridgeErrorCode } from "./errors.js";
 import type { BridgeGateway } from "./gateway.js";
+
+export type FoundryClientEventListener = (event: string, payload: unknown) => void;
 
 export interface FoundryClientOptions {
   /** Default per-call timeout, used when `call()` isn't given an override. */
@@ -24,6 +26,7 @@ interface PendingCall {
 
 export class FoundryClient {
   private readonly pending = new Map<string, PendingCall>();
+  private readonly eventListeners = new Set<FoundryClientEventListener>();
 
   constructor(
     private readonly gateway: BridgeGateway,
@@ -98,6 +101,21 @@ export class FoundryClient {
     return this.pending.size;
   }
 
+  /**
+   * Registers a listener invoked for every inbound {@link BridgeEventMessage}
+   * (Phase 26) — the module pushing an unsolicited Foundry hook firing,
+   * unrelated to any pending `call()`. Returns an unsubscribe function.
+   * Listener-set idiom mirrors `BridgeGateway.onMessage`/`onConnectionLost`
+   * (server/src/bridge/gateway.ts), plus the unsubscribe return this phase's
+   * consumer (the event bus) needs.
+   */
+  onEvent(listener: FoundryClientEventListener): () => void {
+    this.eventListeners.add(listener);
+    return () => {
+      this.eventListeners.delete(listener);
+    };
+  }
+
   private handleMessage(raw: string): void {
     let parsed: unknown;
     try {
@@ -107,6 +125,17 @@ export class FoundryClient {
         "[bridge] received malformed (non-JSON) message, ignoring:",
         err instanceof Error ? err.message : err,
       );
+      return;
+    }
+
+    // Checked before the response-shape parsing below: `kind: "event"` is a
+    // discriminator no `BridgeRequest`/`BridgeResponse` has ever carried, so
+    // it unambiguously routes to the event-listener path instead of falling
+    // through to "unexpected shape, ignoring".
+    if (isBridgeEventMessageShape(parsed)) {
+      for (const listener of this.eventListeners) {
+        listener(parsed.event, parsed.payload);
+      }
       return;
     }
 
@@ -150,6 +179,15 @@ export class FoundryClient {
       this.pending.delete(id);
     }
   }
+}
+
+/** Narrow, defensive runtime check — inbound bridge messages are untrusted input. */
+function isBridgeEventMessageShape(value: unknown): value is BridgeEventMessage {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return candidate["kind"] === "event" && typeof candidate["event"] === "string";
 }
 
 /** Narrow, defensive runtime check — inbound bridge messages are untrusted input. */

@@ -11,6 +11,7 @@ import {
   getConfiguredBridgeUrl,
   registerBridgeSettings,
 } from "./bridge-client.js";
+import { registerHookForwarding } from "./hooks.js";
 import "./command-registry.js";
 import "./commands/meta.js";
 import "./commands/settings.js";
@@ -33,6 +34,8 @@ import "./commands/active-effects.js";
 import "./commands/placeables.js";
 import "./commands/permissions.js";
 import "./commands/files.js";
+import "./commands/users.js";
+import "./commands/localization.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();
@@ -41,4 +44,5 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
   const client = new BridgeClient(getConfiguredBridgeUrl, getConfiguredApiKey);
   client.connect();
+  registerHookForwarding(client);
 });

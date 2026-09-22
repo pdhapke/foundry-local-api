@@ -7,6 +7,7 @@ export type {
   BridgeErrorResponse,
   BridgeError,
   CommandHandler,
+  BridgeEventMessage,
 } from "./protocol.js";
 
 export { META_COMMANDS } from "./meta.js";
@@ -142,3 +143,25 @@ export type {
   CreateDirectoryInput,
   CreateDirectoryResult,
 } from "./files.js";
+
+export { USER_COMMANDS } from "./users.js";
+export type {
+  UserIdInput,
+  UserCreateInput,
+  UserUpdateInput,
+  UserStatusResult,
+  CanvasSelectionResult,
+} from "./users.js";
+
+export { LOCALIZATION_COMMANDS } from "./localization.js";
+export type {
+  LocalizeInput,
+  LocalizeResult,
+  EnrichHtmlInput,
+  EnrichHtmlResult,
+  SearchInput,
+  SearchMatch,
+  SearchResult,
+} from "./localization.js";
+
+export type { FoundryEventRecord, RecentEventsInput, RecentEventsResult } from "./events.js";

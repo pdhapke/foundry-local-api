@@ -22,6 +22,7 @@ import { ZodObject, type ZodRawShape } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { FoundryBridgeError, foundryBridgeErrorToHttpError } from "../bridge/errors.js";
+import type { FoundryEventBus } from "../events/event-bus.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import type { AnyEndpointDescriptor, EndpointContext, EndpointDescriptor } from "./types.js";
 
@@ -64,7 +65,13 @@ function registerRestRoute<TInput, TResult>(
     ) as TInput;
 
     const foundryClient = req.app.locals["foundryClient"] as FoundryClient;
-    const ctx: EndpointContext = { foundryClient };
+    // Resolved off `app.locals` at request time, same convention (and same
+    // reason) as `foundryClient` above — see this file's header comment.
+    // Not present on any test app that doesn't set it (server/src/index.ts
+    // is the only production wiring site), so descriptors that use it must
+    // handle `undefined` gracefully rather than assume it's always there.
+    const eventBus = req.app.locals["eventBus"] as FoundryEventBus | undefined;
+    const ctx: EndpointContext = { foundryClient, eventBus };
 
     Promise.resolve(handler(input, ctx))
       .then((result) => res.json(result))
@@ -96,14 +103,17 @@ function registerRestRoute<TInput, TResult>(
 
 /**
  * Registers every descriptor (regardless of `method`/`path`) as an MCP tool
- * against `mcpServer`, closure-capturing the given `foundryClient`.
+ * against `mcpServer`, closure-capturing the given `foundryClient`/
+ * `eventBus`. `eventBus` is optional for the same reason it's optional on
+ * `EndpointContext` (types.ts) — only the recent-events tool uses it.
  */
 export function registerMcpTools(
   mcpServer: McpServer,
   descriptors: AnyEndpointDescriptor[],
   foundryClient: FoundryClient,
+  eventBus?: FoundryEventBus,
 ): void {
-  const ctx: EndpointContext = { foundryClient };
+  const ctx: EndpointContext = { foundryClient, eventBus };
   for (const descriptor of descriptors) {
     registerMcpTool(descriptor, mcpServer, ctx);
   }
