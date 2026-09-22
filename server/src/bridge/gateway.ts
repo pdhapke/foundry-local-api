@@ -35,6 +35,16 @@ import { timingSafeEqualStrings } from "../security/api-key.js";
 export type BridgeMessageListener = (raw: string) => void;
 /** Fired whenever the previously active connection stops being active, whether it closed on its own or was replaced by a new connection. */
 export type BridgeConnectionLostListener = () => void;
+/**
+ * Fired whenever a new connection becomes the active one (initial connect,
+ * reconnect after a drop, or a replacement per this file's "newest
+ * connection wins" policy). This is what Phase 32's integration detection
+ * (server/src/integrations/manager.ts's `IntegrationManager.refresh()`)
+ * hooks into: the connected module is the only source of truth for which
+ * game system/modules are active, so detection needs to re-run every time a
+ * (re)connection happens, not just once at server startup.
+ */
+export type BridgeConnectionEstablishedListener = () => void;
 
 export interface BridgeGatewayOptions {
   /**
@@ -53,6 +63,7 @@ export class BridgeGateway {
   private active: WebSocket | null = null;
   private readonly messageListeners = new Set<BridgeMessageListener>();
   private readonly connectionLostListeners = new Set<BridgeConnectionLostListener>();
+  private readonly connectionEstablishedListeners = new Set<BridgeConnectionEstablishedListener>();
 
   constructor(httpServer: HttpServer, options: BridgeGatewayOptions) {
     this.apiKey = options.apiKey;
@@ -104,6 +115,11 @@ export class BridgeGateway {
     this.connectionLostListeners.add(listener);
   }
 
+  /** Registers a listener invoked whenever a new connection becomes the active one. See `BridgeConnectionEstablishedListener`'s doc comment above. */
+  onConnectionEstablished(listener: BridgeConnectionEstablishedListener): void {
+    this.connectionEstablishedListeners.add(listener);
+  }
+
   /** Closes any active connection and stops the underlying WebSocketServer. Part of graceful shutdown. */
   async close(): Promise<void> {
     for (const client of this.wss.clients) {
@@ -124,6 +140,10 @@ export class BridgeGateway {
 
   private handleConnection(socket: WebSocket): void {
     this.replaceActive(socket);
+    // `socket` is already `this.active` and OPEN by this point, so a
+    // listener that synchronously calls `foundryClient.call(...)`
+    // (Phase 32's IntegrationManager.refresh()) works immediately.
+    this.notifyConnectionEstablished();
 
     socket.on("message", (data: RawData, isBinary: boolean) => {
       if (isBinary) {
@@ -174,6 +194,12 @@ export class BridgeGateway {
 
   private notifyConnectionLost(): void {
     for (const listener of this.connectionLostListeners) {
+      listener();
+    }
+  }
+
+  private notifyConnectionEstablished(): void {
+    for (const listener of this.connectionEstablishedListeners) {
       listener();
     }
   }

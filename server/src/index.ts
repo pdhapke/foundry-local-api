@@ -9,6 +9,10 @@ import { FoundryClient } from "./bridge/foundry-client.js";
 import { BridgeGateway } from "./bridge/gateway.js";
 import { ConfigError, loadConfig, type AppConfig } from "./config.js";
 import { FoundryEventBus } from "./events/event-bus.js";
+import { IntegrationManager } from "./integrations/manager.js";
+import { applyActiveIntegrationTools } from "./integrations/mcp-tools.js";
+import { integrations } from "./integrations/registry.js";
+import { applyActiveIntegrations } from "./integrations/router.js";
 import { connectMcpStdio } from "./mcp/index.js";
 
 function main(): void {
@@ -50,6 +54,23 @@ function main(): void {
   });
   app.locals["foundryClient"] = foundryClient;
 
+  // Optional integration framework (Phase 32) — detects which registered
+  // integrations (server/src/integrations/registry.js, empty until Phase 34
+  // adds dnd5e) are active in the connected world, and re-detects every time
+  // a bridge connection is (re-)established. The REST router
+  // (server/src/integrations/router.js) is subscribed unconditionally, since
+  // it works with or without MCP_STDIO; the MCP side is subscribed further
+  // below, once the MCP server actually exists.
+  const integrationManager = new IntegrationManager(foundryClient, integrations);
+  integrationManager.onChange((active) => {
+    applyActiveIntegrations(active);
+  });
+  gateway.onConnectionEstablished(() => {
+    integrationManager.refresh().catch((err: unknown) => {
+      console.error("[integrations] detection failed:", err instanceof Error ? err.message : err);
+    });
+  });
+
   // Server-side event bus (Phase 26) — buffers/fans out the module's pushed
   // hook events (FoundryClient.onEvent()) to the SSE route
   // (server/src/endpoints/events-sse.ts) and the MCP recent-events tool
@@ -70,6 +91,22 @@ function main(): void {
       .then((connectedMcpServer) => {
         mcpServer = connectedMcpServer;
         console.error("MCP stdio server connected (MCP_STDIO=true).");
+
+        // Phase 32 — subscribe the MCP tool set to future integration
+        // changes, then immediately sync it to whatever's active *right
+        // now*: a bridge connection (and thus detection) may already have
+        // happened before this promise resolved, in which case
+        // `integrationManager.getActive()` is already non-empty and this
+        // call is what actually registers those tools for the first time.
+        integrationManager.onChange((active) => {
+          applyActiveIntegrationTools(connectedMcpServer, active, foundryClient, eventBus);
+        });
+        applyActiveIntegrationTools(
+          connectedMcpServer,
+          integrationManager.getActive(),
+          foundryClient,
+          eventBus,
+        );
       })
       .catch((err: unknown) => {
         console.error("Failed to start MCP stdio server:", err);

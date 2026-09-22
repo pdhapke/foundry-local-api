@@ -15,6 +15,14 @@
 // its own tsconfig) so it participates in the server workspace's existing
 // `typecheck`/`lint`/`tsx` tooling for free.
 //
+// Phase 32 extended this to also walk `integrations` (server/src/
+// integrations/registry.js — empty until Phase 34 adds dnd5e) as a second,
+// distinctly-marked source of descriptors alongside the always-present
+// `allEndpointDescriptors`: integration endpoints get an `x-integration`
+// OpenAPI extension field, and their own `## Integration: <id> (<kind>)`
+// section in the Markdown catalog, since they only actually exist in a
+// running server once that integration is active in the connected world.
+//
 // Schema conversion uses zod v4's own built-in `z.toJSONSchema()` (the
 // project already depends on zod ^4.6.5) rather than adding the
 // `zod-to-json-schema` package — zod 4 shipped native JSON Schema
@@ -42,6 +50,8 @@ import { z, type ZodType } from "zod";
 import "../app.js";
 import { allEndpointDescriptors } from "../endpoints/index.js";
 import type { AnyEndpointDescriptor } from "../endpoints/types.js";
+import { integrations } from "../integrations/registry.js";
+import type { Integration } from "../integrations/types.js";
 import { readPackageVersion } from "../version.js";
 
 // Mirrors `server/src/middleware/auth.ts`'s `API_KEY_HEADER` rather than
@@ -118,6 +128,18 @@ function tagFor(descriptor: AnyEndpointDescriptor): string {
   }
   const firstSegment = descriptor.path.split("/").filter(Boolean)[0];
   return firstSegment ?? "misc";
+}
+
+/** Every registered integration's descriptors, flattened and paired with the owning `Integration` so callers can distinguish them from core endpoints. */
+interface IntegrationEndpointEntry {
+  descriptor: AnyEndpointDescriptor;
+  integration: Integration;
+}
+
+function integrationEndpointEntries(): IntegrationEndpointEntry[] {
+  return integrations.flatMap((integration) =>
+    integration.endpoints.map((descriptor) => ({ descriptor, integration })),
+  );
 }
 
 interface OpenApiParameter {
@@ -215,6 +237,25 @@ function buildOpenApiDocument(): JsonSchemaObject {
     pathItem[descriptor.method] = buildOperation(descriptor, descriptor.method, descriptor.path);
   }
 
+  // Phase 32 — integration-gated endpoints, mounted under
+  // /api/integrations/<id>/... (server/src/integrations/router.ts) and only
+  // actually present in a running server once that integration is active in
+  // the connected world. Marked distinctly from the always-present core
+  // endpoints above via the `x-integration` OpenAPI extension field (OpenAPI
+  // allows arbitrary `x-*` extension keys) rather than reworking the whole
+  // path-building loop above to be integration-aware.
+  for (const { descriptor, integration } of integrationEndpointEntries()) {
+    if (!descriptor.method || !descriptor.path) {
+      continue;
+    }
+    const openApiPath = "/api/integrations" + toOpenApiPath(descriptor.path);
+    const pathItem = (paths[openApiPath] ??= {});
+    pathItem[descriptor.method] = {
+      ...buildOperation(descriptor, descriptor.method, descriptor.path),
+      "x-integration": { id: integration.id, kind: integration.kind },
+    };
+  }
+
   // Two hand-rolled REST routes that don't go through the descriptor
   // pattern at all (see their own header comments: server/src/endpoints/
   // health.ts's actual `/health` route lives in app.ts, and events-sse.ts
@@ -289,7 +330,12 @@ function buildOpenApiDocument(): JsonSchemaObject {
       },
     ],
     security: [{ apiKeyAuth: [] }],
-    tags: Array.from(new Set(allEndpointDescriptors.map(tagFor)))
+    tags: Array.from(
+      new Set([
+        ...allEndpointDescriptors.map(tagFor),
+        ...integrationEndpointEntries().map(({ descriptor }) => tagFor(descriptor)),
+      ]),
+    )
       .sort()
       .map((name) => ({ name })),
     paths,
@@ -347,6 +393,25 @@ function formatJsonSchemaForMarkdown(descriptor: AnyEndpointDescriptor): string 
   return ["| Field | Type | Required | Description |", "|---|---|---|---|", ...rows].join("\n");
 }
 
+/** Renders one descriptor's `### tool_name` block. `restPrefix` is `/api` for core endpoints or `/api/integrations` for integration ones (server/src/integrations/router.ts's real mount point). */
+function descriptorMarkdownLines(descriptor: AnyEndpointDescriptor, restPrefix: string): string[] {
+  const restLine =
+    descriptor.method && descriptor.path
+      ? `${descriptor.method.toUpperCase()} ${restPrefix}${descriptor.path}`
+      : "(MCP only — no REST route)";
+  const danger = descriptor.annotations?.destructiveHint ? " ⚠️ **destructive**" : "";
+  return [
+    `### \`${descriptor.name}\`${danger}`,
+    "",
+    descriptor.description,
+    "",
+    `REST: \`${restLine}\``,
+    "",
+    formatJsonSchemaForMarkdown(descriptor),
+    "",
+  ];
+}
+
 function buildMcpToolCatalogMarkdown(): string {
   const byTag = new Map<string, AnyEndpointDescriptor[]>();
   for (const descriptor of allEndpointDescriptors) {
@@ -372,6 +437,10 @@ function buildMcpToolCatalogMarkdown(): string {
     ...Array.from(byTag.keys())
       .sort()
       .map((tag) => `- [${tag}](#${tag})`),
+    ...integrations.map(
+      (integration) =>
+        `- [Integration: ${integration.id}](#integration-${integration.id}-${integration.kind})`,
+    ),
     "",
   ];
 
@@ -379,21 +448,25 @@ function buildMcpToolCatalogMarkdown(): string {
     lines.push(`## ${tag}`, "");
     const descriptors = byTag.get(tag) ?? [];
     for (const descriptor of descriptors.sort((a, b) => a.name.localeCompare(b.name))) {
-      const restLine =
-        descriptor.method && descriptor.path
-          ? `${descriptor.method.toUpperCase()} /api${descriptor.path}`
-          : "(MCP only — no REST route)";
-      const danger = descriptor.annotations?.destructiveHint ? " ⚠️ **destructive**" : "";
-      lines.push(
-        `### \`${descriptor.name}\`${danger}`,
-        "",
-        descriptor.description,
-        "",
-        `REST: \`${restLine}\``,
-        "",
-        formatJsonSchemaForMarkdown(descriptor),
-        "",
-      );
+      lines.push(...descriptorMarkdownLines(descriptor, "/api"));
+    }
+  }
+
+  // Phase 32 — integration-gated tools, in their own sections separate from
+  // the always-present core sections above, since these only actually
+  // appear on a connected MCP client once their integration is active in
+  // the connected Foundry world (server/src/integrations/mcp-tools.ts).
+  for (const integration of integrations) {
+    lines.push(
+      `## Integration: ${integration.id} (${integration.kind})`,
+      "",
+      `_These tools only appear when ${integration.kind} \`${integration.id}\` is active in the connected Foundry world — see PLAN.md's Phase 32._`,
+      "",
+    );
+    for (const descriptor of [...integration.endpoints].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    )) {
+      lines.push(...descriptorMarkdownLines(descriptor, "/api/integrations"));
     }
   }
 

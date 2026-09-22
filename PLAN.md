@@ -69,7 +69,8 @@ its own before moving to the next.
 | 29 — Security Review Pass | ✅ Done | `251c399` |
 | 30 — Documentation & Packaging | ✅ Done | `a2869e1` |
 | 31 — Test Suite & CI | ✅ Done | `e14a08d` |
-| 32–36 | Not started | — |
+| 32 — Optional Integration Plugin Framework | ✅ Done | _pending commit_ |
+| 33–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -956,6 +957,62 @@ its own before moving to the next.
   `actions/setup-node`'s built-in npm cache — no matrix build, since
   nothing about this codebase has cross-platform/multi-version runtime
   concerns beyond what's already true.
+- Phase 32's `Integration` interface (`server/src/integrations/types.ts`)
+  adds `minVersion`/`maxVersion` gating beyond PLAN.md's literal text: a real
+  interpretation choice, since the plan only specified the fields' presence,
+  not what they're checked against. They're compared (inclusive bounds) not
+  against Foundry's own core/system version but against the *matched*
+  system's or module's own reported `version` (Phase 6's `SystemInfo`/
+  `ModuleInfo`) — checked in addition to `detect()` passing, never instead of
+  it, since `detect()` is what determines *which* system/module matched in
+  the first place. The comparator (`server/src/integrations/version.ts`'s
+  `isVersionInRange`) is a small hand-rolled dotted-numeric comparator, not a
+  `semver` dependency — same "avoid a package when a small comparator
+  suffices" precedent as Phase 30's `z.toJSONSchema()` deviation. A
+  `kind: "module"` integration whose matched module can't be found in the
+  active-modules list (shouldn't happen if `detect()` is written correctly,
+  but not asserted) skips version gating entirely rather than erroring,
+  since `detect()`'s own boolean is still the authority on whether it's
+  "active" at all.
+- Phase 32's dynamic REST router (`server/src/integrations/router.ts`)
+  rebuilds a brand-new `express.Router()` from scratch on every
+  `applyActiveIntegrations()` call rather than mutating one long-lived
+  router — Express has no API to unregister a previously-mounted route, so
+  "unmounting" an integration when it goes inactive can only be done by
+  throwing the whole router away and building a fresh one. A module-level
+  `currentRouter` pointer plus a thin `integrationRouterMiddleware`
+  indirection (`(req, res, next) => currentRouter(req, res, next)`, mounted
+  once by `routes/api.ts`) is what makes that swap invisible to Express's
+  otherwise-static route table. Hit the same Express 5 (`path-to-regexp` v8)
+  wildcard gotcha Phase 27 already found with the query parser, but a
+  different manifestation of it: an inactive integration's catch-all route
+  needs `router.all(\`/${id}/*splat\`, handler)` (a *named* wildcard
+  segment) rather than the Express-4-style bare `/${id}/*`, plus a separate
+  `router.all(\`/${id}\`, handler)` for the no-trailing-segment case, since a
+  wildcard segment doesn't match zero path segments.
+- Phase 32 changed `registerMcpTool`/`registerMcpTools`
+  (`server/src/endpoints/registry.ts`) to return the MCP SDK's
+  `RegisteredTool`/`RegisteredTool[]` instead of `void` — a pure additive
+  change (every existing caller already ignored the return value) needed so
+  `server/src/integrations/mcp-tools.ts` can call `.remove()` on a tool when
+  its integration goes inactive, the MCP-side equivalent of the REST
+  router's rebuild-from-scratch strategy (MCP tools, unlike Express routes,
+  *can* be individually removed via the handle `registerTool()` itself
+  returns).
+- Phase 32 extended the Phase 30 doc generator
+  (`server/src/scripts/generate-docs.ts`) to walk `integrations`
+  (`server/src/integrations/registry.ts`) as a second, distinctly-marked
+  source of descriptors: an `x-integration: {id, kind}` OpenAPI extension
+  field on each integration endpoint's operation object (OpenAPI allows
+  arbitrary `x-*` keys), and a separate `## Integration: <id> (<kind>)`
+  section per integration in the Markdown tool catalog, noting that those
+  tools only appear when that system/module is active in the connected
+  world. Since `integrations` is empty until Phase 34, regenerating
+  `docs/openapi.json`/`docs/mcp-tools.md` for this phase produced no
+  semantic diff — the regenerated JSON was piped through `prettier --write`
+  (per Phase 31's own noted caveat about `JSON.stringify`'s array formatting
+  not matching Prettier's) before being checked in, and came out
+  byte-identical to what was already committed.
 
 ---
 

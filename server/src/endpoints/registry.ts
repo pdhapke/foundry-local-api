@@ -17,7 +17,7 @@
 //     time, since by the time `connectMcpStdio(foundryClient)` runs, the
 //     real `FoundryClient` already exists.
 import type { NextFunction, Request, RequestHandler, Response, Router } from "express";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ZodObject, type ZodRawShape } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
@@ -106,24 +106,28 @@ function registerRestRoute<TInput, TResult>(
  * against `mcpServer`, closure-capturing the given `foundryClient`/
  * `eventBus`. `eventBus` is optional for the same reason it's optional on
  * `EndpointContext` (types.ts) — only the recent-events tool uses it.
+ *
+ * Returns the `RegisteredTool` handle for each tool (Phase 32) — every
+ * caller before Phase 32 ignored the return value, so this is a pure
+ * additive change; Phase 32's `../integrations/mcp-tools.ts` is the first
+ * caller that actually uses the handles, calling `.remove()` on them when an
+ * integration goes inactive.
  */
 export function registerMcpTools(
   mcpServer: McpServer,
   descriptors: AnyEndpointDescriptor[],
   foundryClient: FoundryClient,
   eventBus?: FoundryEventBus,
-): void {
+): RegisteredTool[] {
   const ctx: EndpointContext = { foundryClient, eventBus };
-  for (const descriptor of descriptors) {
-    registerMcpTool(descriptor, mcpServer, ctx);
-  }
+  return descriptors.map((descriptor) => registerMcpTool(descriptor, mcpServer, ctx));
 }
 
 function registerMcpTool<TInput, TResult>(
   descriptor: EndpointDescriptor<TInput, TResult>,
   mcpServer: McpServer,
   ctx: EndpointContext,
-): void {
+): RegisteredTool {
   const { name, description, inputSchema, handler, annotations } = descriptor;
 
   if (inputSchema) {
@@ -137,7 +141,7 @@ function registerMcpTool<TInput, TResult>(
       );
     }
     const shape = inputSchema.shape as ZodRawShape;
-    mcpServer.registerTool(
+    return mcpServer.registerTool(
       name,
       { description, inputSchema: shape, ...(annotations ? { annotations } : {}) },
       async (args) => {
@@ -157,10 +161,9 @@ function registerMcpTool<TInput, TResult>(
         }
       },
     );
-    return;
   }
 
-  mcpServer.registerTool(
+  return mcpServer.registerTool(
     name,
     { description, ...(annotations ? { annotations } : {}) },
     async () => {
