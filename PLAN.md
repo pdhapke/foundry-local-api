@@ -45,8 +45,9 @@ its own before moving to the next.
 | 5 — MCP Server Interface Scaffold | ✅ Done | `50b1bb2` |
 | 6 — Core Meta/Introspection Endpoints | ✅ Done | `2b1ab95` |
 | 7 — Settings Read/Write | ✅ Done | `c7dfa86` |
-| 8 — Generic Document CRUD Core | ⏳ Next up | — |
-| 9–36 | Not started | — |
+| 8 — Generic Document CRUD Core | ✅ Done | `e03d360` |
+| 9 — Actors | ⏳ Next up | — |
+| 10–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -90,6 +91,33 @@ its own before moving to the next.
   static API key (Phase 4), whereas the connected module always knows both
   the registered setting's `scope` and `game.user.isGM`. Same untested-
   against-a-live-instance caveat as Phase 6 applies here.
+- Phase 8 registers its five module-side commands (`documentList/Get/Create/
+  Update/Delete`, `module/src/commands/documents.ts`) once, generically,
+  rather than once per document type — `documentType` travels in the command
+  payload and selects `game.collections.get(documentType)` /
+  `CONFIG[documentType].documentClass` at call time. The server-side
+  genericity lives in `makeDocumentEndpoints()`
+  (`server/src/endpoints/documents.ts`), which takes a `documentType` plus
+  explicit REST/MCP naming (`routeBase`, `toolSingular`, `toolPlural`) and
+  returns five descriptors with `documentType` closed over. Naming is passed
+  in explicitly rather than derived (e.g. pluralizing `JournalEntry` to
+  `journal-entries`/`journal_entries`) — English pluralization is irregular
+  enough (and Foundry's own document type names inconsistent enough) that
+  auto-derivation would be more fragile than just asking each call site for
+  the three strings it needs.
+- Phase 8 extended `module/src/types/foundry-globals.d.ts` with `game.
+  collections` and `CONFIG`, typed only down to the generic `FoundryDocument`/
+  `FoundryDocumentClass` shape (`id`/`toObject()`/`update()`/`delete()` and
+  static `create()`) this phase's handlers actually call — no per-document-
+  type schema, consistent with Phase 6's decision to keep this file minimal
+  and hand-rolled rather than adopt the community types package.
+- Phase 8 was implemented and tested entirely against a mocked bridge client
+  (`server/src/endpoints/documents.test.ts`) — no live Foundry instance was
+  available, same caveat as Phases 6–7. The module-side generic command
+  handlers build/typecheck cleanly but are unverified against a real
+  `game.collections`/`CONFIG` object; flagged for a live smoke-test
+  (starting with `JournalEntry` CRUD) whenever a Foundry instance is
+  available.
 
 ---
 
