@@ -1,0 +1,5 @@
+dist
+node_modules
+*.md
+# Foundry module manifest — managed separately, not to be reformatted here.
+module.json
