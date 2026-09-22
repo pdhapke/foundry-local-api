@@ -69,7 +69,7 @@ its own before moving to the next.
 | 29 — Security Review Pass | ✅ Done | `251c399` |
 | 30 — Documentation & Packaging | ✅ Done | `a2869e1` |
 | 31 — Test Suite & CI | ✅ Done | `e14a08d` |
-| 32 — Optional Integration Plugin Framework | ✅ Done | _pending commit_ |
+| 32 — Optional Integration Plugin Framework | ✅ Done | `0cd10ed` |
 | 33–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
