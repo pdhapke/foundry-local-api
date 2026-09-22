@@ -6,9 +6,9 @@
     "node": ">=20"
   },
   "workspaces": [
+    "shared",
     "server",
-    "module",
-    "shared"
+    "module"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

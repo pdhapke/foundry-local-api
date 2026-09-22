@@ -6,6 +6,7 @@
     "minimum": "14",
     "verified": "14"
   },
+  "esmodules": ["module/dist/index.js"],
   "flags": {
     "canUpload": true,
     "foundry-local-api": {
