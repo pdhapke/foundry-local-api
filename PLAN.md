@@ -57,7 +57,7 @@ its own before moving to the next.
 | 17 — Playlists & Audio | ✅ Done | `e4d1feb` |
 | 18 — RollTables & Cards | ✅ Done | `403a873` |
 | 19 — Folders | ✅ Done | `7493063` |
-| 20 — Compendium Packs | ✅ Done | _pending commit_ |
+| 20 — Compendium Packs | ✅ Done | `a851624` |
 | 21–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
