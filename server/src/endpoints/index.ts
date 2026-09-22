@@ -1,6 +1,7 @@
 // Full list of endpoint descriptors, REST+MCP shared infrastructure (moved
 // out of mcp/ in Phase 6 — see registry.ts). Every later phase appends its
 // own descriptor array here.
+import { activeEffectEndpointDescriptors } from "./active-effects.js";
 import { actorEndpointDescriptors } from "./actors.js";
 import { cardsEndpointDescriptors } from "./cards.js";
 import { chatEndpointDescriptors } from "./chat.js";
@@ -40,6 +41,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...cardsEndpointDescriptors,
   ...folderEndpointDescriptors,
   ...packEndpointDescriptors,
+  ...activeEffectEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";

@@ -58,7 +58,8 @@ its own before moving to the next.
 | 18 — RollTables & Cards | ✅ Done | `403a873` |
 | 19 — Folders | ✅ Done | `7493063` |
 | 20 — Compendium Packs | ✅ Done | `a851624` |
-| 21–36 | Not started | — |
+| 21 — Active Effects | ✅ Done | _pending commit_ |
+| 22–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -531,6 +532,39 @@ its own before moving to the next.
   real system-provided compendium's index, CRUD against a world-owned pack,
   and importing a real entry — e.g. a monster from a dnd5e compendium — into
   the world) whenever a Foundry instance is available.
+- Phase 21 is the first embedded-collection phase where the embedded type
+  (ActiveEffect) hangs off *two* different parent document types (Actor,
+  Item) rather than one fixed parent (contrast Phase 10's Item, always on an
+  Actor; Phase 12's Token, always on a Scene; Phase 13's JournalEntryPage,
+  always on a JournalEntry). Rather than hand-rolling a full set of
+  descriptors/commands per parent type the way Phase 20 hand-rolled packs,
+  Phase 21 generalizes: `shared/src/active-effects.ts`'s five
+  `EMBEDDED_EFFECT_COMMANDS` and their payload shapes all carry an explicit
+  `parentType: "Actor" | "Item"` field alongside `parentId`, and
+  `server/src/endpoints/active-effects.ts` defines one factory,
+  `makeEmbeddedEffectEndpoints({parentType, routeBase, toolPrefix})` —
+  mirroring Phase 8's `makeDocumentEndpoints()` — called twice (once for
+  Actor, once for Item) to build `/api/actors/:parentId/effects[/:effectId]`
+  and `/api/items/:parentId/effects[/:effectId]`. `parentType` itself is
+  baked into each call's descriptors via closure, not read off the request,
+  since a given REST route only ever serves one parent type.
+- Module-side, `module/src/commands/active-effects.ts` resolves the parent
+  generically off `game.collections.get(parentType)` rather than assuming a
+  fixed `Actor` collection the way Phase 10's `items.ts` does. This needed a
+  new `FoundryItem` ambient interface (`module/src/types/foundry-globals.d.ts`)
+  — the first time an Item needs its own typed shape beyond generic
+  `FoundryDocument`/`FoundryDocumentClass` — carrying the same
+  `effects`/`createEmbeddedDocuments()` shape now also added to `FoundryActor`.
+- Phase 21's tests cover all five CRUD operations against the Actor-parented
+  routes, plus one additional list request against the Item-parented route
+  to prove the second `makeEmbeddedEffectEndpoints()` call wires up its own
+  `parentType`/`routeBase` independently rather than colliding with the
+  first (same "factory is generic, independent per call" assertion Phase 8's
+  `documents.test.ts` makes for `makeDocumentEndpoints()`). Same untested-
+  against-a-live-instance caveat as Phases 6–20 applies to the module-side
+  handler; flagged for a live smoke-test (creating/toggling/deleting a real
+  ActiveEffect on both an Actor and an owned Item) whenever a Foundry
+  instance is available.
 
 ---
 

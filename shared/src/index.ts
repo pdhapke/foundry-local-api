@@ -101,3 +101,12 @@ export type {
   PackCreateEntryInput,
   PackUpdateEntryInput,
 } from "./packs.js";
+
+export { EMBEDDED_EFFECT_COMMANDS } from "./active-effects.js";
+export type {
+  EffectParentType,
+  EffectParentInput,
+  EffectIdInput,
+  EffectCreateInput,
+  EffectUpdateInput,
+} from "./active-effects.js";

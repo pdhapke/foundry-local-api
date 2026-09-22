@@ -91,6 +91,13 @@
 // `FoundryDocumentClass#create()` gained an optional `options` parameter so a
 // pack entry can be created with `{pack: <packId>}`; every earlier call site
 // that omits it is unaffected.
+//
+// Phase 21 added `effects: Map<string, FoundryDocument>` to `FoundryActor`
+// and a new `FoundryItem` interface (the `FoundryDocument` subset plus its
+// own `effects`/`createEmbeddedDocuments()`) to back the embedded
+// ActiveEffect command handlers (module/src/commands/active-effects.ts) — an
+// ActiveEffect can be embedded on either parent type, the first Phase to
+// need the same embedded-collection shape on more than one document type.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -160,7 +167,20 @@ interface FoundryActor extends FoundryDocument {
   getRollData(): Record<string, unknown>;
   /** The actor's embedded Item documents. */
   items: Map<string, FoundryDocument>;
-  /** Creates one or more embedded documents of the given type (e.g. "Item") on this actor. */
+  /** The actor's embedded ActiveEffect documents. */
+  effects: Map<string, FoundryDocument>;
+  /** Creates one or more embedded documents of the given type (e.g. "Item", "ActiveEffect") on this actor. */
+  createEmbeddedDocuments(
+    embeddedName: string,
+    data: Record<string, unknown>[],
+  ): Promise<FoundryDocument[]>;
+}
+
+/** A loaded Item document — the `FoundryDocument` subset plus the embedded ActiveEffect API Phase 21 drives. */
+interface FoundryItem extends FoundryDocument {
+  /** The item's embedded ActiveEffect documents. */
+  effects: Map<string, FoundryDocument>;
+  /** Creates one or more embedded documents of the given type (e.g. "ActiveEffect") on this item. */
   createEmbeddedDocuments(
     embeddedName: string,
     data: Record<string, unknown>[],

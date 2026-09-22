@@ -29,6 +29,7 @@ import "./commands/roll-tables.js";
 import "./commands/cards.js";
 import "./commands/folders.js";
 import "./commands/packs.js";
+import "./commands/active-effects.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();
