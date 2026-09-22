@@ -57,7 +57,8 @@ its own before moving to the next.
 | 17 — Playlists & Audio | ✅ Done | `e4d1feb` |
 | 18 — RollTables & Cards | ✅ Done | `403a873` |
 | 19 — Folders | ✅ Done | `7493063` |
-| 20–36 | Not started | — |
+| 20 — Compendium Packs | ✅ Done | _pending commit_ |
+| 21–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -480,6 +481,56 @@ its own before moving to the next.
   module-side handler (`module/src/commands/folders.ts`); flagged for a live
   smoke-test (moving a real document into and out of a folder, and renesting
   a folder itself) whenever a Foundry instance is available.
+- Phase 20 could not reuse the Phase 8 `makeDocumentEndpoints()` factory at
+  all, unlike every document-CRUD phase since (JournalEntry/Actor/Item/
+  Scene/Macro/Combat/Playlist/RollTable/Cards/Folder): a compendium pack has
+  no `game.collections` entry of its own — packs live on their own top-level
+  `game.packs` collection, keyed by pack id (e.g. `"world.my-macros"` or
+  `"dnd5e.monsters"`). So all seven descriptors (list packs, read a pack's
+  index, get/create/update/delete an entry, import an entry into the world)
+  are hand-rolled in new `shared/src/packs.ts` (`PACK_COMMANDS`),
+  `server/src/endpoints/packs.ts`, and `module/src/commands/packs.ts`, under
+  `/api/packs[/:packId/index | /:packId/entries[/:entryId[/import]]]`,
+  following the same `<parent>Id`/`<child>Id` embedded-id shape (packId/
+  entryId) Phase 12 established for embedded tokens.
+- Get/update/delete of a single pack entry needed no new Foundry API surface
+  beyond loading it: once a document is loaded via
+  `CompendiumCollection#getDocument(id)`, it's a regular `FoundryDocument`
+  whose own `.update()`/`.delete()` already route back to the pack it came
+  from — the same finding Phase 10 made for embedded documents routing
+  through their parent. Only entry creation needed a new option,
+  `FoundryDocumentClass#create(data, { pack: <packId> })`, since there's no
+  existing document instance to route through yet for a not-yet-created
+  entry (mirrors Phase 10's finding that only embedded creation needed new
+  ambient surface, for the same reason).
+- Importing an entry into the world uses Foundry's own
+  `WorldCollection#importFromCompendium(pack, id)` (found on the values of
+  `game.collections`, e.g. `game.actors`) rather than hand-rolling
+  "load the entry then re-create it in the world," since Foundry's real
+  method already handles the folder/ownership/sort cleanup that a naive
+  re-create would need to replicate — consistent with Phase 11's dimensions
+  endpoint preferring Foundry's own computed values over re-deriving them.
+- `game.collections`' value type was widened from a bare
+  `Map<string, FoundryDocument>` to a new `FoundryWorldCollection` interface
+  (`module/src/types/foundry-globals.d.ts`) that extends that same `Map`
+  shape with `importFromCompendium()` — every earlier phase's
+  `game.collections.get(type)` call site is unaffected, since a
+  `FoundryWorldCollection` is still a `Map<string, FoundryDocument>` for
+  every method they actually use.
+- Phase 20 added `game.packs` (`FoundryCompendiumCollection`, covering
+  `metadata`/`index`/`getIndex()`/`getDocument()`/`documentClass`) to
+  `module/src/types/foundry-globals.d.ts`, following the same minimal/
+  hand-rolled approach as every ambient declaration since Phase 6 — no
+  per-document-type schema, just the subset of the real `CompendiumCollection`
+  API this phase's handlers actually call.
+- Phase 20's tests cover all seven descriptors directly, since none of them
+  are backed by an already-tested generic factory (same rationale as Phase
+  12's tokens and Phase 13's journal pages). Same untested-against-a-live-
+  instance caveat as Phases 6–19 applies to the module-side handler
+  (`module/src/commands/packs.ts`); flagged for a live smoke-test (reading a
+  real system-provided compendium's index, CRUD against a world-owned pack,
+  and importing a real entry — e.g. a monster from a dnd5e compendium — into
+  the world) whenever a Foundry instance is available.
 
 ---
 

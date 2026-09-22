@@ -12,6 +12,7 @@ import { itemEndpointDescriptors } from "./items.js";
 import { journalPageEndpointDescriptors } from "./journal-pages.js";
 import { macroEndpointDescriptors } from "./macros.js";
 import { metaEndpointDescriptors } from "./meta.js";
+import { packEndpointDescriptors } from "./packs.js";
 import { playlistEndpointDescriptors } from "./playlists.js";
 import { rollEndpointDescriptors } from "./rolls.js";
 import { rollTableEndpointDescriptors } from "./roll-tables.js";
@@ -38,6 +39,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...rollTableEndpointDescriptors,
   ...cardsEndpointDescriptors,
   ...folderEndpointDescriptors,
+  ...packEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";

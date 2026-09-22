@@ -80,6 +80,17 @@
 // itself uses the generic `FoundryDocument`/`FoundryDocumentClass` shapes
 // above unchanged. Named `FoundryCardsStack` rather than `FoundryCards` to
 // avoid colliding with Foundry's own global `Cards` document class.
+//
+// Phase 20 added `game.packs` (`FoundryCompendiumCollection`, covering
+// `metadata`/`index`/`getIndex()`/`getDocument()`/`documentClass`) to back
+// the compendium-pack command handlers (module/src/commands/packs.ts), plus
+// an `importFromCompendium()` method on the world-collection values of
+// `game.collections` (renamed to `FoundryWorldCollection`, a `Map` subtype
+// so every earlier phase's `game.collections.get(type)` call sites are
+// unaffected) to back importing a pack entry into the world.
+// `FoundryDocumentClass#create()` gained an optional `options` parameter so a
+// pack entry can be created with `{pack: <packId>}`; every earlier call site
+// that omits it is unaffected.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -137,7 +148,11 @@ interface FoundryDocument {
 
 /** A document type's class, as found at `CONFIG.<Type>.documentClass`. */
 interface FoundryDocumentClass {
-  create(data: Record<string, unknown>): Promise<FoundryDocument | undefined>;
+  /** `options.pack` creates the document inside that compendium pack instead of the world. */
+  create(
+    data: Record<string, unknown>,
+    options?: Record<string, unknown>,
+  ): Promise<FoundryDocument | undefined>;
 }
 
 /** A loaded Actor document — the `FoundryDocument` subset plus the actor-specific API Phase 9 drives. */
@@ -255,6 +270,45 @@ interface FoundryCardsStack extends FoundryDocument {
   reset(): Promise<FoundryCardsStack>;
 }
 
+/** A world-level document collection, as found at `game.collections.get(<type>)` (e.g. `game.actors`). */
+interface FoundryWorldCollection extends Map<string, FoundryDocument> {
+  /** Loads the given compendium entry and creates a new document from it in this world collection. */
+  importFromCompendium(
+    pack: FoundryCompendiumCollection,
+    id: string,
+    updateData?: Record<string, unknown>,
+    options?: Record<string, unknown>,
+  ): Promise<FoundryDocument>;
+}
+
+/** A single compendium pack's metadata, as found at `CompendiumCollection#metadata`. */
+interface FoundryCompendiumMetadata {
+  /** The pack's own id, e.g. "world.my-macros" or "dnd5e.monsters". */
+  id: string;
+  label: string;
+  /** The Foundry document type this pack stores, e.g. "Actor", "Item", "JournalEntry". */
+  type: string;
+  package: string;
+  packageType: string;
+  system?: string;
+  path: string;
+}
+
+/** A loaded compendium pack — the subset of `CompendiumCollection`'s API Phase 20 drives. */
+interface FoundryCompendiumCollection {
+  metadata: FoundryCompendiumMetadata;
+  /** The pack's currently-loaded index (may be empty until `getIndex()` is called). */
+  index: Map<string, Record<string, unknown> & { _id: string; name: string }>;
+  /** (Re)loads and returns the pack's index of lightweight entry summaries. */
+  getIndex(options?: {
+    fields?: string[];
+  }): Promise<Map<string, Record<string, unknown> & { _id: string; name: string }>>;
+  /** Loads a single full document from this pack by id. */
+  getDocument(id: string): Promise<FoundryDocument | null>;
+  /** The Document class backing this pack's entries, used to create a new entry directly in the pack. */
+  documentClass: FoundryDocumentClass;
+}
+
 /** One die term's individual roll results within an evaluated `Roll` (e.g. a `2d6` roll's two dice). */
 interface FoundryDieTerm {
   faces: number;
@@ -293,7 +347,9 @@ declare const game: {
   users: Map<string, FoundryUser>;
   modules: Map<string, FoundryModule>;
   /** Keyed by Foundry document type name (e.g. "JournalEntry"), each a Map of that type's documents keyed by id. */
-  collections: Map<string, Map<string, FoundryDocument>>;
+  collections: Map<string, FoundryWorldCollection>;
+  /** Every compendium pack available in the world, keyed by pack id (e.g. "world.my-macros", "dnd5e.monsters"). */
+  packs: Map<string, FoundryCompendiumCollection>;
 };
 
 /** Keyed by Foundry document type name (e.g. "JournalEntry"). */
