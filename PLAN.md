@@ -52,7 +52,7 @@ its own before moving to the next.
 | 12 — Tokens (scene-embedded) | ✅ Done | `12b21e7` |
 | 13 — Journal Entries & Pages | ✅ Done | `246c09e` |
 | 14 — Dice Rolling & Chat Messages | ✅ Done | `844df5f` |
-| 15 — Macros | ✅ Done | _pending commit_ |
+| 15 — Macros | ✅ Done | `43ef417` |
 | 16–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
