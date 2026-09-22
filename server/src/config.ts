@@ -66,6 +66,15 @@ export interface AppConfig {
   rateLimitWindowMs: number;
   /** Max requests per `rateLimitWindowMs` per client, applied to `/api/*`. */
   rateLimitMax: number;
+  /**
+   * Whether to also start an MCP server on the process's own stdio (Phase 5),
+   * for MCP clients like Claude Desktop/Code that spawn this process
+   * directly rather than talking HTTP. When true, stdout is reserved
+   * exclusively for the MCP JSON-RPC stream — see `server/src/index.ts` for
+   * how the startup banner and request logger are redirected to stderr to
+   * respect that.
+   */
+  mcpStdio: boolean;
 }
 
 /** Thrown when the environment describes an invalid or unsafe configuration. */
@@ -82,9 +91,7 @@ function parsePort(raw: string | undefined): number {
   }
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    throw new ConfigError(
-      `Invalid PORT "${raw}": must be an integer between 1 and 65535.`,
-    );
+    throw new ConfigError(`Invalid PORT "${raw}": must be an integer between 1 and 65535.`);
   }
   return parsed;
 }
@@ -140,9 +147,7 @@ function parseShutdownTimeout(raw: string | undefined): number {
   }
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new ConfigError(
-      `Invalid SHUTDOWN_TIMEOUT_MS "${raw}": must be a positive integer.`,
-    );
+    throw new ConfigError(`Invalid SHUTDOWN_TIMEOUT_MS "${raw}": must be a positive integer.`);
   }
   return parsed;
 }
@@ -217,12 +222,19 @@ function ensureApiKeyProvisioned(): void {
     const contents = readFileSync(ENV_FILE_PATH, "utf8");
     const updated = apiKeyLinePattern.test(contents)
       ? contents.replace(apiKeyLinePattern, `API_KEY=${generated}`)
-      : contents + (contents.length > 0 && !contents.endsWith("\n") ? "\n" : "") + `API_KEY=${generated}\n`;
+      : contents +
+        (contents.length > 0 && !contents.endsWith("\n") ? "\n" : "") +
+        `API_KEY=${generated}\n`;
     writeFileSync(ENV_FILE_PATH, updated, "utf8");
   }
 
   process.env["API_KEY"] = generated;
-  console.log(
+  // MCP_STDIO reserves stdout for the MCP JSON-RPC stream from the moment
+  // the process starts, so this one-time notice must not use console.log
+  // when it's set — same constraint as the request logger/banner in
+  // index.ts, just reached earlier (loadConfig() runs before those exist).
+  const logSink = parseBoolean(process.env["MCP_STDIO"]) ? console.error : console.log;
+  logSink(
     "No API_KEY found — generated a new one and saved it to .env. " +
       "See server/.env if you need it (e.g. to configure the Foundry module's API key setting).",
   );
@@ -244,9 +256,7 @@ function parseRateLimitWindowMs(raw: string | undefined): number {
   }
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new ConfigError(
-      `Invalid RATE_LIMIT_WINDOW_MS "${raw}": must be a positive integer.`,
-    );
+    throw new ConfigError(`Invalid RATE_LIMIT_WINDOW_MS "${raw}": must be a positive integer.`);
   }
   return parsed;
 }
@@ -281,5 +291,6 @@ export function loadConfig(): AppConfig {
     corsAllowedOrigins: parseCorsAllowedOrigins(process.env["CORS_ALLOWED_ORIGINS"]),
     rateLimitWindowMs: parseRateLimitWindowMs(process.env["RATE_LIMIT_WINDOW_MS"]),
     rateLimitMax: parseRateLimitMax(process.env["RATE_LIMIT_MAX"]),
+    mcpStdio: parseBoolean(process.env["MCP_STDIO"]),
   };
 }

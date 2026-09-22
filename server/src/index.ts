@@ -2,10 +2,13 @@
 // Express app, starts listening, and wires graceful shutdown.
 import http from "node:http";
 
-import { createApp } from "./app.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+import { createApp, createDefaultRequestLogger } from "./app.js";
 import { FoundryClient } from "./bridge/foundry-client.js";
 import { BridgeGateway } from "./bridge/gateway.js";
 import { ConfigError, loadConfig, type AppConfig } from "./config.js";
+import { connectMcpStdio } from "./mcp/index.js";
 
 function main(): void {
   let config: AppConfig;
@@ -19,12 +22,17 @@ function main(): void {
     throw err;
   }
 
+  // When MCP_STDIO is on, this process's stdout is reserved exclusively for
+  // the MCP JSON-RPC stream (see connectMcpStdio below) — nothing else may
+  // write to it, so the request logger is redirected to stderr instead.
+  // Behavior is byte-for-byte unchanged (stdout logger) when it's off.
   const app = createApp({
     isDevelopment: config.isDevelopment,
     apiKey: config.apiKey,
     corsAllowedOrigins: config.corsAllowedOrigins,
     rateLimitWindowMs: config.rateLimitWindowMs,
     rateLimitMax: config.rateLimitMax,
+    ...(config.mcpStdio ? { requestLogger: createDefaultRequestLogger(console.error) } : {}),
   });
   const server = http.createServer(app);
 
@@ -41,8 +49,31 @@ function main(): void {
   });
   app.locals["foundryClient"] = foundryClient;
 
+  // MCP stdio server (Phase 5) — opt-in via MCP_STDIO, for MCP clients
+  // (Claude Desktop/Code) that spawn this process directly. While it's on,
+  // stdout is reserved exclusively for the MCP JSON-RPC stream, so this
+  // (like the banner below) logs via console.error rather than console.log.
+  let mcpServer: McpServer | undefined;
+  if (config.mcpStdio) {
+    connectMcpStdio(foundryClient)
+      .then((connectedMcpServer) => {
+        mcpServer = connectedMcpServer;
+        console.error("MCP stdio server connected (MCP_STDIO=true).");
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to start MCP stdio server:", err);
+        process.exit(1);
+      });
+  }
+
+  // The startup banner and the shutdown log lines below are the only other
+  // console output on the default (non-MCP) path; all of it moves to
+  // stderr too when MCP_STDIO=true, for the same stdout-hygiene reason as
+  // the request logger above.
+  const lifecycleLog = config.mcpStdio ? console.error : console.log;
+
   server.listen(config.port, config.host, () => {
-    console.log(
+    lifecycleLog(
       "\n" +
         "foundry-local-api server listening\n" +
         `  address: http://${config.host}:${config.port}\n` +
@@ -67,7 +98,7 @@ function main(): void {
       return;
     }
     shuttingDown = true;
-    console.log(`\nReceived ${signal}, shutting down gracefully...`);
+    lifecycleLog(`\nReceived ${signal}, shutting down gracefully...`);
 
     const forceExitTimer = setTimeout(() => {
       console.error(
@@ -77,14 +108,17 @@ function main(): void {
     }, config.shutdownTimeoutMs);
     forceExitTimer.unref();
 
-    // Close any active bridge connection and stop the WS server first
-    // (independent of the HTTP server's own close below — ws's
-    // WebSocketServer attached via `{ server }` does not close the HTTP
-    // server itself, and vice versa), then stop accepting new HTTP
+    // Close the MCP stdio connection (if any), then the bridge connection
+    // and WS server (independent of the HTTP server's own close below —
+    // ws's WebSocketServer attached via `{ server }` does not close the
+    // HTTP server itself, and vice versa), then stop accepting new HTTP
     // connections; the server.close() callback fires once all in-flight
     // requests/connections have finished.
-    gateway
-      .close()
+    Promise.resolve(mcpServer?.close())
+      .catch((err: unknown) => {
+        console.error("Error closing MCP stdio server:", err);
+      })
+      .then(() => gateway.close())
       .catch((err: unknown) => {
         console.error("Error closing bridge gateway:", err);
       })
@@ -95,7 +129,7 @@ function main(): void {
             console.error("Error during shutdown:", err);
             process.exit(1);
           }
-          console.log("Shutdown complete.");
+          lifecycleLog("Shutdown complete.");
           process.exit(0);
         });
       });

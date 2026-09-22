@@ -27,11 +27,23 @@ export interface RequestLogEntry {
 
 export type RequestLogger = (entry: RequestLogEntry) => void;
 
-/** Default logger: single-line, human-readable, stdout — this is the audit log for Phase 4 (console only, no rotation/external service, by design). */
-const defaultRequestLogger: RequestLogger = ({ method, path, status, durationMs, authenticated }) => {
-  const authSuffix = authenticated === undefined ? "" : ` auth=${authenticated}`;
-  console.log(`${method} ${path} ${status} ${durationMs}ms${authSuffix}`);
-};
+/**
+ * Builds a single-line, human-readable request logger over a given sink —
+ * this is the audit log for Phase 4 (console only, no rotation/external
+ * service, by design). Parameterized over the sink (rather than hardcoding
+ * `console.log`) so index.ts can reuse the exact same line format on
+ * `console.error` instead when `MCP_STDIO=true` reserves stdout for the MCP
+ * JSON-RPC stream (Phase 5) — see index.ts.
+ */
+export function createDefaultRequestLogger(sink: (line: string) => void): RequestLogger {
+  return ({ method, path, status, durationMs, authenticated }) => {
+    const authSuffix = authenticated === undefined ? "" : ` auth=${authenticated}`;
+    sink(`${method} ${path} ${status} ${durationMs}ms${authSuffix}`);
+  };
+}
+
+/** Default logger: writes to stdout. Not used when `MCP_STDIO=true` — see index.ts. */
+const defaultRequestLogger: RequestLogger = createDefaultRequestLogger(console.log);
 
 /** Normalized shape every error response body uses. */
 interface ErrorResponseBody {
@@ -163,9 +175,7 @@ export function createApp(options: CreateAppOptions): Express {
     const status = err instanceof HttpError ? err.status : 500;
     const code = err instanceof HttpError ? err.code : undefined;
     const message =
-      err instanceof HttpError || status < 500
-        ? (err as Error).message
-        : "Internal server error";
+      err instanceof HttpError || status < 500 ? (err as Error).message : "Internal server error";
 
     if (isDevelopment) {
       console.error(err);

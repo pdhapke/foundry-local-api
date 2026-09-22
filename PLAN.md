@@ -42,8 +42,9 @@ its own before moving to the next.
 | 2 — Foundry Module Bridge Client | ✅ Done | `ec7b9e8` |
 | 3 — Bridge Transport Protocol & Server-Side WS Gateway | ✅ Done | `d3f2887` |
 | 4 — Security Hardening Pass 1 | ✅ Done | `803f9cc` |
-| 5 — MCP Server Interface Scaffold | ⏳ Next up | — |
-| 6–36 | Not started | — |
+| 5 — MCP Server Interface Scaffold | ✅ Done | `TBD` |
+| 6 — Core Meta/Introspection Endpoints | ⏳ Next up | — |
+| 7–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
