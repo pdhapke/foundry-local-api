@@ -14,9 +14,8 @@
         {
           "id": "dnd5e",
           "kind": "system",
-          "implemented": false,
           "detect": "game.system.id === 'dnd5e'",
-          "description": "PLANNED, NOT YET IMPLEMENTED (see PLAN.md Part 2, Phases 32-36 — the integration framework this entry depends on hasn't been built). Will add dnd5e-specific REST endpoints and MCP tools (ability checks, saves, skills, rests, spell slots, item/activity use) on top of the generic Document API. Core endpoints already work without this, regardless of game system.",
+          "description": "Read-only dnd5e data access is implemented (see PLAN.md Part 2, Phase 34): REST endpoints and MCP tools for CONFIG.DND5E reference data, a structured actor-sheet summary, and actor inventory. Write actions (ability/save/skill rolls, rests, spell slots, item/activity use) are planned for a later phase (PLAN.md Phase 35). Core endpoints already work without this, regardless of game system.",
           "source": "https://github.com/foundryvtt/dnd5e"
         }
       ]
@@ -27,7 +26,7 @@
       {
         "id": "dnd5e",
         "type": "system",
-        "reason": "Not required, and not yet implemented (planned for a future phase — see PLAN.md Phases 32-36). Once built, this module will expose additional dnd5e-specific REST/MCP endpoints (rolls, rests, spell slots) when the world's game system is dnd5e."
+        "reason": "Not required. When the world's game system is dnd5e, this module exposes additional read-only dnd5e-specific REST/MCP endpoints (config reference data, actor sheet summary, inventory). Write actions (rolls, rests, spell slots, item use) are planned for a later phase — see PLAN.md Phase 35."
       }
     ]
   },

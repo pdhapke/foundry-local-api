@@ -71,7 +71,8 @@ its own before moving to the next.
 | 31 — Test Suite & CI | ✅ Done | `e14a08d` |
 | 32 — Optional Integration Plugin Framework | ✅ Done | `0cd10ed` |
 | 33 — Manifest Declaration Convention | ✅ Done | `7cd946c` |
-| 34–36 | Not started | — |
+| 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | _pending commit_ |
+| 35–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -1050,6 +1051,99 @@ its own before moving to the next.
   runs when the file is the actual CLI entry point, not merely imported —
   worth remembering for any future script under `src/scripts/` that, unlike
   `generate-docs.ts`, exports something a test file needs to import.
+- Phase 34 is the first entry actually registered in the Phase 32/33
+  integration framework (`server/src/integrations/registry.ts`'s
+  `integrations` array goes from `[]` to `[dnd5eIntegration]`), and the
+  **strongest version yet** of this project's running "no live instance"
+  caveat applies to it — stronger than the routine one every phase since
+  Phase 6 has carried for Foundry's own core API. Every prior phase read
+  long-stable, extensively-documented core Foundry globals; this phase reads
+  `CONFIG.DND5E` and an actor's live `system` data, both entirely
+  system-defined and — per PLAN.md's own Phase 35 text — known to have
+  "changed materially across dnd5e's 2.x -> 3.x -> 4.x releases." Here it's
+  not just *whether* the documented API still behaves as documented that's
+  unverified, but the *shape itself* being read. Treat every field-path
+  assumption below as needing a live smoke-test against a real dnd5e world
+  (ideally across more than one dnd5e version) before this is trusted in
+  production:
+  - `CONFIG.DND5E.abilities`/`skills`/`damageTypes`/`conditionTypes` are each
+    assumed to be a flat `Record<string, {label, abbreviation?, ability?}>`;
+    `label`/`abbreviation` values are passed through `game.i18n.localize()`
+    unconditionally (safe no-op on an already-plain string, per Phase 27's
+    existing `localize()` contract) since some dnd5e versions store i18n
+    keys there rather than display strings. Any entry that isn't a plain
+    object is skipped rather than crashing on `.label`, and a missing
+    `CONFIG.DND5E` itself degrades to four empty arrays.
+  - An actor's ability/skill/spell-slot/currency/senses data is read off a
+    single narrow cast, `actor.system as Record<string, any>` — not a
+    typed shape — with every individual field defaulted (`?? 0`/`?? {}`/
+    `?? ""`) so a missing or renamed field degrades gracefully instead of
+    throwing.
+  - **Skill proficiency multiplier is read from `system.skills.<id>.value`,
+    not `.proficient`** — dnd5e's own data model names the skill entry's
+    proficiency-multiplier field `value`, which would collide confusingly
+    with the result shape's own `proficient` key if passed through
+    unrenamed, so it's explicitly remapped to `proficient` in
+    `Dnd5eActorSheetResult` for a naming style consistent with `abilities`.
+  - Class/level derivation: sums `system.levels` (assumed field path) off
+    every embedded Item document whose `toObject().type === "class"`; if an
+    actor has no class items at all (the expected case for an NPC actor,
+    which typically has none), `level` falls back to
+    `system.details.level` instead of summing an empty list to 0.
+  - An item's `attuned` flag checks both `system.attuned` and (as a fallback)
+    `system.attunement`, since the exact field name/representation for
+    attunement state isn't confidently known to be stable across dnd5e
+    versions.
+  - An item's `activities` are read from `system.activities` as a keyed
+    object (`Record<string, {name?, type?}>`, dnd5e 3.x+'s Activities
+    system, serialized flat by `toObject()`) rather than an array; absent
+    entirely (older dnd5e with no Activities system) or present-but-not-an-
+    object both degrade to `[]`.
+  - `module/src/types/foundry-globals.d.ts` gained `system: Record<string,
+    unknown>` on both `FoundryActor` and `FoundryItem` — the first ambient
+    ask for a document's *live, derived* runtime data (every earlier phase
+    only ever needed `toObject()`'s pre-derived source data, which is
+    missing computed fields like ability modifiers). Deliberately left
+    generic/untyped rather than describing dnd5e's schema in this file,
+    consistent with its established no-per-document-type/no-per-system
+    minimalism; dnd5e-specific field access happens via the local casts
+    above in `module/src/commands/dnd5e.ts`, not in the ambient declaration
+    file itself.
+  - The shared ambient `CONFIG` declaration
+    (`{[documentType: string]: {documentClass: FoundryDocumentClass} |
+    undefined}`) was deliberately left untouched rather than widened to
+    include `DND5E` — every earlier phase's `CONFIG[documentType]?.
+    documentClass` call site (documents.ts, users.ts, bulk.ts, etc.) depends
+    on that exact shape, and `CONFIG.DND5E` is itself an entirely
+    dnd5e-specific addition with no reason to appear in a system-agnostic
+    ambient surface. Instead, `module/src/commands/dnd5e.ts` reaches it via
+    one narrow local cast, `(CONFIG as unknown as {DND5E?: Record<string,
+    unknown>}).DND5E`, scoping the assumption to the one file that needs it
+    — the same "cast narrowly at the call site instead of widening a shared
+    generic type" precedent already used elsewhere (e.g.
+    `module/src/commands/permissions.ts`).
+  - `module.json`'s `dnd5e` `optionalIntegrations[0].implemented: false` flag
+    (Phase 33's convention) was removed entirely rather than flipped to
+    `true` — both are equivalent to `check-manifest-sync.ts` (omitted
+    defaults to `true`), and removing it reads more cleanly now that dnd5e
+    is a real, code-registered integration rather than a declared-but-
+    unbuilt placeholder. `description` and `relationships.recommends[0].
+    reason` were reworded to describe what's actually implemented
+    (read-only config/actor-sheet/inventory access) versus what's still
+    planned (write actions — rolls, rests, spell slots, item/activity use —
+    per PLAN.md's own Phase 35 text, not overclaimed beyond it).
+  - As with every module-side command handler file since Phase 6,
+    `module/src/commands/dnd5e.ts` has no direct unit test — Phase 31's
+    deviation log already established that these need a real/heavily-mocked
+    `game` global and aren't unit-tested; only the pure, extracted
+    server-side descriptor logic
+    (`server/src/integrations/dnd5e/endpoints.test.ts`) is. This file
+    reuses the "small standalone Express app mounting the descriptors
+    directly" harness style from `server/src/integrations/router.test.ts`/
+    `server/src/endpoints/registry.test.ts`, including that same file's
+    documented `import "../../app.js"` circular-import workaround (omitting
+    it reproduces the exact `__name is not a function` runtime error
+    `router.test.ts`'s header comment warns about).
 
 ---
 

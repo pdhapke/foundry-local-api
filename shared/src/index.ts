@@ -175,3 +175,11 @@ export type {
 } from "./localization.js";
 
 export type { FoundryEventRecord, RecentEventsInput, RecentEventsResult } from "./events.js";
+
+export { DND5E_COMMANDS } from "./dnd5e.js";
+export type {
+  Dnd5eActorIdInput,
+  Dnd5eConfigResult,
+  Dnd5eActorSheetResult,
+  Dnd5eInventoryItem,
+} from "./dnd5e.js";

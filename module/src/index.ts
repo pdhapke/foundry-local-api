@@ -37,6 +37,7 @@ import "./commands/files.js";
 import "./commands/users.js";
 import "./commands/localization.js";
 import "./commands/bulk.js";
+import "./commands/dnd5e.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

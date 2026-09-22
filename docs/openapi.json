@@ -33,6 +33,9 @@
       "name": "combats"
     },
     {
+      "name": "dnd5e"
+    },
+    {
       "name": "documents"
     },
     {
@@ -9012,6 +9015,145 @@
           "500": {
             "$ref": "#/components/responses/ServerError"
           }
+        }
+      }
+    },
+    "/api/integrations/dnd5e/config": {
+      "get": {
+        "operationId": "dnd5e_get_config",
+        "summary": "Relevant slices of dnd5e's CONFIG.DND5E (abilities, skills, damage types, condition types) so a caller doesn't need hardcoded dnd5e knowledge to interpret raw actor data.",
+        "description": "Relevant slices of dnd5e's CONFIG.DND5E (abilities, skills, damage types, condition types) so a caller doesn't need hardcoded dnd5e knowledge to interpret raw actor data.",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/actors/{id}/sheet": {
+      "get": {
+        "operationId": "dnd5e_get_actor_sheet",
+        "summary": "Structured dnd5e actor sheet summary: abilities, saves, skills, AC, HP, senses, currency, spell slots, class/level, proficiency bonus.",
+        "description": "Structured dnd5e actor sheet summary: abilities, saves, skills, AC, HP, senses, currency, spell slots, class/level, proficiency bonus.",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/dnd5e/actors/{id}/inventory": {
+      "get": {
+        "operationId": "dnd5e_get_actor_inventory",
+        "summary": "An actor's items with dnd5e-specific fields: quantity, equipped, attuned, activities.",
+        "description": "An actor's items with dnd5e-specific fields: quantity, equipped, attuned, activities.",
+        "tags": ["dnd5e"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "dnd5e",
+          "kind": "system"
         }
       }
     },

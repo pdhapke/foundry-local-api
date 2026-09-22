@@ -160,6 +160,19 @@
 // Foundry hook cycle per batch, not N. The query command needed no new
 // ambient surface at all: it resolves entirely off Phase 8's existing
 // `game.collections`/`FoundryDocument#toObject()` shapes.
+//
+// Phase 34 added `system: Record<string, unknown>` to `FoundryActor`/
+// `FoundryItem` — the first phase needing a document's *live, derived*
+// system data at runtime (every earlier phase only ever needed
+// `toObject()`'s pre-derived source data). Deliberately left as a generic,
+// untyped escape hatch: the shape is entirely defined by whichever game
+// system is active, so this file stays system-agnostic (no per-*system*
+// schema, on top of its existing no-per-document-type-schema minimalism);
+// dnd5e-specific field access happens via a narrow local cast in
+// module/src/commands/dnd5e.ts, not here. The shared ambient `CONFIG`
+// declaration below is deliberately left untouched for the same reason —
+// see module/src/commands/dnd5e.ts's header comment for the narrow local
+// cast it uses instead to reach `CONFIG.DND5E`.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -254,6 +267,15 @@ interface FoundryActor extends FoundryDocument {
   items: Map<string, FoundryDocument>;
   /** The actor's embedded ActiveEffect documents. */
   effects: Map<string, FoundryDocument>;
+  /**
+   * The actor's live, derived system data (e.g. dnd5e's ability
+   * modifiers/AC/HP, computed at runtime) — as opposed to `toObject()`,
+   * which returns pre-derived source data missing computed fields.
+   * Intentionally untyped/generic: the shape is entirely defined by
+   * whichever game system is active. System-specific field access happens
+   * via a local cast at the call site (see module/src/commands/dnd5e.ts).
+   */
+  system: Record<string, unknown>;
   /** Creates one or more embedded documents of the given type (e.g. "Item", "ActiveEffect") on this actor. */
   createEmbeddedDocuments(
     embeddedName: string,
@@ -265,6 +287,8 @@ interface FoundryActor extends FoundryDocument {
 interface FoundryItem extends FoundryDocument {
   /** The item's embedded ActiveEffect documents. */
   effects: Map<string, FoundryDocument>;
+  /** The item's live, derived system data — see `FoundryActor#system` above for why this is generic. */
+  system: Record<string, unknown>;
   /** Creates one or more embedded documents of the given type (e.g. "ActiveEffect") on this item. */
   createEmbeddedDocuments(
     embeddedName: string,

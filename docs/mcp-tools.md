@@ -34,6 +34,7 @@ Total tools: **168**.
 - [user](#user)
 - [users](#users)
 - [world](#world)
+- [Integration: dnd5e](#integration-dnd5e-system)
 
 ## actors
 
@@ -1839,6 +1840,38 @@ REST: `PUT /api/users/:userId`
 Details of the currently active Foundry world (id, title, description, system, background).
 
 REST: `GET /api/world`
+
+_No input._
+
+## Integration: dnd5e (system)
+
+_These tools only appear when system `dnd5e` is active in the connected Foundry world — see PLAN.md's Phase 32._
+
+### `dnd5e_get_actor_inventory`
+
+An actor's items with dnd5e-specific fields: quantity, equipped, attuned, activities.
+
+REST: `GET /api/integrations/dnd5e/actors/:id/inventory`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
+### `dnd5e_get_actor_sheet`
+
+Structured dnd5e actor sheet summary: abilities, saves, skills, AC, HP, senses, currency, spell slots, class/level, proficiency bonus.
+
+REST: `GET /api/integrations/dnd5e/actors/:id/sheet`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
+### `dnd5e_get_config`
+
+Relevant slices of dnd5e's CONFIG.DND5E (abilities, skills, damage types, condition types) so a caller doesn't need hardcoded dnd5e knowledge to interpret raw actor data.
+
+REST: `GET /api/integrations/dnd5e/config`
 
 _No input._
 

@@ -4,6 +4,7 @@
 // scanning subdirectories) — PLAN.md's Phase 32 spec calls for "one explicit
 // list ... so the active set is easy to audit." Later phases (33+, starting
 // with Phase 34's dnd5e integration) append entries here.
+import { dnd5eIntegration } from "./dnd5e/index.js";
 import type { Integration } from "./types.js";
 
-export const integrations: Integration[] = [];
+export const integrations: Integration[] = [dnd5eIntegration];
