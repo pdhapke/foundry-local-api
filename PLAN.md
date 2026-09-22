@@ -66,7 +66,7 @@ its own before moving to the next.
 | 26 — Hooks/Event Streaming | ✅ Done | `3717107` |
 | 27 — Localization & Misc Utilities | ✅ Done | `3717107` |
 | 28 — Bulk/Batch & Query Endpoints | ✅ Done | `25e2e26` |
-| 29 — Security Review Pass | ✅ Done | _pending commit_ |
+| 29 — Security Review Pass | ✅ Done | `251c399` |
 | 30–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
