@@ -33,8 +33,13 @@ const FORWARDED_HOOKS = [
   "createChatMessage",
 ] as const;
 
-/** Duck-types a Foundry Document instance (has a `toObject()` method) among a hook's raw callback args. */
-function hasToObject(value: unknown): value is { toObject: () => unknown } {
+/**
+ * Duck-types a Foundry Document instance (has a `toObject()` method) among a
+ * hook's raw callback args. Exported (Phase 31) so this pure predicate can
+ * be unit-tested directly, without a real `Hooks` global — see
+ * hooks.test.ts.
+ */
+export function hasToObject(value: unknown): value is { toObject: () => unknown } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -48,9 +53,10 @@ function hasToObject(value: unknown): value is { toObject: () => unknown } {
  * this returns `.toObject()` for anything that looks like one, matching the
  * convention every module/src/commands/*.ts handler already follows (return
  * `.toObject()`, never a raw instance); every other arg (options objects,
- * user ids, etc.) passes through unchanged.
+ * user ids, etc.) passes through unchanged. Exported (Phase 31) for the same
+ * direct-unit-testability reason as {@link hasToObject} above.
  */
-function normalizeHookArg(value: unknown): unknown {
+export function normalizeHookArg(value: unknown): unknown {
   return hasToObject(value) ? value.toObject() : value;
 }
 

@@ -11,6 +11,7 @@ import request from "supertest";
 import type { RollEvaluateInput, RollEvaluateResult } from "@foundry-local-api/shared";
 
 import { createApp } from "../app.js";
+import { FoundryBridgeError } from "../bridge/errors.js";
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { API_KEY_HEADER } from "../middleware/auth.js";
 
@@ -95,5 +96,23 @@ void describe("Phase 14 rolls", () => {
 
     const res = await request(app).post("/api/rolls").send({ formula: "1d20" });
     assert.equal(res.status, 401);
+  });
+
+  void it("propagates a FoundryBridgeError as a normalized HTTP error (NOT_CONNECTED -> 503)", async () => {
+    const app = buildApp((() =>
+      Promise.reject(
+        new FoundryBridgeError(
+          "NOT_CONNECTED",
+          "No Foundry client is currently connected to the bridge.",
+        ),
+      )) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/rolls")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ formula: "1d20" });
+
+    assert.equal(res.status, 503);
+    assert.equal(res.body.error.code, "NOT_CONNECTED");
   });
 });

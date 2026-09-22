@@ -21,6 +21,7 @@ import type {
 } from "@foundry-local-api/shared";
 
 import { createApp } from "../app.js";
+import { FoundryBridgeError } from "../bridge/errors.js";
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { API_KEY_HEADER } from "../middleware/auth.js";
 import { macroEndpointDescriptors } from "./macros.js";
@@ -85,5 +86,17 @@ void describe("Phase 15 macros", () => {
 
     const res = await request(app).post("/api/macros/m1/execute");
     assert.equal(res.status, 401);
+  });
+
+  void it("propagates a FoundryBridgeError from a failed execution as a normalized HTTP error", async () => {
+    const app = buildApp((() =>
+      Promise.reject(
+        new FoundryBridgeError("HANDLER_ERROR", "macro script threw during execution"),
+      )) as FoundryClient["call"]);
+
+    const res = await request(app).post("/api/macros/m1/execute").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 500);
+    assert.equal(res.body.error.code, "HANDLER_ERROR");
   });
 });
