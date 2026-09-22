@@ -58,7 +58,7 @@ its own before moving to the next.
 | 18 — RollTables & Cards | ✅ Done | `403a873` |
 | 19 — Folders | ✅ Done | `7493063` |
 | 20 — Compendium Packs | ✅ Done | `a851624` |
-| 21 — Active Effects | ✅ Done | _pending commit_ |
+| 21 — Active Effects | ✅ Done | `3669275` |
 | 22–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
