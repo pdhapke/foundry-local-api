@@ -43,7 +43,7 @@ its own before moving to the next.
 | 3 — Bridge Transport Protocol & Server-Side WS Gateway | ✅ Done | `d3f2887` |
 | 4 — Security Hardening Pass 1 | ✅ Done | `803f9cc` |
 | 5 — MCP Server Interface Scaffold | ✅ Done | `50b1bb2` |
-| 6 — Core Meta/Introspection Endpoints | ✅ Done | `TBD` |
+| 6 — Core Meta/Introspection Endpoints | ✅ Done | `2b1ab95` |
 | 7 — Settings Read/Write | ⏳ Next up | — |
 | 8–36 | Not started | — |
 
