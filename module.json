@@ -7,7 +7,27 @@
     "verified": "14"
   },
   "flags": {
-    "canUpload": true
+    "canUpload": true,
+    "foundry-local-api": {
+      "optionalIntegrations": [
+        {
+          "id": "dnd5e",
+          "kind": "system",
+          "detect": "game.system.id === 'dnd5e'",
+          "description": "Adds dnd5e-specific REST endpoints and MCP tools (ability checks, saves, skills, rests, spell slots, item/activity use) on top of the generic Document API. Core endpoints work without this.",
+          "source": "https://github.com/foundryvtt/dnd5e"
+        }
+      ]
+    }
+  },
+  "relationships": {
+    "recommends": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "reason": "Not required. When the world's game system is dnd5e, this module exposes additional dnd5e-specific REST/MCP endpoints (rolls, rests, spell slots)."
+      }
+    ]
   },
   "description": ""
 }

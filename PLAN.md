@@ -208,3 +208,102 @@ its own before moving to the next.
 - Every phase = endpoint(s) + matching MCP tool(s) + test, per the user's
   requirement — never land a REST route without its MCP counterpart in the
   same phase.
+
+---
+
+## Part 2 — Optional Companion-Module Integrations
+
+Phases 1–31 build the core API surface, which works against *any* Foundry
+world regardless of installed system/modules. This part adds an
+**integration framework**: extra endpoints and MCP tools that only appear
+when a specific companion system or module is active in the connected
+world — e.g. dnd5e-specific rolls and rest handling when the world's game
+system is dnd5e. Core endpoints never depend on this; integrations are
+strictly additive and independently togglable.
+
+**Manifest note, correcting the initial framing:** Foundry's actual module
+manifest schema has no field literally named `optionalRelationships`. The
+real, Foundry-read field is `relationships.recommends` — an array of
+`{id, type, reason}` entries meaning "not required, but this pairs well with
+this module." `relationships.requires` is the hard-dependency form we are
+*not* using here. `recommends` doesn't carry enough detail for our own
+runtime to act on (no detection rule, no list of what it unlocks), so we
+pair it with a second, Foundry-ignored, custom block:
+`flags["foundry-local-api"].optionalIntegrations`, which is the actual
+source of truth our code reads. `relationships.recommends` exists purely so
+Foundry's own UI/package manager shows the pairing to a human; it is
+documentation, not the mechanism.
+
+## Phase 32 — Optional Integration Plugin Framework
+- Define an `Integration` interface (shared type): `{id, kind: 'system' |
+  'module', detect(activeSystemId, activeModuleIds): boolean, endpoints:
+  EndpointDescriptor[], minVersion?, maxVersion?}`
+- `integrations/` directory, one subfolder per integration, registered
+  through one explicit list (not auto-discovery) so the active set is easy
+  to audit
+- Immediately after a bridge connection is (re-)established, the server
+  calls the existing `/api/system` and `/api/modules` commands (Phase 6) to
+  learn what's active, then evaluates every integration's `detect()`
+- Integration routers mount/unmount dynamically as that active set changes
+  (world reload, GM enabling/disabling a module) — never requires a server
+  restart
+- Unmounted integration routes 404 with a body naming the missing
+  dependency, not a generic 500
+- MCP: emit `notifications/tools/list_changed` whenever the active
+  integration set changes, so a connected MCP client refreshes its tool list
+  without reconnecting
+- The Phase 30 OpenAPI/tool-catalog generator marks integration-gated
+  endpoints distinctly from always-present core ones
+
+## Phase 33 — Manifest Declaration Convention
+- Every integration gets one `relationships.recommends` entry (Foundry-
+  facing) and one matching `flags["foundry-local-api"].optionalIntegrations`
+  entry (loader-facing) — see module.json for the dnd5e entries added as the
+  reference example.
+- Add `scripts/check-manifest-sync.ts` (or a unit test) that fails if an
+  integration registered in the Phase 32 code registry has no matching
+  manifest entry, or vice versa, so the two never drift as more integrations
+  are added.
+
+## Phase 34 — dnd5e Integration: Detection & Read-Only Data
+- `detect`: `game.system.id === 'dnd5e'`
+- Namespace: REST under `/api/integrations/dnd5e/*`, MCP tools prefixed
+  `dnd5e_`
+- Endpoints (read-only first, same "prove the slice" approach as Phase 6):
+  - `GET /api/integrations/dnd5e/config` — relevant slices of `CONFIG.DND5E`
+    (abilities, skills, damage types, condition types) so a caller doesn't
+    need hardcoded dnd5e knowledge to interpret raw actor data
+  - `GET /api/integrations/dnd5e/actors/:id/sheet` — structured summary:
+    abilities, saves, skills, AC, HP, senses, currency, spell slots,
+    class/level, proficiency bonus
+  - `GET /api/integrations/dnd5e/actors/:id/inventory` — items with
+    dnd5e-specific fields (equipped, attuned, quantity, activities)
+- MCP tools: `dnd5e_get_config`, `dnd5e_get_actor_sheet`,
+  `dnd5e_get_actor_inventory`
+
+## Phase 35 — dnd5e Integration: Actions
+- `POST /api/integrations/dnd5e/actors/:id/roll/ability-check {ability}`
+- `POST /api/integrations/dnd5e/actors/:id/roll/saving-throw {ability}`
+- `POST /api/integrations/dnd5e/actors/:id/roll/skill {skill}`
+- `POST /api/integrations/dnd5e/actors/:id/roll/death-save`
+- `POST /api/integrations/dnd5e/actors/:id/rest {type: 'short'|'long'}`
+- `POST /api/integrations/dnd5e/actors/:id/spell-slots {level, delta}` —
+  spend/restore a slot
+- `POST /api/integrations/dnd5e/items/:id/use` — trigger an item/activity
+  use (dnd5e's Activities system)
+- MCP tools mirrored 1:1 (`dnd5e_roll_ability_check`, `dnd5e_rest`,
+  `dnd5e_use_item`, ...)
+- **Before implementing**: audit the actual method signatures on the
+  installed dnd5e version in-console (`actor.rollAbilityTest` /
+  `rollSavingThrow` / `rollSkill` / `rollDeathSave` / `shortRest` /
+  `longRest`, item/activity usage). dnd5e's API has changed materially
+  across its 2.x → 3.x → 4.x releases (see
+  https://github.com/foundryvtt/dnd5e), so implement against whatever
+  version is actually installed, not a remembered signature.
+
+## Phase 36 — Integration Template & Second Example
+- Extract Phase 34/35's structure into `integrations/_template/` so adding
+  the next integration is fill-in-the-template, not bespoke work
+- Candidate future integrations to note but not build yet: other game
+  systems (e.g. pf2e), and utility modules with a useful public API — each
+  just needs a `detect()` and an endpoint set following the same pattern
