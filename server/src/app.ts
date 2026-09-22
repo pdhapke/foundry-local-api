@@ -91,7 +91,9 @@ export function createApp(options: CreateAppOptions): Express {
   const app = express();
 
   app.disable("x-powered-by");
-  app.use(express.json());
+  // Default 100kb is too small for Phase 24's file-upload endpoint, whose
+  // body carries a base64-encoded file (~33% larger than the raw file).
+  app.use(express.json({ limit: "50mb" }));
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const start = process.hrtime.bigint();

@@ -30,6 +30,9 @@ import "./commands/cards.js";
 import "./commands/folders.js";
 import "./commands/packs.js";
 import "./commands/active-effects.js";
+import "./commands/placeables.js";
+import "./commands/permissions.js";
+import "./commands/files.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

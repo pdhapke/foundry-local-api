@@ -110,3 +110,35 @@ export type {
   EffectCreateInput,
   EffectUpdateInput,
 } from "./active-effects.js";
+
+export { EMBEDDED_PLACEABLE_COMMANDS, CANVAS_COMMANDS } from "./placeables.js";
+export type {
+  PlaceableDocumentType,
+  PlaceableParentInput,
+  PlaceableIdInput,
+  PlaceableCreateInput,
+  PlaceableUpdateInput,
+  CanvasPanInput,
+  CanvasPanResult,
+} from "./placeables.js";
+
+export { PERMISSION_COMMANDS } from "./permissions.js";
+export type {
+  DocumentOwnershipMap,
+  DocumentOwnershipInput,
+  DocumentSetOwnershipInput,
+  DocumentOwnershipResult,
+  UserRoleInput,
+  UserRoleResult,
+  UserSetRoleInput,
+} from "./permissions.js";
+
+export { FILE_COMMANDS } from "./files.js";
+export type {
+  FileBrowseInput,
+  FileBrowseResult,
+  FileUploadInput,
+  FileUploadResult,
+  CreateDirectoryInput,
+  CreateDirectoryResult,
+} from "./files.js";

@@ -98,6 +98,30 @@
 // ActiveEffect command handlers (module/src/commands/active-effects.ts) — an
 // ActiveEffect can be embedded on either parent type, the first Phase to
 // need the same embedded-collection shape on more than one document type.
+//
+// Phase 22 added `FoundryScene#getEmbeddedCollection()` — the first use of
+// Foundry's generic embedded-collection accessor in this file — rather than
+// naming each of the six placeable types' own collection properties
+// (`drawings`/`notes`/`lights`/`sounds`/`walls`/`templates`), since the
+// property name doesn't derive mechanically from the document type name the
+// way `createEmbeddedDocuments()`'s first argument already didn't need to
+// (Phase 10 onward). Also added the top-level `canvas` global
+// (`animatePan()`) to back the camera pan/zoom command handler
+// (module/src/commands/placeables.ts).
+//
+// Phase 23 added `FoundryUser#update()` — a User is itself a Document, so
+// setting its `role` field (a user's world permission level) is the same
+// generic `.update(changes)` every other document-specific interface already
+// exposes. Document ownership needed no new ambient surface at all: it reads
+// and writes the standard `ownership` field already covered by
+// `FoundryDocument#toObject()`/`update()` (module/src/commands/
+// permissions.ts, resolving generically off `game.collections` like Phase
+// 19's folder-move).
+//
+// Phase 24 added the `FilePicker` static class (`browse()`/`upload()`/
+// `createDirectory()`) to back the file/asset command handlers
+// (module/src/commands/files.ts) — the second ambient declaration in this
+// file (after Phase 14's `Roll`) that isn't a Document/collection shape.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -135,6 +159,8 @@ interface FoundryUser {
   role: number;
   isGM: boolean;
   active: boolean;
+  /** Updates this user document's fields (e.g. `{ role }`) — a User is itself a Document. */
+  update(changes: Record<string, unknown>): Promise<FoundryUser>;
 }
 
 /** Shape of each value in `game.modules`. */
@@ -214,6 +240,8 @@ interface FoundryScene extends FoundryDocument {
     embeddedName: string,
     data: Record<string, unknown>[],
   ): Promise<FoundryDocument[]>;
+  /** Generic accessor for any of this scene's embedded collections (e.g. "Drawing", "Wall"). */
+  getEmbeddedCollection(embeddedName: string): Map<string, FoundryDocument>;
 }
 
 /** A loaded JournalEntry document — the `FoundryDocument` subset plus the embedded-page API Phase 13 drives. */
@@ -381,3 +409,38 @@ declare const Hooks: {
   once(hook: string, callback: () => void): void;
   on(hook: string, callback: () => void): void;
 };
+
+/** Foundry's file/directory browser and uploader — the subset of its API Phase 24 drives. */
+declare class FilePicker {
+  /** Lists the directories/files under `target` on the given storage `source` (e.g. "data", "public", "s3"). */
+  static browse(
+    source: string,
+    target: string,
+    options?: Record<string, unknown>,
+  ): Promise<{ target: string; source: string; dirs: string[]; files: string[] }>;
+  /** Uploads `file` into `path` on the given storage `source`, subject to Foundry's own upload security model. */
+  static upload(
+    source: string,
+    path: string,
+    file: File,
+    options?: Record<string, unknown>,
+  ): Promise<{ path: string } | false>;
+  /** Creates a new directory at `target` on the given storage `source`. */
+  static createDirectory(source: string, target: string, options?: Record<string, unknown>): Promise<string>;
+}
+
+/** The currently-rendered game canvas, `null` before a scene has been activated/viewed. */
+declare const canvas:
+  | {
+      stage: { pivot: { x: number; y: number } };
+      /** Current zoom factor. */
+      scale: number;
+      /** Pans/zooms the view; omitted fields keep their current value. */
+      animatePan(view: {
+        x?: number | undefined;
+        y?: number | undefined;
+        scale?: number | undefined;
+      }): Promise<void>;
+    }
+  | null
+  | undefined;

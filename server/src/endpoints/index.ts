@@ -10,10 +10,13 @@ import { journalEntryEndpointDescriptors } from "./documents.js";
 import { folderEndpointDescriptors } from "./folders.js";
 import { healthEndpointDescriptor } from "./health.js";
 import { itemEndpointDescriptors } from "./items.js";
+import { fileEndpointDescriptors } from "./files.js";
 import { journalPageEndpointDescriptors } from "./journal-pages.js";
 import { macroEndpointDescriptors } from "./macros.js";
 import { metaEndpointDescriptors } from "./meta.js";
 import { packEndpointDescriptors } from "./packs.js";
+import { permissionEndpointDescriptors } from "./permissions.js";
+import { placeableEndpointDescriptors } from "./placeables.js";
 import { playlistEndpointDescriptors } from "./playlists.js";
 import { rollEndpointDescriptors } from "./rolls.js";
 import { rollTableEndpointDescriptors } from "./roll-tables.js";
@@ -42,6 +45,9 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...folderEndpointDescriptors,
   ...packEndpointDescriptors,
   ...activeEffectEndpointDescriptors,
+  ...placeableEndpointDescriptors,
+  ...permissionEndpointDescriptors,
+  ...fileEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";
