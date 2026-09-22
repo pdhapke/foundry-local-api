@@ -73,7 +73,7 @@ its own before moving to the next.
 | 33 — Manifest Declaration Convention | ✅ Done | `7cd946c` |
 | 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | `0d49eb4` |
 | 35 — dnd5e Integration: Actions | ✅ Done | `125e159` |
-| 36 | Not started | — |
+| 36 — Integration Template & Second Example | ✅ Done | _pending commit_ |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -1233,6 +1233,25 @@ its own before moving to the next.
     gained one happy-path assertion per new route, extending the same
     fake-`FoundryClient` harness Phase 34 set up rather than building new
     test infrastructure.
+- Phase 36 extracted Phases 32-35's structure into
+  `server/src/integrations/_template/` (`endpoints.ts`, `index.ts`,
+  `README.md`), but kept it entirely out-of-band rather than a real-but-inert
+  integration: it's never imported by `server/src/integrations/registry.ts`
+  and never referenced by `module.json`, so it can't be mistaken for a
+  planned or active integration and never trips `check-manifest-sync.ts`
+  (still 1 code / 1 manifest entry, dnd5e only, after this phase). It still
+  lives under `server/src/` and typechecks/lints as valid TypeScript, using a
+  placeholder `_template` id.
+  - Module-side command-handler guidance (the `registerCommand()` /
+    defensive-reads / `callFirstAvailableMethod` pattern) is a documented
+    checklist step in the README pointing at the real
+    `module/src/commands/dnd5e.ts`, not a second unimported file in
+    `module/src/commands/` — that directory's files are all real, always-
+    imported command modules (`module/src/index.ts`'s flat import list), and
+    an unimported placeholder sitting there would read as orphaned dead code.
+  - pf2e and "utility modules with a useful public API" are named in the
+    README as candidate future integrations, per this phase's own PLAN.md
+    text — neither is built.
 
 ---
 
