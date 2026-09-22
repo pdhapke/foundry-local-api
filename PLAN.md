@@ -73,7 +73,7 @@ its own before moving to the next.
 | 33 — Manifest Declaration Convention | ✅ Done | `7cd946c` |
 | 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | `0d49eb4` |
 | 35 — dnd5e Integration: Actions | ✅ Done | `125e159` |
-| 36 — Integration Template & Second Example | ✅ Done | _pending commit_ |
+| 36 — Integration Template & Second Example | ✅ Done | `e8aaa46` |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
