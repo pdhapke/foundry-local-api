@@ -53,7 +53,7 @@ its own before moving to the next.
 | 13 — Journal Entries & Pages | ✅ Done | `246c09e` |
 | 14 — Dice Rolling & Chat Messages | ✅ Done | `844df5f` |
 | 15 — Macros | ✅ Done | `43ef417` |
-| 16 — Combat & Combat Tracker | ✅ Done | _pending commit_ |
+| 16 — Combat & Combat Tracker | ✅ Done | `7f1ee21` |
 | 17–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
