@@ -67,7 +67,9 @@ its own before moving to the next.
 | 27 — Localization & Misc Utilities | ✅ Done | `3717107` |
 | 28 — Bulk/Batch & Query Endpoints | ✅ Done | `25e2e26` |
 | 29 — Security Review Pass | ✅ Done | `251c399` |
-| 30–36 | Not started | — |
+| 30 — Documentation & Packaging | ✅ Done | `a2869e1` |
+| 31 — Test Suite & CI | ✅ Done | `e14a08d` |
+| 32–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -884,6 +886,76 @@ its own before moving to the next.
     intentional thin pass-through to Foundry's own upload security model,
     per Phase 24's existing deviation-log entry — not reimplemented or
     changed here.
+- Phase 30's OpenAPI/MCP-catalog generator (`server/src/scripts/
+  generate-docs.ts`) uses zod v4's built-in `z.toJSONSchema()` rather than
+  adding the `zod-to-json-schema` package the original plan text
+  anticipated — zod ^4.6.5 (already a dependency) ships native JSON Schema
+  generation, making a third-party package for this redundant. It walks the
+  same `allEndpointDescriptors` aggregator (`server/src/endpoints/index.ts`)
+  every REST route and MCP tool is already generated from, so the two docs
+  and the real server can't drift apart the way hand-maintained docs would.
+- Phase 30's generator surfaced a real, pre-existing circular import
+  (`endpoints/index.ts` → `events.ts` → `app.ts` → `routes/api.ts` →
+  `endpoints/index.ts`) that's silently harmless in the real server
+  (`index.ts` always enters via `app.ts` first) but throws a TDZ
+  `ReferenceError` when a script enters via `endpoints/index.ts` directly,
+  as documentation tooling naturally does. Worked around with a documented
+  side-effect `import "../app.js"` placed first in the generator, forcing
+  the same module-evaluation order production uses — no endpoint file was
+  changed.
+- Phase 30 bumped `module.json`'s `version` from `1.0.0` to `0.1.0` (no
+  public release exists yet) and reworded its dnd5e
+  `optionalIntegrations`/`relationships.recommends` entries to explicitly
+  read as planned/not-yet-implemented — both were aspirational holdovers
+  from early scaffolding that no longer matched reality, since Part 2's
+  dnd5e integration (Phases 32–36) hasn't started. No `download` URL was
+  added (none exists); flagged in the README as a known gap for whenever
+  real hosting exists.
+- Phase 31's `server/src/endpoints/registry.test.ts` targets small synthetic
+  descriptors against a bare Express app and a fake/mock `McpServer`, not
+  the real ~100 production descriptors — every other `*.test.ts` already
+  proves `mountRestEndpoints`/`registerMcpTools` work via one real domain's
+  descriptors end-to-end, so this file isolates the generator machinery
+  itself (method mapping, `validateQuery`/`validateBody` wiring,
+  `FoundryBridgeError` → REST status vs. MCP `isError: true`, `annotations`
+  reaching `registerTool()`) from any one domain's business logic.
+  Confirmed along the way: `EndpointDescriptor['method']` is the closed
+  union `"get" | "post" | "put" | "delete"` — there is no `"patch"` case,
+  in the type or in `registerRestRoute`'s switch; not a bug, just answering
+  the question Phase 31's own spec asked.
+- Phase 31 added `shared/src/commands.test.ts` (shared/'s first test file):
+  `shared/src/` is almost entirely type-only, but its 25 exported
+  `*_COMMANDS` object-literal maps are real runtime values —
+  `module/src/command-registry.ts` dispatches through one global
+  `Map<string, CommandHandler>` keyed by these exact strings, so a
+  cross-domain value collision would silently clobber a handler. The tests
+  assert global uniqueness across all 25 maps combined, not per-file
+  correctness.
+- Phase 31's `module/` coverage (0 → 21 tests) is deliberately partial:
+  `BridgeClient`/`registerHookForwarding` need a real or heavily-mocked
+  `game`/`Hooks`/`WebSocket` global to test meaningfully, and building that
+  harness was ruled out of scope for this phase. Instead it tests the pure
+  logic already extracted for exactly this reason —
+  `computeBackoffDelayMs`/`buildBridgeConnectionUrl` (`bridge-client.ts`)
+  and `command-registry.ts`'s `dispatch()`/`registerCommand`/
+  `unregisterCommand` — and exports two previously-private pure helpers in
+  `hooks.ts` (`hasToObject`/`normalizeHookArg`), trivial and low-risk,
+  specifically to test them the same way.
+- Phase 31 found `format:check` already failing on 44 pre-existing files
+  (unrelated to anything Phase 31 itself changed) before CI could be added
+  meaningfully, so it ran `npm run format` once, repo-wide, and verified
+  typecheck/lint/test/build all still passed after. One caveat this
+  surfaced: Phase 30's `generate-docs.ts` writes `docs/openapi.json` via
+  plain `JSON.stringify(doc, null, 2)`, which doesn't match Prettier's
+  array-collapsing style — regenerating the docs will re-fail
+  `format:check` until a future change makes that script Prettier-aware
+  (e.g. piping its output through `prettier --write`).
+- Phase 31's CI (`.github/workflows/ci.yml`) is a single job on
+  `ubuntu-latest` / Node `20.x` (matching `engines.node: >=20`), running
+  `npm ci` → typecheck → lint → format:check → test → build via
+  `actions/setup-node`'s built-in npm cache — no matrix build, since
+  nothing about this codebase has cross-platform/multi-version runtime
+  concerns beyond what's already true.
 
 ---
 
