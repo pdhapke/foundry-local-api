@@ -49,7 +49,7 @@ its own before moving to the next.
 | 9 — Actors | ✅ Done | `9ee8cfb` |
 | 10 — Items | ✅ Done | `22e7a8e` |
 | 11 — Scenes | ✅ Done | `ea2f434` |
-| 12 — Tokens (scene-embedded) | ✅ Done | — |
+| 12 — Tokens (scene-embedded) | ✅ Done | `12b21e7` |
 | 13–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
