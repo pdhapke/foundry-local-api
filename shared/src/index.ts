@@ -88,3 +88,6 @@ export type { RollTableDrawInput, RollTableDrawResult } from "./roll-tables.js";
 
 export { CARDS_COMMANDS } from "./cards.js";
 export type { CardsDrawInput, CardsIdInput } from "./cards.js";
+
+export { FOLDER_COMMANDS } from "./folders.js";
+export type { FolderMoveDocumentInput } from "./folders.js";

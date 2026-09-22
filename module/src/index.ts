@@ -27,6 +27,7 @@ import "./commands/combats.js";
 import "./commands/playlists.js";
 import "./commands/roll-tables.js";
 import "./commands/cards.js";
+import "./commands/folders.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

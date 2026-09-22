@@ -6,6 +6,7 @@ import { cardsEndpointDescriptors } from "./cards.js";
 import { chatEndpointDescriptors } from "./chat.js";
 import { combatEndpointDescriptors } from "./combats.js";
 import { journalEntryEndpointDescriptors } from "./documents.js";
+import { folderEndpointDescriptors } from "./folders.js";
 import { healthEndpointDescriptor } from "./health.js";
 import { itemEndpointDescriptors } from "./items.js";
 import { journalPageEndpointDescriptors } from "./journal-pages.js";
@@ -36,6 +37,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...playlistEndpointDescriptors,
   ...rollTableEndpointDescriptors,
   ...cardsEndpointDescriptors,
+  ...folderEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";

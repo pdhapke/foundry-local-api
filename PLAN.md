@@ -56,7 +56,8 @@ its own before moving to the next.
 | 16 — Combat & Combat Tracker | ✅ Done | `7f1ee21` |
 | 17 — Playlists & Audio | ✅ Done | `e4d1feb` |
 | 18 — RollTables & Cards | ✅ Done | `403a873` |
-| 19–36 | Not started | — |
+| 19 — Folders | ✅ Done | _pending commit_ |
+| 20–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -446,6 +447,39 @@ its own before moving to the next.
   `module/src/commands/cards.ts`); flagged for a live smoke-test (a real
   table draw including its chat-post behavior, and a real deck-to-hand
   draw/shuffle/reset) whenever a Foundry instance is available.
+- Phase 19 needed no new work for Folder CRUD itself: it reuses the Phase 8
+  `makeDocumentEndpoints()` factory with `documentType: "Folder"`, identical
+  to JournalEntry/Actor/Item/Scene/Macro/Combat/Playlist/RollTable/Cards. The
+  one extra PLAN.md's Phase 19 text calls for ("move documents between
+  folders") is hand-rolled in new `shared/src/folders.ts`
+  (`FOLDER_COMMANDS`), `server/src/endpoints/folders.ts`, and
+  `module/src/commands/folders.ts`, following the same "factory + extras"
+  shape Phases 9/11/15/16/17/18 established.
+- The move extra is read generically, not folder-scoped: `documentType`
+  travels in the payload the same way it does for the Phase 8 generic
+  document commands, because the document being moved is any
+  folder-capable document (Actor, Item, JournalEntry, Scene, Macro,
+  Playlist, RollTable, Cards, or a Folder itself being renested under
+  another Folder) — not a Folder. Its handler is a thin wrapper over the
+  moved document's own `update({ folder: folderId })`, consistent with
+  Phase 11's `activate`/Phase 12's `move` both wrapping a plain `update()`
+  rather than inventing new Foundry API surface; `folderId: null` moves the
+  document to the root, matching Foundry's own convention for an unfiled
+  document's `folder` field.
+- Phase 19 needed no new ambient declaration in
+  `module/src/types/foundry-globals.d.ts`: the move handler only calls
+  `game.collections.get(documentType)` and the generic `FoundryDocument#
+  update()`/`toObject()`, both already declared by Phase 8. Folder CRUD
+  itself likewise uses the generic `FoundryDocument`/`FoundryDocumentClass`
+  shapes unchanged.
+- Phase 19's tests cover the move extra (both moving into a folder and
+  moving to the root with `folderId: null`) plus a smoke check that
+  `folderEndpointDescriptors` mounts CRUD under `/api/folders` — base CRUD
+  itself is already proven generic by Phase 8's tests. Same
+  untested-against-a-live-instance caveat as Phases 6–18 applies to the
+  module-side handler (`module/src/commands/folders.ts`); flagged for a live
+  smoke-test (moving a real document into and out of a folder, and renesting
+  a folder itself) whenever a Foundry instance is available.
 
 ---
 
