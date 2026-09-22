@@ -33,6 +33,30 @@ its own before moving to the next.
 
 ---
 
+## Status
+
+| Phase | Status | Commit |
+|---|---|---|
+| 0 — Repo & Tooling Foundation | ✅ Done | `607bc28` |
+| 1 — Base Express Server Scaffold | ✅ Done | `a6d0d4d` |
+| 2 — Foundry Module Bridge Client | ✅ Done | `ec7b9e8` |
+| 3 — Bridge Transport Protocol & Server-Side WS Gateway | ✅ Done | `d3f2887` |
+| 4 — Security Hardening Pass 1 | ✅ Done | `803f9cc` |
+| 5 — MCP Server Interface Scaffold | ⏳ Next up | — |
+| 6–36 | Not started | — |
+
+**Deviations from the original plan, decided along the way:**
+- Phase 4's API key is a single static value from `.env`, auto-generated and
+  persisted to `server/.env` on first startup (not the originally-sketched
+  generate/rotate/admin-UI flow) — simplified per explicit user request.
+- Phase 4 also closed a gap Phase 3 left open: the `/bridge` WebSocket had no
+  auth at all, and combined with the "newest connection wins" policy, any
+  local process could have hijacked the bridge. It's now gated by the same
+  API key via a `?apiKey=` query param (a browser `WebSocket` can't set
+  handshake headers).
+
+---
+
 ## Phase 0 — Repo & Tooling Foundation
 - `git init` (done), `.gitignore` (node_modules, dist, .env, logs)
 - `package.json` at repo root (npm workspaces: `server`, `module`, `shared`)
