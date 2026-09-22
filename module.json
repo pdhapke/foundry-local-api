@@ -1,0 +1,13 @@
+{
+  "id": "foundry-local-api",
+  "title": "Foundry local api and mcp",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "flags": {
+    "canUpload": true
+  },
+  "description": ""
+}
