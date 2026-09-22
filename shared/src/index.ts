@@ -31,3 +31,6 @@ export type {
   DocumentData,
   DocumentDeleteResult,
 } from "./documents.js";
+
+export { ACTOR_COMMANDS } from "./actors.js";
+export type { ActorIdInput, ActorRollData } from "./actors.js";

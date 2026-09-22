@@ -18,6 +18,11 @@
 // (module/src/commands/documents.ts). `game.collections` and `CONFIG` are
 // intentionally untyped past this — every Foundry document type's specific
 // data schema stays out of scope for this generic layer.
+//
+// Phase 9 added `FoundryActor` (`getRollData()` and the embedded `items`
+// collection) to back the actor-specific command handlers
+// (module/src/commands/actors.ts). Actor CRUD itself uses the generic
+// `FoundryDocument`/`FoundryDocumentClass` shapes above unchanged.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -76,6 +81,13 @@ interface FoundryDocument {
 /** A document type's class, as found at `CONFIG.<Type>.documentClass`. */
 interface FoundryDocumentClass {
   create(data: Record<string, unknown>): Promise<FoundryDocument | undefined>;
+}
+
+/** A loaded Actor document — the `FoundryDocument` subset plus the actor-specific API Phase 9 drives. */
+interface FoundryActor extends FoundryDocument {
+  getRollData(): Record<string, unknown>;
+  /** The actor's embedded Item documents. */
+  items: Map<string, FoundryDocument>;
 }
 
 declare const game: {
