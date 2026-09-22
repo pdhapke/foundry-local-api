@@ -49,7 +49,7 @@ its own before moving to the next.
 | 9 — Actors | ✅ Done | `9ee8cfb` |
 | 10 — Items | ✅ Done | `22e7a8e` |
 | 11 — Scenes | ✅ Done | `ea2f434` |
-| 12 — Tokens (scene-embedded) | ⏳ Next up | — |
+| 12 — Tokens (scene-embedded) | ✅ Done | — |
 | 13–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
@@ -193,6 +193,35 @@ its own before moving to the next.
   (`module/src/commands/scenes.ts`); flagged for a live smoke-test
   (activation and dimensions against a real scene) whenever a Foundry
   instance is available.
+- Phase 12 could not reuse the Phase 8 `makeDocumentEndpoints()` factory at
+  all, unlike every document-CRUD phase since (JournalEntry/Actor/Item/
+  Scene): a Token has no top-level entry in `game.collections` — it only
+  ever exists embedded on a Scene. So all seven descriptors (list/get/
+  create/update/delete plus move and visibility toggle) are hand-rolled in
+  new `shared/src/tokens.ts`, `server/src/endpoints/tokens.ts`, and
+  `module/src/commands/tokens.ts`, under `/api/scenes/:sceneId/tokens[/
+  :tokenId]`, following the `<parent>Id`/`<child>Id` embedded-id shape Phase
+  10 established for embedded items rather than inventing a new one.
+- Phase 12's move and visibility-toggle extras are both thin wrappers over
+  `TokenDocument#update()` (`{x, y}` and `{hidden}` respectively) rather than
+  new Foundry API surface — consistent with Phase 10's finding that
+  `update()`/`delete()` on an embedded document already route through its
+  parent automatically. They're exposed as their own endpoints/tools (per
+  PLAN.md's explicit "move, visibility toggle" wording) rather than folded
+  into the generic update endpoint, since a natural-language MCP caller
+  ("move this token to 400,250" / "hide this token") maps far more directly
+  onto a dedicated tool than onto assembling a raw `changes` object.
+- Phase 12 extended `module/src/types/foundry-globals.d.ts`'s `FoundryScene`
+  with `tokens`/`createEmbeddedDocuments()`, the same shape Phase 9/10 gave
+  `FoundryActor` for its embedded Items — no new ambient shape needed, since
+  an embedded Token is itself a `FoundryDocument`.
+- Phase 12's tests cover all seven descriptors directly (list/get/create/
+  update/delete/move/visibility), since none of them are backed by an
+  already-tested generic factory the way Phases 9–11's base CRUD was. Same
+  untested-against-a-live-instance caveat as Phases 6–11 applies to the
+  module-side handlers (`module/src/commands/tokens.ts`); flagged for a live
+  smoke-test (embedded token CRUD, move, and visibility toggle against a
+  real scene) whenever a Foundry instance is available.
 
 ---
 

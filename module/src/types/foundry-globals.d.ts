@@ -35,6 +35,11 @@
 // the scene-specific command handlers (module/src/commands/scenes.ts). Scene
 // CRUD itself uses the generic `FoundryDocument`/`FoundryDocumentClass`
 // shapes above unchanged.
+//
+// Phase 12 added `FoundryScene#tokens`/`createEmbeddedDocuments()` to back
+// the scene-embedded Token command handlers (module/src/commands/tokens.ts),
+// the same shape Phase 9/10 already gave `FoundryActor` for its embedded
+// Items.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -127,6 +132,13 @@ interface FoundryScene extends FoundryDocument {
   };
   /** Makes this the world's active/viewed scene. */
   activate(): Promise<FoundryScene>;
+  /** The scene's embedded Token documents. */
+  tokens: Map<string, FoundryDocument>;
+  /** Creates one or more embedded documents of the given type (e.g. "Token") on this scene. */
+  createEmbeddedDocuments(
+    embeddedName: string,
+    data: Record<string, unknown>[],
+  ): Promise<FoundryDocument[]>;
 }
 
 declare const game: {

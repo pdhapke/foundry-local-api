@@ -18,6 +18,7 @@ import "./commands/documents.js";
 import "./commands/actors.js";
 import "./commands/items.js";
 import "./commands/scenes.js";
+import "./commands/tokens.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

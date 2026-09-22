@@ -8,6 +8,7 @@ import { itemEndpointDescriptors } from "./items.js";
 import { metaEndpointDescriptors } from "./meta.js";
 import { sceneEndpointDescriptors } from "./scenes.js";
 import { settingsEndpointDescriptors } from "./settings.js";
+import { tokenEndpointDescriptors } from "./tokens.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 
 export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
@@ -18,6 +19,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...actorEndpointDescriptors,
   ...itemEndpointDescriptors,
   ...sceneEndpointDescriptors,
+  ...tokenEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";

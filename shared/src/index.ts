@@ -44,3 +44,13 @@ export type {
 
 export { SCENE_COMMANDS } from "./scenes.js";
 export type { SceneIdInput, SceneDimensions } from "./scenes.js";
+
+export { TOKEN_COMMANDS } from "./tokens.js";
+export type {
+  SceneTokenListInput,
+  SceneTokenIdInput,
+  SceneTokenCreateInput,
+  SceneTokenUpdateInput,
+  SceneTokenMoveInput,
+  SceneTokenVisibilityInput,
+} from "./tokens.js";
