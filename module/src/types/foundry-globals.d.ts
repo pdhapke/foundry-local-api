@@ -30,6 +30,11 @@
 // a `FoundryDocument` (Foundry routes `.update()`/`.delete()` on it through
 // its parent actor automatically), so the existing `items` map plus
 // `FoundryDocument`'s own methods are enough.
+//
+// Phase 11 added `FoundryScene` (`grid`/`dimensions`/`activate()`) to back
+// the scene-specific command handlers (module/src/commands/scenes.ts). Scene
+// CRUD itself uses the generic `FoundryDocument`/`FoundryDocumentClass`
+// shapes above unchanged.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -100,6 +105,28 @@ interface FoundryActor extends FoundryDocument {
     embeddedName: string,
     data: Record<string, unknown>[],
   ): Promise<FoundryDocument[]>;
+}
+
+/** A loaded Scene document — the `FoundryDocument` subset plus the grid/dimension/activation API Phase 11 drives. */
+interface FoundryScene extends FoundryDocument {
+  width: number;
+  height: number;
+  padding: number;
+  grid: {
+    type: number;
+    size: number;
+    distance: number;
+    units: string;
+  };
+  /** Computed pixel dimensions of the padded scene canvas. */
+  dimensions: {
+    sceneWidth: number;
+    sceneHeight: number;
+    sceneX: number;
+    sceneY: number;
+  };
+  /** Makes this the world's active/viewed scene. */
+  activate(): Promise<FoundryScene>;
 }
 
 declare const game: {

@@ -48,8 +48,9 @@ its own before moving to the next.
 | 8 — Generic Document CRUD Core | ✅ Done | `e03d360` |
 | 9 — Actors | ✅ Done | `9ee8cfb` |
 | 10 — Items | ✅ Done | `22e7a8e` |
-| 11 — Scenes | ⏳ Next up | — |
-| 12–36 | Not started | — |
+| 11 — Scenes | ✅ Done | — |
+| 12 — Tokens (scene-embedded) | ⏳ Next up | — |
+| 13–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -166,6 +167,32 @@ its own before moving to the next.
   to the module-side handlers (`module/src/commands/items.ts`); flagged for
   a live smoke-test (embedded item create/update/delete against a real
   system like dnd5e) whenever a Foundry instance is available.
+- Phase 11 followed the same split as Phases 9–10: world-level Scene CRUD
+  reuses the Phase 8 `makeDocumentEndpoints()` factory with
+  `documentType: "Scene"`, identical to JournalEntry/Actor/Item; the two
+  scene-specific extras PLAN.md calls for (activate, grid/dimension info)
+  are hand-rolled in `shared/src/scenes.ts` (`SCENE_COMMANDS`) plus
+  `server/src/endpoints/scenes.ts` and `module/src/commands/scenes.ts`.
+- Phase 11's dimensions endpoint reads Foundry's own computed `Scene#grid`
+  (type/size/distance/units) and `Scene#dimensions` (`sceneWidth`/
+  `sceneHeight`/`sceneX`/`sceneY`, the padded canvas rect) rather than
+  hand-deriving pixel math from the raw `width`/`height`/`padding` fields —
+  Foundry already computes and caches this, and re-deriving it independently
+  would risk drifting from Foundry's own rounding/grid-snapping rules. This
+  needed one new ambient declaration, `FoundryScene`
+  (`module/src/types/foundry-globals.d.ts`), layered on `FoundryDocument`
+  same as `FoundryActor` was in Phase 9.
+- Phase 11's activate command returns the scene's updated `toObject()` (so a
+  caller can confirm `active: true` without a follow-up `GET`) rather than a
+  bare acknowledgement, consistent with how Phase 8's `update` descriptor
+  already returns the post-update document.
+- Phase 11's tests only cover the two scene-specific extras plus one smoke
+  check that `sceneEndpointDescriptors` mounts CRUD under `/api/scenes` —
+  same rationale as Phases 9–10. Same untested-against-a-live-instance
+  caveat as Phases 6–10 applies to the module-side handlers
+  (`module/src/commands/scenes.ts`); flagged for a live smoke-test
+  (activation and dimensions against a real scene) whenever a Foundry
+  instance is available.
 
 ---
 

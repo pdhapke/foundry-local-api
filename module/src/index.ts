@@ -17,6 +17,7 @@ import "./commands/settings.js";
 import "./commands/documents.js";
 import "./commands/actors.js";
 import "./commands/items.js";
+import "./commands/scenes.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

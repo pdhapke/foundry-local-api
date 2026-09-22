@@ -41,3 +41,6 @@ export type {
   EmbeddedItemCreateInput,
   EmbeddedItemUpdateInput,
 } from "./items.js";
+
+export { SCENE_COMMANDS } from "./scenes.js";
+export type { SceneIdInput, SceneDimensions } from "./scenes.js";
