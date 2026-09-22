@@ -44,8 +44,9 @@ its own before moving to the next.
 | 4 — Security Hardening Pass 1 | ✅ Done | `803f9cc` |
 | 5 — MCP Server Interface Scaffold | ✅ Done | `50b1bb2` |
 | 6 — Core Meta/Introspection Endpoints | ✅ Done | `2b1ab95` |
-| 7 — Settings Read/Write | ⏳ Next up | — |
-| 8–36 | Not started | — |
+| 7 — Settings Read/Write | ✅ Done | `c7dfa86` |
+| 8 — Generic Document CRUD Core | ⏳ Next up | — |
+| 9–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -68,6 +69,27 @@ its own before moving to the next.
   available. The module-side command handlers (`module/src/commands/meta.ts`)
   build/typecheck cleanly but are unverified against a real `game.*` object;
   flagged for a live smoke-test whenever a Foundry instance is available.
+- Phase 7 hit the first descriptor with a non-`void` input (`GetSettingInput`/
+  `SetSettingInput`), which broke the bare `EndpointDescriptor[]` type used
+  for heterogeneous descriptor collections (`allEndpointDescriptors`, the
+  `mountRestEndpoints`/`registerMcpTools` params) under
+  `exactOptionalPropertyTypes`. Fixed by adding `AnyEndpointDescriptor =
+  EndpointDescriptor<any, any>` (`server/src/endpoints/types.ts`) as the
+  explicit type-erased collection type — every later phase with a
+  non-void-input descriptor reuses this rather than re-deriving it.
+- Phase 7 also generalized `validateQuery`/`validateBody`
+  (`server/src/middleware/validate.ts`) to validate `{...req.params,
+  ...req.query|body}` instead of just `req.query`/`req.body`. This is what
+  lets a route with path params (`/settings/:namespace/:key`, the first of
+  its kind) share one flat `inputSchema` between its REST route and its MCP
+  tool's argument bag, and applies automatically to every later phase's
+  path-param routes.
+- Phase 7's GM-only gating for world-scope settings is enforced module-side
+  (`module/src/commands/settings.ts`), not on the server: the server has no
+  concept of "which Foundry user issued this request" beyond the single
+  static API key (Phase 4), whereas the connected module always knows both
+  the registered setting's `scope` and `game.user.isGM`. Same untested-
+  against-a-live-instance caveat as Phase 6 applies here.
 
 ---
 
