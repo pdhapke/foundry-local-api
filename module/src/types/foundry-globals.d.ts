@@ -58,6 +58,13 @@
 // command handler (module/src/commands/macros.ts). Macro CRUD itself uses
 // the generic `FoundryDocument`/`FoundryDocumentClass` shapes above
 // unchanged.
+//
+// Phase 16 added `FoundryCombat` (turn/round control, embedded `combatants`,
+// initiative rolling) to back the combat-specific command handlers
+// (module/src/commands/combats.ts), following the same embedded-collection
+// shape Phase 9/10 gave `FoundryActor` for Items and Phase 11/12 gave
+// `FoundryScene` for Tokens. Combat CRUD itself uses the generic
+// `FoundryDocument`/`FoundryDocumentClass` shapes above unchanged.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -174,6 +181,29 @@ interface FoundryJournalEntry extends FoundryDocument {
 interface FoundryMacro extends FoundryDocument {
   /** Runs the macro's stored script/chat command, exactly as Foundry's own macro bar does. */
   execute(): Promise<unknown>;
+}
+
+/** A loaded Combat document — the `FoundryDocument` subset plus the turn/round/combatant/initiative API Phase 16 drives. */
+interface FoundryCombat extends FoundryDocument {
+  /** Starts the encounter (round 1, initial turn order). */
+  startCombat(): Promise<FoundryCombat>;
+  /** Advances to the next turn. */
+  nextTurn(): Promise<FoundryCombat>;
+  /** Advances to the next round. */
+  nextRound(): Promise<FoundryCombat>;
+  /** Ends the encounter. */
+  endCombat(): Promise<FoundryCombat>;
+  /** Rolls initiative for the given combatant ids. */
+  rollInitiative(ids: string[]): Promise<FoundryCombat>;
+  /** Rolls initiative for every combatant currently missing it. */
+  rollAll(): Promise<FoundryCombat>;
+  /** The combat's embedded Combatant documents. */
+  combatants: Map<string, FoundryDocument>;
+  /** Creates one or more embedded documents of the given type (e.g. "Combatant") on this combat. */
+  createEmbeddedDocuments(
+    embeddedName: string,
+    data: Record<string, unknown>[],
+  ): Promise<FoundryDocument[]>;
 }
 
 /** One die term's individual roll results within an evaluated `Roll` (e.g. a `2d6` roll's two dice). */

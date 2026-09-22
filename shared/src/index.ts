@@ -71,3 +71,11 @@ export type { ChatListInput, ChatSendInput, ChatMessageData } from "./chat.js";
 
 export { MACRO_COMMANDS } from "./macros.js";
 export type { MacroIdInput, MacroExecuteResult } from "./macros.js";
+
+export { COMBAT_COMMANDS } from "./combats.js";
+export type {
+  CombatIdInput,
+  CombatAddCombatantInput,
+  CombatRemoveCombatantInput,
+  CombatRollInitiativeInput,
+} from "./combats.js";

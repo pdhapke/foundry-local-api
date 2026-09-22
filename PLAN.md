@@ -53,7 +53,8 @@ its own before moving to the next.
 | 13 — Journal Entries & Pages | ✅ Done | `246c09e` |
 | 14 — Dice Rolling & Chat Messages | ✅ Done | `844df5f` |
 | 15 — Macros | ✅ Done | `43ef417` |
-| 16–36 | Not started | — |
+| 16 — Combat & Combat Tracker | ✅ Done | _pending commit_ |
+| 17–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -319,6 +320,45 @@ its own before moving to the next.
   module-side handler (`module/src/commands/macros.ts`); flagged for a live
   smoke-test (both script-type and chat-type macros against a real world)
   whenever a Foundry instance is available.
+- Phase 16 needed no new work for Combat CRUD itself: it reuses the Phase 8
+  `makeDocumentEndpoints()` factory with `documentType: "Combat"`, identical
+  to JournalEntry/Actor/Item/Scene/Macro. The extras PLAN.md's Phase 16 text
+  calls for (start/next-turn/next-round/end, add/remove combatant, roll
+  initiative) are hand-rolled in new `shared/src/combats.ts`
+  (`COMBAT_COMMANDS`), `server/src/endpoints/combats.ts`, and
+  `module/src/commands/combats.ts`, following the same "factory + extras"
+  shape Phases 9/11/15 established.
+- PLAN.md's Phase 16 wording is "add/remove combatant" (not "CRUD
+  combatant"), narrower than Phase 12's Token wording — so only embedded
+  Combatant create/delete were added, not a separate list/get/update; a
+  Combat document's own `toObject()` (returned by every extra here, same
+  convention as Phase 11's scene `activate`) already includes its
+  `combatants` array, so a standalone list/get command would be redundant,
+  and no requirement called for editing a combatant's fields directly.
+- Roll initiative is a single endpoint that branches module-side on whether
+  `combatantIds` is given: with ids, it calls Foundry's `Combat#rollInitiative
+  (ids)`; with none, it calls `Combat#rollAll()` (rolls every combatant
+  currently missing initiative) — this maps PLAN.md's single "roll
+  initiative" bullet onto Foundry's two real methods without exposing them
+  as two separate tools for what a natural-language MCP caller ("roll
+  initiative for everyone" vs. "roll initiative for these two combatants")
+  experiences as one action with an optional scope.
+- Phase 16 added `FoundryCombat` (`startCombat()`/`nextTurn()`/`nextRound()`/
+  `endCombat()`/`rollInitiative()`/`rollAll()`/embedded `combatants`/
+  `createEmbeddedDocuments()`) to `module/src/types/foundry-globals.d.ts`,
+  layered on the generic `FoundryDocument` shape same as every other
+  document-specific interface since Phase 9 — no other new ambient surface
+  was needed.
+- Phase 16's tests cover all seven extras directly (start/next-turn/
+  next-round/end/add-combatant/remove-combatant/roll-initiative, including
+  both the specific-ids and roll-all branches) plus a smoke check that
+  `combatEndpointDescriptors` mounts CRUD under `/api/combats` — base CRUD
+  itself is already proven generic by Phase 8's tests. Same
+  untested-against-a-live-instance caveat as Phases 6–15 applies to the
+  module-side handler (`module/src/commands/combats.ts`); flagged for a live
+  smoke-test (starting a real encounter, turn/round advancement, and
+  initiative rolling against a connected system) whenever a Foundry instance
+  is available.
 
 ---
 

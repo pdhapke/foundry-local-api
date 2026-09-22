@@ -23,6 +23,7 @@ import "./commands/journal-pages.js";
 import "./commands/rolls.js";
 import "./commands/chat.js";
 import "./commands/macros.js";
+import "./commands/combats.js";
 
 Hooks.once("init", () => {
   registerBridgeSettings();

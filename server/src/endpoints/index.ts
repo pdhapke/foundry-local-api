@@ -3,6 +3,7 @@
 // own descriptor array here.
 import { actorEndpointDescriptors } from "./actors.js";
 import { chatEndpointDescriptors } from "./chat.js";
+import { combatEndpointDescriptors } from "./combats.js";
 import { journalEntryEndpointDescriptors } from "./documents.js";
 import { healthEndpointDescriptor } from "./health.js";
 import { itemEndpointDescriptors } from "./items.js";
@@ -28,6 +29,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...rollEndpointDescriptors,
   ...chatEndpointDescriptors,
   ...macroEndpointDescriptors,
+  ...combatEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";
