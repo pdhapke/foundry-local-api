@@ -72,7 +72,7 @@ its own before moving to the next.
 | 32 — Optional Integration Plugin Framework | ✅ Done | `0cd10ed` |
 | 33 — Manifest Declaration Convention | ✅ Done | `7cd946c` |
 | 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | `0d49eb4` |
-| 35 — dnd5e Integration: Actions | ✅ Done | _pending commit_ |
+| 35 — dnd5e Integration: Actions | ✅ Done | `125e159` |
 | 36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
