@@ -36,5 +36,8 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Check integration manifest sync
+        run: npm run check-manifest-sync
+
       - name: Build
         run: npm run build

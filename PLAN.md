@@ -70,7 +70,8 @@ its own before moving to the next.
 | 30 — Documentation & Packaging | ✅ Done | `a2869e1` |
 | 31 — Test Suite & CI | ✅ Done | `e14a08d` |
 | 32 — Optional Integration Plugin Framework | ✅ Done | `0cd10ed` |
-| 33–36 | Not started | — |
+| 33 — Manifest Declaration Convention | ✅ Done | _pending commit_ |
+| 34–36 | Not started | — |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -1013,6 +1014,42 @@ its own before moving to the next.
   (per Phase 31's own noted caveat about `JSON.stringify`'s array formatting
   not matching Prettier's) before being checked in, and came out
   byte-identical to what was already committed.
+- Phase 33's check needs to tell "declared in module.json but not yet built"
+  (dnd5e, right now) apart from "should have code but doesn't" (a real drift
+  bug) — PLAN.md's own Phase 33 wording only says the check should fail when
+  a code registry entry has no "matching manifest entry", without saying how
+  a not-yet-built integration should be represented so it doesn't trip that
+  rule. This phase answers that gap with an `implemented?: boolean` flag
+  (default `true` when omitted) on each `module.json`
+  `flags["foundry-local-api"].optionalIntegrations[]` entry; the existing
+  `dnd5e` entry (already marked "PLANNED, NOT YET IMPLEMENTED" only in its
+  human-readable `description`) is now also flagged `"implemented": false`,
+  and a manifest entry with `implemented: false` and no code counterpart is
+  treated as the legitimate planned state rather than a mismatch. Being
+  registered in `registry.ts` at all still IS the code-side "implemented"
+  signal (no separate flag needed there); the diff also flags the reverse
+  contradiction, a code-registered integration whose manifest entry still
+  says `implemented: false`.
+- Phase 33 split `check-manifest-sync.ts` into a pure
+  `diffIntegrationManifestSync()` comparison function plus a thin
+  `main()`/CLI shell that only handles file/module I/O and
+  `process.exit()`, so the comparison logic is unit-testable
+  (`check-manifest-sync.test.ts`) without touching the real `module.json` or
+  registry — the same pure-logic/thin-glue split this codebase already uses
+  elsewhere (`bridge-client.ts`'s extracted `computeBackoffDelayMs`/
+  `buildBridgeConnectionUrl`, Phase 32's `IntegrationManager` tested against
+  a fake `FoundryClient`).
+- Unlike `generate-docs.ts` (which calls its `main()` unconditionally at the
+  bottom of the file, safe because nothing ever imports from it), the first
+  draft of `check-manifest-sync.ts` also called `main()` unconditionally —
+  but `check-manifest-sync.test.ts` imports `diffIntegrationManifestSync`
+  from that same module, so importing it for its pure function also ran
+  `main()`'s real file-read/`process.exit()` side effects, killing the test
+  process after only one test ran. Fixed by guarding the call with
+  `if (fileURLToPath(import.meta.url) === process.argv[1])`, so `main()` only
+  runs when the file is the actual CLI entry point, not merely imported —
+  worth remembering for any future script under `src/scripts/` that, unlike
+  `generate-docs.ts`, exports something a test file needs to import.
 
 ---
 

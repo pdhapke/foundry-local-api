@@ -18,7 +18,8 @@
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "generate:docs": "npm run generate:docs --workspace=server"
+    "generate:docs": "npm run generate:docs --workspace=server",
+    "check-manifest-sync": "npm run check-manifest-sync --workspace=server"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

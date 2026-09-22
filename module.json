@@ -14,6 +14,7 @@
         {
           "id": "dnd5e",
           "kind": "system",
+          "implemented": false,
           "detect": "game.system.id === 'dnd5e'",
           "description": "PLANNED, NOT YET IMPLEMENTED (see PLAN.md Part 2, Phases 32-36 — the integration framework this entry depends on hasn't been built). Will add dnd5e-specific REST endpoints and MCP tools (ability checks, saves, skills, rests, spell slots, item/activity use) on top of the generic Document API. Core endpoints already work without this, regardless of game system.",
           "source": "https://github.com/foundryvtt/dnd5e"
