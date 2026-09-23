@@ -176,6 +176,9 @@ export type {
 
 export type { FoundryEventRecord, RecentEventsInput, RecentEventsResult } from "./events.js";
 
+export { GAME_STATE_COMMANDS } from "./game-state.js";
+export type { GamePausedResult, SetGamePausedInput } from "./game-state.js";
+
 export { DND5E_COMMANDS } from "./dnd5e.js";
 export type {
   Dnd5eActorIdInput,

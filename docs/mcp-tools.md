@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **168**.
+Total tools: **170**.
 
 ## Contents
 
@@ -16,6 +16,7 @@ Total tools: **168**.
 - [events](#events)
 - [files](#files)
 - [folders](#folders)
+- [game](#game)
 - [items](#items)
 - [journal-entries](#journal-entries)
 - [localize](#localize)
@@ -389,7 +390,7 @@ REST: `DELETE /api/combats/:id`
 
 ### `foundry_end_combat`
 
-Ends a combat encounter.
+Ends a combat encounter (deletes it).
 
 REST: `POST /api/combats/:id/end`
 
@@ -652,6 +653,26 @@ REST: `PUT /api/folders/:id`
 |---|---|---|---|
 | `id` | string | yes |  |
 | `changes` | object | yes |  |
+
+## game
+
+### `foundry_get_game_paused`
+
+Whether the game is currently paused (the "GAME PAUSED" banner) for every connected client.
+
+REST: `GET /api/game/paused`
+
+_No input._
+
+### `foundry_set_game_paused`
+
+Pauses or unpauses the game for every connected client (the "GAME PAUSED" banner), broadcast from the connected GM user. Returns the resulting paused state.
+
+REST: `POST /api/game/paused`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `paused` | boolean | yes |  |
 
 ## items
 

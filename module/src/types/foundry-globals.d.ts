@@ -482,6 +482,14 @@ declare const game: {
   collections: Map<string, FoundryWorldCollection>;
   /** Every compendium pack available in the world, keyed by pack id (e.g. "world.my-macros", "dnd5e.monsters"). */
   packs: Map<string, FoundryCompendiumCollection>;
+  /** Whether the game is currently paused (the "GAME PAUSED" banner) for every connected client. */
+  paused: boolean;
+  /**
+   * Toggles the world-wide pause state. `pause` omitted flips the current
+   * state. `broadcast: true` pushes the change to every other connected
+   * client and requires a GM user. Returns the new paused state.
+   */
+  togglePause(pause?: boolean, options?: { broadcast?: boolean }): boolean;
 };
 
 /** Keyed by Foundry document type name (e.g. "JournalEntry"). */

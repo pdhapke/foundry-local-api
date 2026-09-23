@@ -37,14 +37,22 @@ import "./commands/files.js";
 import "./commands/users.js";
 import "./commands/localization.js";
 import "./commands/bulk.js";
+import "./commands/game-state.js";
 import "./commands/dnd5e.js";
 
+// Set once `ready` constructs the client; `registerBridgeSettings()` is
+// called from `init` (before the client exists), but a GM can't reach the
+// settings form until the game has actually loaded, so it's always
+// populated by the time `onSettingChanged` could fire in practice. The
+// optional chaining below is just defensive.
+let client: BridgeClient | undefined;
+
 Hooks.once("init", () => {
-  registerBridgeSettings();
+  registerBridgeSettings(() => client?.reconnect());
 });
 
 Hooks.once("ready", () => {
-  const client = new BridgeClient(getConfiguredBridgeUrl, getConfiguredApiKey);
+  client = new BridgeClient(getConfiguredBridgeUrl, getConfiguredApiKey);
   client.connect();
   registerHookForwarding(client);
 });

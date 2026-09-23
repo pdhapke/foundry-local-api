@@ -51,6 +51,9 @@
       "name": "folders"
     },
     {
+      "name": "game"
+    },
+    {
       "name": "items"
     },
     {
@@ -3482,8 +3485,8 @@
     "/api/combats/{id}/end": {
       "post": {
         "operationId": "foundry_end_combat",
-        "summary": "Ends a combat encounter.",
-        "description": "Ends a combat encounter.",
+        "summary": "Ends a combat encounter (deletes it).",
+        "description": "Ends a combat encounter (deletes it).",
         "tags": ["combats"],
         "security": [
           {
@@ -8990,6 +8993,90 @@
                   }
                 },
                 "required": ["documentType", "ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/game/paused": {
+      "get": {
+        "operationId": "foundry_get_game_paused",
+        "summary": "Whether the game is currently paused (the \"GAME PAUSED\" banner) for every connected client.",
+        "description": "Whether the game is currently paused (the \"GAME PAUSED\" banner) for every connected client.",
+        "tags": ["game"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "foundry_set_game_paused",
+        "summary": "Pauses or unpauses the game for every connected client (the \"GAME PAUSED\" banner), broadcast from the connected GM user.",
+        "description": "Pauses or unpauses the game for every connected client (the \"GAME PAUSED\" banner), broadcast from the connected GM user. Returns the resulting paused state.",
+        "tags": ["game"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "paused": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["paused"]
               }
             }
           }

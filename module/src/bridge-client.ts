@@ -47,8 +47,16 @@ export function computeBackoffDelayMs(
   return Math.floor(Math.random() * cappedExponential);
 }
 
-/** Registers the client-scope module settings that hold the bridge URL and API key. */
-export function registerBridgeSettings(): void {
+/**
+ * Registers the client-scope module settings that hold the bridge URL and
+ * API key. `onSettingChanged`, when given, fires whenever either setting is
+ * saved from the config form — wired by `index.ts` to the live
+ * `BridgeClient`'s `reconnect()` so correcting a bad URL/API key takes
+ * effect immediately instead of silently doing nothing until the next full
+ * page reload (the client only ever read these settings once, at
+ * construction time).
+ */
+export function registerBridgeSettings(onSettingChanged?: () => void): void {
   game.settings.register<string>(MODULE_ID, BRIDGE_URL_SETTING, {
     name: "Bridge Server URL",
     hint: "WebSocket URL of the local foundry-local-api server this module connects to.",
@@ -56,6 +64,7 @@ export function registerBridgeSettings(): void {
     config: true,
     type: String,
     default: DEFAULT_BRIDGE_URL,
+    onChange: () => onSettingChanged?.(),
   });
 
   game.settings.register<string>(MODULE_ID, BRIDGE_API_KEY_SETTING, {
@@ -65,6 +74,7 @@ export function registerBridgeSettings(): void {
     config: true,
     type: String,
     default: "",
+    onChange: () => onSettingChanged?.(),
   });
 }
 
@@ -102,6 +112,14 @@ export class BridgeClient {
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private manuallyClosed = false;
+  /**
+   * Bumped by every `openSocket()` call; each socket's listeners close over
+   * the generation they were opened with and no-op if it's stale. This is
+   * what lets `reconnect()` discard an in-flight socket without its
+   * eventual "close" event racing the brand-new socket it's being replaced
+   * by (see `reconnect()`).
+   */
+  private generation = 0;
 
   constructor(
     private readonly getUrl: () => string,
@@ -130,6 +148,24 @@ export class BridgeClient {
     this.socket?.close();
   }
 
+  /**
+   * Discards any current/in-flight connection and immediately opens a new
+   * one using the latest `getUrl()`/`getApiKey()` values, resetting the
+   * reconnect backoff. For when the bridge URL or API key setting changes
+   * while the module is already connected (or stuck retrying with a stale
+   * key) — see `registerBridgeSettings()`'s `onSettingChanged`.
+   */
+  reconnect(): void {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempt = 0;
+    this.manuallyClosed = false;
+    this.socket?.close();
+    this.openSocket();
+  }
+
   private setStatus(status: ConnectionStatus): void {
     if (this.status === status) {
       return;
@@ -141,6 +177,10 @@ export class BridgeClient {
   private openSocket(): void {
     const url = buildBridgeConnectionUrl(this.getUrl(), this.getApiKey());
     this.setStatus("connecting");
+    // Captured per-socket so a superseded socket's later events (its "close"
+    // above all) are recognizable as stale and ignored — see `generation`'s
+    // own doc comment and `reconnect()`.
+    const generation = ++this.generation;
 
     let socket: WebSocket;
     try {
@@ -154,15 +194,18 @@ export class BridgeClient {
     this.socket = socket;
 
     socket.addEventListener("open", () => {
+      if (generation !== this.generation) return;
       this.reconnectAttempt = 0;
       this.setStatus("connected");
     });
 
     socket.addEventListener("message", (event: MessageEvent) => {
+      if (generation !== this.generation) return;
       void this.handleMessage(event);
     });
 
     socket.addEventListener("close", () => {
+      if (generation !== this.generation) return;
       this.socket = null;
       this.setStatus("disconnected");
       if (!this.manuallyClosed) {
@@ -171,6 +214,7 @@ export class BridgeClient {
     });
 
     socket.addEventListener("error", (event) => {
+      if (generation !== this.generation) return;
       // The "close" event that follows drives status change + reconnect
       // scheduling; this just gets the failure into the console.
       console.error(`[${MODULE_ID}] bridge socket error`, event);

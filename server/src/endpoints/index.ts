@@ -10,6 +10,7 @@ import { combatEndpointDescriptors } from "./combats.js";
 import { journalEntryEndpointDescriptors } from "./documents.js";
 import { eventEndpointDescriptors } from "./events.js";
 import { folderEndpointDescriptors } from "./folders.js";
+import { gameStateEndpointDescriptors } from "./game-state.js";
 import { healthEndpointDescriptor } from "./health.js";
 import { itemEndpointDescriptors } from "./items.js";
 import { fileEndpointDescriptors } from "./files.js";
@@ -56,6 +57,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...localizationEndpointDescriptors,
   ...eventEndpointDescriptors,
   ...bulkEndpointDescriptors,
+  ...gameStateEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";
