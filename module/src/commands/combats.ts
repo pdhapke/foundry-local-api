@@ -60,11 +60,21 @@ registerCommand(
   },
 );
 
-registerCommand(COMBAT_COMMANDS.END, async ({ id }: CombatIdInput): Promise<DocumentData> => {
-  const combat = requireCombat(id);
-  await combat.endCombat();
-  return combat.toObject();
-});
+registerCommand(
+  COMBAT_COMMANDS.END,
+  async ({ id }: CombatIdInput): Promise<DocumentDeleteResult> => {
+    const combat = requireCombat(id);
+    // Live-verified against Foundry V14 core: `Combat#endCombat()` is
+    // hardcoded to show a `DialogV2.confirm` ("End this combat and empty the
+    // turn tracker?") with no option to skip it — it blocks here forever
+    // waiting for a human click on every headless call. Its own callback body
+    // is nothing more than `this.delete()` (see
+    // client/documents/combat.mjs), so calling `delete()` directly achieves
+    // the exact same effect without the unskippable confirmation.
+    await combat.delete();
+    return { id };
+  },
+);
 
 registerCommand(
   COMBAT_COMMANDS.ADD_COMBATANT,

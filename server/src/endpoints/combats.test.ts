@@ -103,18 +103,22 @@ void describe("Phase 16 combats", () => {
     assert.deepEqual(res.body, { _id: "c1", round: 2 });
   });
 
-  void it("POST /api/combats/:id/end ends the combat", async () => {
+  void it("POST /api/combats/:id/end ends (deletes) the combat", async () => {
+    // Live-verified against Foundry V14 core (see module/src/commands/
+    // combats.ts's deviation-log comment): `Combat#endCombat()` is just a
+    // confirmation dialog around `this.delete()`, so this returns a delete
+    // result (`{id}`), not the since-deleted document's data.
     const app = buildApp(((type: string, payload: CombatIdInput) => {
       assert.equal(type, "combatEnd");
       assert.deepEqual(payload, { id: "c1" });
-      const result: DocumentData = { _id: "c1", round: 0 };
+      const result: DocumentDeleteResult = { id: "c1" };
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
     const res = await request(app).post("/api/combats/c1/end").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { _id: "c1", round: 0 });
+    assert.deepEqual(res.body, { id: "c1" });
   });
 
   void it("POST /api/combats/:id/combatants adds a combatant from the body's `data`", async () => {

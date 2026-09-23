@@ -69,14 +69,19 @@ const nextRoundDescriptor: EndpointDescriptor<CombatIdInput, DocumentData> = {
     foundryClient.call<CombatIdInput, DocumentData>(COMBAT_COMMANDS.NEXT_ROUND, { id }),
 };
 
-const endDescriptor: EndpointDescriptor<CombatIdInput, DocumentData> = {
+const endDescriptor: EndpointDescriptor<CombatIdInput, DocumentDeleteResult> = {
   name: "foundry_end_combat",
-  description: "Ends a combat encounter.",
+  // Ending a combat deletes it (Foundry core's own `Combat#endCombat()` is
+  // just a confirmation dialog around `this.delete()` — see this file's
+  // module-side counterpart, module/src/commands/combats.ts, for the
+  // live-verified deviation-log entry), so this returns a delete result
+  // (`{id}`), not the since-deleted document's data.
+  description: "Ends a combat encounter (deletes it).",
   method: "post",
   path: "/combats/:id/end",
   inputSchema: idSchema,
   handler: ({ id }, { foundryClient }) =>
-    foundryClient.call<CombatIdInput, DocumentData>(COMBAT_COMMANDS.END, { id }),
+    foundryClient.call<CombatIdInput, DocumentDeleteResult>(COMBAT_COMMANDS.END, { id }),
 };
 
 const addCombatantDescriptor: EndpointDescriptor<CombatAddCombatantInput, DocumentData> = {

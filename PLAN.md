@@ -74,6 +74,7 @@ its own before moving to the next.
 | 34 — dnd5e Integration: Detection & Read-Only Data | ✅ Done | `0d49eb4` |
 | 35 — dnd5e Integration: Actions | ✅ Done | `125e159` |
 | 36 — Integration Template & Second Example | ✅ Done | `e8aaa46` |
+| 37 — Live Smoke-Test Pass | ✅ Done | _pending_ |
 
 **Deviations from the original plan, decided along the way:**
 - Phase 4's API key is a single static value from `.env`, auto-generated and
@@ -1252,6 +1253,122 @@ its own before moving to the next.
   - pf2e and "utility modules with a useful public API" are named in the
     README as candidate future integrations, per this phase's own PLAN.md
     text — neither is built.
+- Phase 37 is the first phase run against a real, running Foundry V14 Build
+  368 instance (`dataPath` a local `C:\dev\FoundryVtt\Data`) with a live
+  dnd5e 6.0.3 world (`mcp-test`), closing out the "untested against a live
+  instance" caveat every phase since Phase 6 has carried. It found and fixed
+  four real bugs, all in the dnd5e integration's write actions (Phase 35) —
+  every core-API phase (6–28) and the dnd5e read-only phase (34) worked
+  exactly as implemented with zero changes needed:
+  - **dnd5e 6.0.3 changed the actor roll methods' call shape, not just their
+    names.** `rollAbilityCheck`/`rollSavingThrow`/`rollSkill`/`rollDeathSave`
+    now take `(config={}, dialog={}, message={})` config objects instead of
+    the `(value, options)` positional args Phase 35 assumed — calling them
+    the old way threw `"One of original or other are not Objects!"` from
+    inside dnd5e's own `foundry.utils.mergeObject()` (it received a plain
+    ability/skill string where it expected an object). Fixed by replacing
+    `callFirstAvailableMethod` with `callFirstAvailableRollMethod`
+    (`module/src/commands/dnd5e.ts`): for each candidate method name, it
+    tries the modern config-object call shape first and falls back to the
+    legacy positional shape on failure, rather than assuming a name implies
+    a shape (that pairing isn't confidently known to be stable across every
+    dnd5e release — `rollSavingThrow`, for instance, may have existed under
+    the old positional shape on some pre-6.x version too). `DIALOG_SKIP_CONFIRM
+    = {configure: false}` (dnd5e's modern equivalent of the old
+    `fastForward: true`) and `MESSAGE_CREATE = {create: true}` are the new
+    shared constants passed as the modern shape's `dialog`/`message` args.
+  - **`Item#use()` with no dialog config blocks on an interactive dialog.**
+    Live-verified: calling a weapon's `use()` with all-default args popped an
+    "Attack Roll" configuration dialog (Advantage/Normal/Disadvantage) on the
+    GM's client and hung there waiting for a human click — unusable from a
+    headless API call. `{configure: false}` in the `dialog` arg (mirroring
+    the roll-action fix) suppresses the item's own usage-configuration
+    dialog, but NOT this one: `AttackActivity#_triggerSubsequentActions()`
+    (dnd5e 6.0.3 source) hardcodes `this.rollAttack({event}, {}, {...})` for
+    the automatic follow-up roll after a weapon is used, ignoring whatever
+    `dialog` was passed to `use()` entirely — there is no way to suppress it
+    through the public API. Fixed by passing `{subsequentActions: false}` in
+    the usage config, which skips dnd5e's automatic-follow-up-roll trigger
+    altogether: the item is still consumed and its chat card still posted,
+    but a caller wanting the actual attack/damage roll needs a separate,
+    dedicated roll call — consistent with this endpoint's existing minimal
+    scope (no activity-id or roll-target input exists here to configure one
+    anyway, per Phase 35's own narrow reading of "trigger an item/activity
+    use").
+  - **Foundry core's `Combat#endCombat()` always shows an unskippable
+    confirmation dialog.** `client/documents/combat.mjs`'s `endCombat()` is
+    hardcoded to call `foundry.applications.api.DialogV2.confirm(...)` with
+    no option to bypass it, and its own `yes` callback is nothing more than
+    `this.delete()` — calling it from a headless API request blocked for the
+    full 10s bridge timeout waiting for a GM to click "Yes" in the connected
+    client. Fixed by having `COMBAT_COMMANDS.END`
+    (`module/src/commands/combats.ts`) call `combat.delete()` directly
+    instead of `combat.endCombat()`, achieving the identical effect without
+    the dialog. This also changes the endpoint's response shape from the
+    (now-deleted, and thus stale) document data to a `DocumentDeleteResult`
+    (`{id}`) — matching every other delete-style endpoint's convention —
+    so `server/src/endpoints/combats.ts`'s `endDescriptor` and
+    `server/src/endpoints/combats.test.ts`'s matching test were both updated
+    to the new type/shape.
+  - **`dnd5e_roll_initiative` crashes for a combatant with no linked scene
+    token** (`Cannot read properties of null (reading 'getGroupingKey')`,
+    from `Combatant5e#getGroupingKey()` calling `this.token.getGroupingKey()`
+    with no null-check on `this.token`) — reproduced only by adding a
+    combatant via a bare `actorId` with no `tokenId`/`sceneId` (which Phase
+    16's own `ADD_COMBATANT` command allows). Confirmed this is an edge case
+    in dnd5e's own initiative-grouping code, not a bug introduced by this
+    project: a combatant added the standard way (from a token already placed
+    on a scene, via `tokenId`/`sceneId`) rolls initiative correctly with no
+    error. Not fixed in code — `ADD_COMBATANT`'s flexibility (accepting an
+    actor-only combatant) is intentional and matches Phase 16's generic
+    embedded-document CRUD approach — but documented here as a known
+    constraint: initiative rolling on dnd5e requires every combatant in the
+    encounter to have a linked scene token.
+  - Every other write action re-tested clean with no changes needed:
+    `rollAbilityCheck`/`rollSavingThrow`/`rollSkill`/`rollDeathSave` (after
+    the shape fix) all produced correct totals and posted matching chat
+    cards; `shortRest`/`longRest` completed with no dialog and returned
+    correct `dhp`/`newDay` (`dialog: {configure: false}`-equivalent
+    `{dialog: false, chat: true}` config Phase 35 already used was already
+    correct for rests — only the four D20-roll methods and item-use changed
+    shape); spell-slot spend/restore clamped correctly at 0 and at `max`, and
+    a long rest correctly refilled a real spellcaster's slots.
+  - Also live-verified clean with zero changes: Phase 6 meta endpoints
+    (status/world/system/user/users/modules/settings), Phase 8's generic
+    document CRUD (actor/item/macro/combat create-update-delete via `data`/
+    `changes` body wrapper), Phase 10's embedded actor-items, Phase 12's
+    token create/move/visibility-toggle/delete, Phase 14's dice-formula
+    evaluation and chat send/list, Phase 15's macro execute (confirmed actual
+    arbitrary-JS execution via a real `console.log` reaching the browser
+    console), Phase 18's RollTable draw, Phase 20's compendium pack index
+    read and import-into-world (both Actor and RollTable packs), Phase 21's
+    embedded ActiveEffect create/list/delete, Phase 23's ownership read,
+    Phase 26's hook-forwarding-to-`foundry_get_recent_events` pipeline
+    (confirmed a real `createItem` hook reaching the polling endpoint),
+    Phase 27's search and localization, and Phase 34's dnd5e config/actor-
+    sheet/inventory reads (including the documented `skills.<id>.value` →
+    `proficient` remapping) — all against the real, current dnd5e 6.0.3, a
+    newer major version than the 2.x-4.x range Phases 34/35's original
+    deviation-log entries were written against.
+  - Getting to a runnable local instance surfaced two setup-only issues
+    unrelated to this project's own code, noted here since they'd otherwise
+    block any future re-run of this smoke test: the test world's Gamemaster
+    user's password had been forgotten with no admin-setup password
+    available either. Fixed by stopping the Foundry process and using its
+    own `classic-level` dependency (in `App/node_modules`, the same package
+    Foundry itself uses for per-world LevelDB storage) to clear then reset
+    the user's `password`/`passwordSalt` fields directly in
+    `worlds/mcp-test/data/users`' LevelDB store — deleting the fields
+    outright isn't enough, since `testPassword()`
+    (`App/dist/core/auth.mjs`) calls `crypto.pbkdf2Sync(input, salt, ...)`
+    unconditionally and throws (caught, treated as "invalid password") when
+    `salt` is `undefined`; the fix instead computes a real
+    `hashPassword("", <new random salt>)` pair for a blank password, mirroring
+    Foundry's own `hashPassword()` function exactly. Separately, this world
+    already had two other, unrelated community modules installed
+    ("Foundry API Bridge (Foundry MCP)" and "Foundry REST API") active
+    alongside this project's own module — both were deactivated (only this
+    project's module was left active) for a clean, non-confounded test run.
 
 ---
 
@@ -1560,3 +1677,20 @@ documentation, not the mechanism.
 - Candidate future integrations to note but not build yet: other game
   systems (e.g. pf2e), and utility modules with a useful public API — each
   just needs a `detect()` and an endpoint set following the same pattern
+
+## Phase 37 — Live Smoke-Test Pass
+- Run this project against a real, running Foundry VTT instance (not a
+  mocked bridge client) for the first time, closing out the "flagged for a
+  live smoke-test whenever a Foundry instance is available" caveat every
+  phase since Phase 6 has carried
+- Exercise a representative slice of every phase's endpoints end-to-end
+  through the real REST API → bridge → live Foundry module → real Foundry/
+  dnd5e API, starting with the areas the deviation log flags as riskiest
+  (Phase 35's dnd5e write actions, embedded-document phases) and spot-
+  checking the rest
+- Fix any real bugs found (not documented, accepted deviations) directly in
+  the module/server code, add/update tests where a fix changes a
+  descriptor's response shape, and re-run the full typecheck/lint/test/
+  format suite before considering the phase done
+- Leave the test world's data exactly as found when finished (delete any
+  fixture actors/items/macros/combats/tokens created for testing)

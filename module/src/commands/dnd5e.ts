@@ -65,30 +65,57 @@ function requireActor(id: string): FoundryActor {
 }
 
 /**
- * Calls the first of `candidates` that exists as a function on `target`,
- * with `args`. dnd5e's actor roll-method names have changed across its
- * 2.x/3.x/4.x releases (see this file's header comment and PLAN.md's Phase
- * 35 deviation log) — trying several plausible names at runtime, rather than
- * committing to one, means whichever dnd5e version is actually installed,
- * the call succeeds if it exposes ANY of them, and fails with a clear,
- * diagnosable error (naming every candidate tried) if none exist, instead of
- * a cryptic TypeError.
+ * Calls the first of `candidates` that exists as a function on `target`.
+ * dnd5e's actor roll methods went through two independent axes of change
+ * across versions (see this file's header comment and PLAN.md's Phase 37
+ * live-smoke-test deviation log): the METHOD NAME (e.g. `rollAbilityTest` ->
+ * `rollAbilityCheck`) and, separately, the CALL SHAPE — older dnd5e took
+ * positional args `(value, options)`; dnd5e 4.x+'s Activities-era API (live-
+ * verified against an installed dnd5e 6.0.3) takes config objects
+ * `(config, dialog, message)` instead. For each candidate name found, this
+ * tries the modern config-object shape first and falls back to the legacy
+ * positional shape on failure, before moving to the next candidate name —
+ * this doesn't assume which shape a given name implies, since that pairing
+ * isn't confidently known to be stable across every dnd5e release.
+ * `modernArgs`/`legacyArgs` are each a full argument list for their shape.
  */
-async function callFirstAvailableMethod<T>(
+async function callFirstAvailableRollMethod<T>(
   target: Record<string, unknown>,
   candidates: string[],
-  args: unknown[],
+  modernArgs: unknown[],
+  legacyArgs: unknown[],
 ): Promise<T> {
+  const errors: string[] = [];
   for (const name of candidates) {
     const fn = target[name];
-    if (typeof fn === "function") {
-      return (fn as (...a: unknown[]) => Promise<T>).apply(target, args);
+    if (typeof fn !== "function") {
+      continue;
+    }
+    try {
+      return await (fn as (...a: unknown[]) => Promise<T>).apply(target, modernArgs);
+    } catch (modernError) {
+      try {
+        return await (fn as (...a: unknown[]) => Promise<T>).apply(target, legacyArgs);
+      } catch (legacyError) {
+        errors.push(
+          `${name}: modern call shape failed (${(modernError as Error)?.message ?? modernError}), legacy call shape failed (${(legacyError as Error)?.message ?? legacyError})`,
+        );
+      }
     }
   }
   throw new Error(
-    `None of the expected dnd5e methods (${candidates.join(", ")}) exist on this object — the installed dnd5e version may use a different API than this integration was built against. See PLAN.md's Phase 35 deviation log.`,
+    `None of the expected dnd5e methods (${candidates.join(", ")}) could be called with either the modern config-object or legacy positional call shape — the installed dnd5e version may use a different API than this integration was built against. Attempts: ${errors.join("; ") || "no matching method found"}`,
   );
 }
+
+/**
+ * Skips dnd5e's roll-configuration dialog — there's no human in this
+ * headless, API-driven call to click through it. Live-verified against
+ * dnd5e 6.0.3's `BasicRollDialogConfiguration` shape (`dialog.configure`).
+ */
+const DIALOG_SKIP_CONFIRM = { configure: false };
+/** Matches Foundry's own default of posting the roll result to chat. */
+const MESSAGE_CREATE = { create: true };
 
 /**
  * Normalizes whatever dnd5e's roll-action methods return (a `Roll`/`D20Roll`
@@ -333,9 +360,10 @@ registerCommand(
   DND5E_COMMANDS.ROLL_ABILITY_CHECK,
   async ({ id, ability }: Dnd5eAbilityRollInput): Promise<Dnd5eRollActionResult> => {
     const actor = requireActor(id);
-    const roll = await callFirstAvailableMethod(
+    const roll = await callFirstAvailableRollMethod(
       actor as unknown as Record<string, unknown>,
-      ["rollAbilityTest", "rollAbilityCheck"],
+      ["rollAbilityCheck", "rollAbilityTest"],
+      [{ ability }, DIALOG_SKIP_CONFIRM, MESSAGE_CREATE],
       [ability, ROLL_ACTION_OPTIONS],
     );
     return toRollActionResult(roll);
@@ -346,9 +374,10 @@ registerCommand(
   DND5E_COMMANDS.ROLL_SAVING_THROW,
   async ({ id, ability }: Dnd5eAbilityRollInput): Promise<Dnd5eRollActionResult> => {
     const actor = requireActor(id);
-    const roll = await callFirstAvailableMethod(
+    const roll = await callFirstAvailableRollMethod(
       actor as unknown as Record<string, unknown>,
       ["rollSavingThrow", "rollAbilitySave"],
+      [{ ability }, DIALOG_SKIP_CONFIRM, MESSAGE_CREATE],
       [ability, ROLL_ACTION_OPTIONS],
     );
     return toRollActionResult(roll);
@@ -359,9 +388,10 @@ registerCommand(
   DND5E_COMMANDS.ROLL_SKILL,
   async ({ id, skill }: Dnd5eSkillRollInput): Promise<Dnd5eRollActionResult> => {
     const actor = requireActor(id);
-    const roll = await callFirstAvailableMethod(
+    const roll = await callFirstAvailableRollMethod(
       actor as unknown as Record<string, unknown>,
       ["rollSkill"],
+      [{ skill }, DIALOG_SKIP_CONFIRM, MESSAGE_CREATE],
       [skill, ROLL_ACTION_OPTIONS],
     );
     return toRollActionResult(roll);
@@ -372,9 +402,10 @@ registerCommand(
   DND5E_COMMANDS.ROLL_DEATH_SAVE,
   async ({ id }: Dnd5eActorIdInput): Promise<Dnd5eRollActionResult> => {
     const actor = requireActor(id);
-    const roll = await callFirstAvailableMethod(
+    const roll = await callFirstAvailableRollMethod(
       actor as unknown as Record<string, unknown>,
       ["rollDeathSave"],
+      [{}, DIALOG_SKIP_CONFIRM, MESSAGE_CREATE],
       [ROLL_ACTION_OPTIONS],
     );
     return toRollActionResult(roll);
@@ -443,7 +474,29 @@ registerCommand(
     if (typeof fn !== "function") {
       throw new Error(`Item "${id}" has no use() method on this dnd5e version.`);
     }
-    await (fn as () => Promise<unknown>).call(item);
+    // Live-verified against dnd5e 6.0.3: calling use() with no dialog config
+    // (all-defaults) pops an interactive item-usage configuration dialog on
+    // the GM's client — `{configure: false}` (same skip as the roll-action
+    // commands above) suppresses that one. But for an Activity that defines
+    // an automatic follow-up roll (e.g. AttackActivity rolling its attack
+    // right after a weapon is "used"), dnd5e 6.0.3 hardcodes an EMPTY dialog
+    // config for that follow-up roll (`AttackActivity#_triggerSubsequentActions`
+    // calls `this.rollAttack({event}, {}, {...})`, ignoring whatever `dialog`
+    // was passed to `use()`) — so that second dialog can't be suppressed
+    // through the public API at all, and would otherwise block here waiting
+    // for a human click on every weapon use. `subsequentActions: false` in
+    // the usage config skips triggering that follow-up roll entirely: the
+    // item is still consumed/its chat card still posted, but a caller wanting
+    // the actual attack/damage roll needs a separate, dedicated roll call
+    // (out of scope for this endpoint per PLAN.md's own minimal "trigger a
+    // use" wording — no activity-id or roll-target input exists here to
+    // configure one anyway).
+    await (fn as (usage: unknown, dialog: unknown, message: unknown) => Promise<unknown>).call(
+      item,
+      { subsequentActions: false },
+      DIALOG_SKIP_CONFIRM,
+      MESSAGE_CREATE,
+    );
     const obj = item.toObject() as Record<string, unknown>;
     return { id: item.id, name: String(obj["name"] ?? ""), used: true };
   },
