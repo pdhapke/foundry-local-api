@@ -79,7 +79,7 @@ its own before moving to the next.
 | 39 — Combatant Update | ✅ Done | `4b15288` |
 | 40 — Combat Turn/Round Navigation | ✅ Done | `4b15288` |
 | 41 — Scene Regions | ✅ Done | `cb78b30` |
-| 42 — UI Notifications | ⬜ Not started | — |
+| 42 — UI Notifications | ✅ Done | `9b6a038` |
 | 43 — World Time / Calendar | ✅ Done | `cb78b30` |
 | 44 — Token Targeting | ✅ Done | `cb78b30` |
 | 45 — Chat Message Update/Delete | ✅ Done | `cb78b30` |
@@ -343,22 +343,42 @@ likely because it postdates when Phase 22 was scoped.
 
 ## Phase 42 — UI Notifications
 
+Done (`9b6a038`).
+
 No way currently to push a message to a connected client's screen outside of
 chat — useful for an agent that wants to surface a status update to the GM
 without polluting the chat log.
 
-- `POST /api/notify {message, type: 'info'|'warn'|'error', target?:
+- `POST /api/notify {message, type?: 'info'|'warning'|'error', target?:
   'caller'|'all'}` wrapping `ui.notifications.notify(message, type)`.
   `ui.notifications.notify()` is client-local only — it does **not**
   propagate to other connected clients the way a document write does — so
   `target: 'all'` (default `'caller'`, matching the historical single-client
   behavior) relays through the same `game.socket.emit()` broadcast mechanism
   built in Phase 47, letting a notification actually reach players, not just
-  the GM's own screen. Build after or alongside Phase 47, reusing its socket
-  plumbing rather than inventing a second one.
+  the GM's own screen. Reuses Phase 47's socket plumbing rather than
+  inventing a second one, as planned.
+- **Deviation from this section's original wording**: the notification level
+  is `'info'|'warning'|'error'`, not `'info'|'warn'|'error'` — Foundry's real
+  `Notifications#notify(message, type)` has never accepted `'warn'`. Caught
+  before coding by checking Foundry's documented core API rather than at a
+  live smoke-test (unlike Phase 37's dnd5e findings), since this part of core
+  is old and stable.
 - MCP: `foundry_notify`.
 - New ambient declaration: a minimal `ui.notifications` surface in
   `foundry-globals.d.ts` (this project's first ambient `ui.*` declaration).
+- **Bundled refactor**: Phase 47's `CANVAS_PUSH_VIEW_SOCKET_EVENT` constant
+  (`shared/src/placeables.ts`) was renamed to the domain-neutral
+  `MODULE_SOCKET_EVENT` and moved to a new `shared/src/socket.ts`, since it's
+  now this phase's broadcast channel too, not just Phase 47's. The receive
+  side (`module/src/socket.ts`) was generalized from
+  `registerCanvasBroadcastListener()` to `registerModuleSocketListener()`,
+  which now discriminates each inbound message by its own `type` field
+  (`"pushView"` vs. `"notify"`) and dispatches accordingly — one shared
+  `game.socket` event carrying multiple broadcast kinds, rather than
+  registering a second event. No behavior change to Phase 47's own
+  push-view path, confirmed by the existing placeables tests still passing
+  unchanged.
 
 ## Phase 43 — World Time / Calendar
 
@@ -518,8 +538,12 @@ any of these to a numbered phase on request.
   - **Track B — Canvas broadcast** (`placeables.ts` server+module +
     `foundry-globals.d.ts` ambient `game.socket` declaration): Phase 47 →
     Phase 42, **sequential** — 42's `target: 'all'` notification option
-    reuses 47's socket-broadcast plumbing, so 47 must land first. **Phase 47
-    done** (`cb78b30`); Phase 42 is next up now that its dependency landed.
+    reuses 47's socket-broadcast plumbing, so 47 must land first. **Both
+    done** (`cb78b30`, Phase 42 in the following commit) — landing Phase 42
+    also renamed the shared socket-event constant and generalized the
+    module-side listener (see Phase 42's write-up above), touching
+    `shared/src/placeables.ts`/`module/src/socket.ts` alongside the new
+    `notifications.ts` files.
   - **Track C — Scene Regions** (`placeables.ts`): Phase 41 alone. **Done**
     (`cb78b30`) — landed in the same batch as Track B; both were pure
     additive descriptor/factory-call insertions in unrelated parts of the
@@ -534,5 +558,6 @@ any of these to a numbered phase on request.
     (`cb78b30`).
 
   Tracks A, C, D, E, F, G plus Phase 47 of Track B all landed together in one
-  batch (`cb78b30`) since none of them touch each other's files. Only Phase
-  42 (the second half of Track B) remains, now unblocked.
+  batch (`cb78b30`) since none of them touch each other's files. Phase 42
+  (the second half of Track B) landed in a follow-up commit — see its
+  write-up above. **All Phases 38–47 are now done; no phase remains open.**
