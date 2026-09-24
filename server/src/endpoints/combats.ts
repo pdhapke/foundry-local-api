@@ -13,6 +13,15 @@
 // own data (consistent with every embedded-create descriptor since Phase
 // 10); remove-combatant returns a `DocumentDeleteResult` keyed on the
 // combatant's id.
+//
+// Phase 39 added embedded Combatant update (`PUT .../combatants/:combatantId`),
+// following the same embedded-child-route shape as remove-combatant.
+// Phase 40 added previous-turn/previous-round, mirroring next-turn/
+// next-round as direct pass-throughs to `Combat#previousTurn()`/
+// `Combat#previousRound()`. Unlike Phase 37's `endCombat()` finding, Foundry
+// core's source shows neither method opening a dialog — but this hasn't been
+// live-verified against a running world the way Phase 37's fixes were, so
+// treat that as an assumption to confirm on the next live smoke-test pass.
 import { z } from "zod";
 
 import {
@@ -21,6 +30,7 @@ import {
   type CombatIdInput,
   type CombatRemoveCombatantInput,
   type CombatRollInitiativeInput,
+  type CombatUpdateCombatantInput,
   type DocumentData,
   type DocumentDeleteResult,
 } from "@foundry-local-api/shared";
@@ -34,6 +44,11 @@ const addCombatantSchema = idSchema.extend({ data: documentDataSchema });
 const removeCombatantSchema = z.object({
   id: z.string().min(1),
   combatantId: z.string().min(1),
+});
+const updateCombatantSchema = z.object({
+  id: z.string().min(1),
+  combatantId: z.string().min(1),
+  data: documentDataSchema,
 });
 const rollInitiativeSchema = idSchema.extend({
   combatantIds: z.array(z.string().min(1)).optional(),
@@ -67,6 +82,26 @@ const nextRoundDescriptor: EndpointDescriptor<CombatIdInput, DocumentData> = {
   inputSchema: idSchema,
   handler: ({ id }, { foundryClient }) =>
     foundryClient.call<CombatIdInput, DocumentData>(COMBAT_COMMANDS.NEXT_ROUND, { id }),
+};
+
+const previousTurnDescriptor: EndpointDescriptor<CombatIdInput, DocumentData> = {
+  name: "foundry_combat_previous_turn",
+  description: "Steps a combat back to the previous turn.",
+  method: "post",
+  path: "/combats/:id/previous-turn",
+  inputSchema: idSchema,
+  handler: ({ id }, { foundryClient }) =>
+    foundryClient.call<CombatIdInput, DocumentData>(COMBAT_COMMANDS.PREVIOUS_TURN, { id }),
+};
+
+const previousRoundDescriptor: EndpointDescriptor<CombatIdInput, DocumentData> = {
+  name: "foundry_combat_previous_round",
+  description: "Steps a combat back to the previous round.",
+  method: "post",
+  path: "/combats/:id/previous-round",
+  inputSchema: idSchema,
+  handler: ({ id }, { foundryClient }) =>
+    foundryClient.call<CombatIdInput, DocumentData>(COMBAT_COMMANDS.PREVIOUS_ROUND, { id }),
 };
 
 const endDescriptor: EndpointDescriptor<CombatIdInput, DocumentDeleteResult> = {
@@ -110,6 +145,20 @@ const removeCombatantDescriptor: EndpointDescriptor<
     ),
 };
 
+const updateCombatantDescriptor: EndpointDescriptor<CombatUpdateCombatantInput, DocumentData> = {
+  name: "foundry_update_combatant",
+  description:
+    "Updates fields on an embedded Combatant (e.g. defeated, hidden, initiative, name override).",
+  method: "put",
+  path: "/combats/:id/combatants/:combatantId",
+  inputSchema: updateCombatantSchema,
+  handler: (input, { foundryClient }) =>
+    foundryClient.call<CombatUpdateCombatantInput, DocumentData>(
+      COMBAT_COMMANDS.UPDATE_COMBATANT,
+      input,
+    ),
+};
+
 const rollInitiativeDescriptor: EndpointDescriptor<CombatRollInitiativeInput, DocumentData> = {
   name: "foundry_roll_combat_initiative",
   description:
@@ -135,8 +184,11 @@ export const combatEndpointDescriptors: AnyEndpointDescriptor[] = [
   startDescriptor,
   nextTurnDescriptor,
   nextRoundDescriptor,
+  previousTurnDescriptor,
+  previousRoundDescriptor,
   endDescriptor,
   addCombatantDescriptor,
   removeCombatantDescriptor,
+  updateCombatantDescriptor,
   rollInitiativeDescriptor,
 ];

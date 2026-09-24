@@ -6,14 +6,21 @@
 // and initiative rolling. Shared between the server's combat endpoints
 // (server/src/endpoints/combats.ts) and the module's combat command handlers
 // (module/src/commands/combats.ts).
+//
+// Phase 39 added embedded Combatant update (Phase 16 only had add/remove).
+// Phase 40 added previous-turn/previous-round to complement Phase 16's
+// forward-only next-turn/next-round/start/end.
 
 export const COMBAT_COMMANDS = {
   START: "combatStart",
   NEXT_TURN: "combatNextTurn",
   NEXT_ROUND: "combatNextRound",
+  PREVIOUS_TURN: "combatPreviousTurn",
+  PREVIOUS_ROUND: "combatPreviousRound",
   END: "combatEnd",
   ADD_COMBATANT: "combatAddCombatant",
   REMOVE_COMBATANT: "combatRemoveCombatant",
+  UPDATE_COMBATANT: "combatUpdateCombatant",
   ROLL_INITIATIVE: "combatRollInitiative",
 } as const;
 
@@ -29,6 +36,12 @@ export interface CombatAddCombatantInput {
 export interface CombatRemoveCombatantInput {
   id: string;
   combatantId: string;
+}
+
+export interface CombatUpdateCombatantInput {
+  id: string;
+  combatantId: string;
+  data: Record<string, unknown>;
 }
 
 export interface CombatRollInitiativeInput {

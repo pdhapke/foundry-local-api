@@ -352,6 +352,10 @@ interface FoundryCombat extends FoundryDocument {
   nextTurn(): Promise<FoundryCombat>;
   /** Advances to the next round. */
   nextRound(): Promise<FoundryCombat>;
+  /** Steps back to the previous turn. */
+  previousTurn(): Promise<FoundryCombat>;
+  /** Steps back to the previous round. */
+  previousRound(): Promise<FoundryCombat>;
   /** Ends the encounter. */
   endCombat(): Promise<FoundryCombat>;
   /** Rolls initiative for the given combatant ids. */

@@ -88,6 +88,7 @@ export type {
   CombatIdInput,
   CombatAddCombatantInput,
   CombatRemoveCombatantInput,
+  CombatUpdateCombatantInput,
   CombatRollInitiativeInput,
 } from "./combats.js";
 

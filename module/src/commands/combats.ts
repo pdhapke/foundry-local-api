@@ -16,6 +16,7 @@ import {
   type CombatIdInput,
   type CombatRemoveCombatantInput,
   type CombatRollInitiativeInput,
+  type CombatUpdateCombatantInput,
   type DocumentData,
   type DocumentDeleteResult,
 } from "@foundry-local-api/shared";
@@ -61,6 +62,24 @@ registerCommand(
 );
 
 registerCommand(
+  COMBAT_COMMANDS.PREVIOUS_TURN,
+  async ({ id }: CombatIdInput): Promise<DocumentData> => {
+    const combat = requireCombat(id);
+    await combat.previousTurn();
+    return combat.toObject();
+  },
+);
+
+registerCommand(
+  COMBAT_COMMANDS.PREVIOUS_ROUND,
+  async ({ id }: CombatIdInput): Promise<DocumentData> => {
+    const combat = requireCombat(id);
+    await combat.previousRound();
+    return combat.toObject();
+  },
+);
+
+registerCommand(
   COMBAT_COMMANDS.END,
   async ({ id }: CombatIdInput): Promise<DocumentDeleteResult> => {
     const combat = requireCombat(id);
@@ -93,6 +112,15 @@ registerCommand(
     const combatant = requireCombatant(requireCombat(id), combatantId);
     await combatant.delete();
     return { id: combatantId };
+  },
+);
+
+registerCommand(
+  COMBAT_COMMANDS.UPDATE_COMBATANT,
+  async ({ id, combatantId, data }: CombatUpdateCombatantInput): Promise<DocumentData> => {
+    const combatant = requireCombatant(requireCombat(id), combatantId);
+    const updated = await combatant.update(data);
+    return updated.toObject();
   },
 );
 

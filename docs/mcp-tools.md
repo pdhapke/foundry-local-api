@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **170**.
+Total tools: **173**.
 
 ## Contents
 
@@ -368,6 +368,26 @@ REST: `POST /api/combats/:id/next-turn`
 |---|---|---|---|
 | `id` | string | yes |  |
 
+### `foundry_combat_previous_round`
+
+Steps a combat back to the previous round.
+
+REST: `POST /api/combats/:id/previous-round`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
+### `foundry_combat_previous_turn`
+
+Steps a combat back to the previous turn.
+
+REST: `POST /api/combats/:id/previous-turn`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
 ### `foundry_create_combat`
 
 Creates a new Combat document.
@@ -458,6 +478,18 @@ REST: `PUT /api/combats/:id`
 |---|---|---|---|
 | `id` | string | yes |  |
 | `changes` | object | yes |  |
+
+### `foundry_update_combatant`
+
+Updates fields on an embedded Combatant (e.g. defeated, hidden, initiative, name override).
+
+REST: `PUT /api/combats/:id/combatants/:combatantId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `combatantId` | string | yes |  |
+| `data` | object | yes |  |
 
 ## documents
 

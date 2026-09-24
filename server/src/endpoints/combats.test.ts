@@ -6,9 +6,10 @@
 //
 // Base CRUD is already proven generic by documents.test.ts's
 // `makeDocumentEndpoints()` tests, so this file only exercises the
-// combat-specific extras (start/next-turn/next-round/end, add/remove
-// combatant, roll initiative) plus a smoke check that
-// combatEndpointDescriptors actually mounts CRUD under `/api/combats`.
+// combat-specific extras (start/next-turn/next-round/previous-turn/
+// previous-round/end, add/remove/update combatant, roll initiative) plus a
+// smoke check that combatEndpointDescriptors actually mounts CRUD under
+// `/api/combats`.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -19,6 +20,7 @@ import type {
   CombatIdInput,
   CombatRemoveCombatantInput,
   CombatRollInitiativeInput,
+  CombatUpdateCombatantInput,
   DocumentData,
   DocumentDeleteResult,
   DocumentTypeInput,
@@ -103,6 +105,38 @@ void describe("Phase 16 combats", () => {
     assert.deepEqual(res.body, { _id: "c1", round: 2 });
   });
 
+  void it("POST /api/combats/:id/previous-turn steps back a turn", async () => {
+    const app = buildApp(((type: string, payload: CombatIdInput) => {
+      assert.equal(type, "combatPreviousTurn");
+      assert.deepEqual(payload, { id: "c1" });
+      const result: DocumentData = { _id: "c1", turn: 0 };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/combats/c1/previous-turn")
+      .set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "c1", turn: 0 });
+  });
+
+  void it("POST /api/combats/:id/previous-round steps back a round", async () => {
+    const app = buildApp(((type: string, payload: CombatIdInput) => {
+      assert.equal(type, "combatPreviousRound");
+      assert.deepEqual(payload, { id: "c1" });
+      const result: DocumentData = { _id: "c1", round: 1 };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/combats/c1/previous-round")
+      .set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "c1", round: 1 });
+  });
+
   void it("POST /api/combats/:id/end ends (deletes) the combat", async () => {
     // Live-verified against Foundry V14 core (see module/src/commands/
     // combats.ts's deviation-log comment): `Combat#endCombat()` is just a
@@ -152,6 +186,23 @@ void describe("Phase 16 combats", () => {
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { id: "cb1" });
+  });
+
+  void it("PUT /api/combats/:id/combatants/:combatantId updates a combatant's fields", async () => {
+    const app = buildApp(((type: string, payload: CombatUpdateCombatantInput) => {
+      assert.equal(type, "combatUpdateCombatant");
+      assert.deepEqual(payload, { id: "c1", combatantId: "cb1", data: { defeated: true } });
+      const result: DocumentData = { _id: "cb1", defeated: true };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .put("/api/combats/c1/combatants/cb1")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ data: { defeated: true } });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "cb1", defeated: true });
   });
 
   void it("POST /api/combats/:id/roll-initiative rolls for specific combatant ids", async () => {
