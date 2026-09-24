@@ -252,6 +252,12 @@ interface FoundryUser {
   targets: Set<FoundryPlaceable>;
 }
 
+/** The `game.users` collection — a Map of every User plus the Phase 50 `activeGM` lookup. */
+interface FoundryUsers extends Map<string, FoundryUser> {
+  /** One connected GM (non-assistant if possible), or `null` if none is currently connected. */
+  activeGM: FoundryUser | null;
+}
+
 /** Shape of each value in `game.modules`. */
 interface FoundryModule {
   id: string;
@@ -412,6 +418,10 @@ interface FoundryPlaylistSound extends FoundryDocument {
 
 /** A loaded Playlist document — the `FoundryDocument` subset plus the play/stop API Phase 17 drives. */
 interface FoundryPlaylist extends FoundryDocument {
+  /** Begins simultaneous playback for every sound in this playlist (Phase 48). */
+  playAll(): Promise<FoundryPlaylist>;
+  /** Stops playback of any/all currently-playing sounds in this playlist (Phase 48). */
+  stopAll(): Promise<FoundryPlaylist>;
   /** Starts playback of one embedded sound, managing which others keep playing. */
   playSound(sound: FoundryPlaylistSound): Promise<FoundryPlaylist>;
   /** Stops playback of one embedded sound. */
@@ -434,6 +444,10 @@ interface FoundryCardsStack extends FoundryDocument {
   shuffle(): Promise<FoundryCardsStack>;
   /** Recalls every card dealt out of this stack back into it. */
   reset(): Promise<FoundryCardsStack>;
+  /** Moves the given embedded Card ids out of this stack and into `to` (Phase 49). */
+  pass(to: FoundryCardsStack, ids: string[]): Promise<FoundryDocument[]>;
+  /** Deals `number` cards from this stack to each of `to` in cyclical order (Phase 49). */
+  deal(to: FoundryCardsStack[], number?: number): Promise<FoundryCardsStack>;
 }
 
 /** A world-level document collection, as found at `game.collections.get(<type>)` (e.g. `game.actors`). */
@@ -511,7 +525,7 @@ declare const game: {
     version: string;
   };
   user: FoundryUser;
-  users: Map<string, FoundryUser>;
+  users: FoundryUsers;
   modules: Map<string, FoundryModule>;
   /** Keyed by Foundry document type name (e.g. "JournalEntry"), each a Map of that type's documents keyed by id. */
   collections: Map<string, FoundryWorldCollection>;

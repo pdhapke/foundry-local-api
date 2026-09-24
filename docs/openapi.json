@@ -4449,6 +4449,98 @@
         }
       }
     },
+    "/api/playlists/{id}/play-all": {
+      "post": {
+        "operationId": "foundry_play_all_playlist_sounds",
+        "summary": "Begins simultaneous playback of every sound in a playlist.",
+        "description": "Begins simultaneous playback of every sound in a playlist.",
+        "tags": ["playlists"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/playlists/{id}/stop-all": {
+      "post": {
+        "operationId": "foundry_stop_all_playlist_sounds",
+        "summary": "Stops playback of every currently-playing sound in a playlist.",
+        "description": "Stops playback of every currently-playing sound in a playlist.",
+        "tags": ["playlists"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
     "/api/roll-tables": {
       "get": {
         "operationId": "foundry_list_roll_tables",
@@ -5131,6 +5223,149 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/pass": {
+      "post": {
+        "operationId": "foundry_pass_cards",
+        "summary": "Moves specific cards out of a Cards stack and into another one.",
+        "description": "Moves specific cards out of a Cards stack and into another one.",
+        "tags": ["cards"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "toId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cardIds": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": ["toId", "cardIds"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/deal": {
+      "post": {
+        "operationId": "foundry_deal_cards",
+        "summary": "Deals cards from a Cards stack to one or more destination stacks in cyclical order (e.g.",
+        "description": "Deals cards from a Cards stack to one or more destination stacks in cyclical order (e.g. dealing a hand to each player).",
+        "tags": ["cards"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "toIds": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "number": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["toIds"]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success.",
@@ -8971,6 +9206,41 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/users/active-gm": {
+      "get": {
+        "operationId": "foundry_get_active_gm",
+        "summary": "Looks up the world's currently active GM (game.users.activeGM) — one connected Gamemaster (non-assistant if possible), or null if none is connected.",
+        "description": "Looks up the world's currently active GM (game.users.activeGM) — one connected Gamemaster (non-assistant if possible), or null if none is connected. Useful for workflows that should happen once, on a single authoritative client, rather than once per connected GM. Registered ahead of GET /users/:userId so the literal 'active-gm' path segment isn't swallowed by that param route.",
+        "tags": ["users"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success.",

@@ -29,6 +29,12 @@
 // actually key off, so it gets its own pair of commands here rather than
 // retrofitting the selection shape, mirroring `game.user.targets`'
 // independence from `canvas.tokens.controlled` in Foundry's own API.
+//
+// Phase 50 added the active-GM lookup (`game.users.activeGM`) from the
+// backlog: "for workflows which occur on all clients, but where only one
+// user should take action" per Foundry's own doc comment — useful for an
+// agent that needs to know which single connected client should be treated
+// as authoritative for GM-only side effects.
 
 export const USER_COMMANDS = {
   GET: "userGet",
@@ -39,6 +45,7 @@ export const USER_COMMANDS = {
   GET_CANVAS_SELECTION: "userGetCanvasSelection",
   GET_TARGETS: "userGetTargets",
   SET_TARGETS: "userSetTargets",
+  GET_ACTIVE_GM: "userGetActiveGm",
 } as const;
 
 export interface UserIdInput {
@@ -78,4 +85,9 @@ export interface SetCanvasTargetsInput {
   tokenIds: string[];
   /** When true, adds to the existing target set instead of replacing it. Defaults to false (replace). */
   additive?: boolean | undefined;
+}
+
+export interface ActiveGmResult {
+  /** The active GM's user id, or `null` if no GM is currently connected (`game.users.activeGM`). */
+  userId: string | null;
 }

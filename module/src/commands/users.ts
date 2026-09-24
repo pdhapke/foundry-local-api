@@ -31,6 +31,7 @@
 // target loop instead of just once up front.
 import {
   USER_COMMANDS,
+  type ActiveGmResult,
   type CanvasSelectionResult,
   type CanvasTargetsResult,
   type DocumentData,
@@ -103,6 +104,10 @@ registerCommand(USER_COMMANDS.GET_STATUS, ({ userId }: UserIdInput): UserStatusR
   const user = requireUser(userId);
   return { userId, active: user.active };
 });
+
+registerCommand(USER_COMMANDS.GET_ACTIVE_GM, (): ActiveGmResult => ({
+  userId: game.users.activeGM?.id ?? null,
+}));
 
 registerCommand(USER_COMMANDS.GET_CANVAS_SELECTION, (): CanvasSelectionResult => {
   if (!canvas) {

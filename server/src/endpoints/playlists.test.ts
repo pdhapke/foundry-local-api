@@ -16,6 +16,7 @@ import request from "supertest";
 import type {
   DocumentData,
   DocumentTypeInput,
+  PlaylistIdInput,
   PlaylistSoundIdInput,
 } from "@foundry-local-api/shared";
 
@@ -102,6 +103,34 @@ void describe("Phase 17 playlists", () => {
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "s1", playing: false, pausedTime: 12.5 });
+  });
+
+  void it("POST /api/playlists/:id/play-all starts simultaneous playback of every sound", async () => {
+    const app = buildApp(((type: string, payload: PlaylistIdInput) => {
+      assert.equal(type, "playlistPlayAll");
+      assert.deepEqual(payload, { id: "p1" });
+      const result: DocumentData = { _id: "p1", playing: true };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).post("/api/playlists/p1/play-all").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "p1", playing: true });
+  });
+
+  void it("POST /api/playlists/:id/stop-all stops every currently-playing sound", async () => {
+    const app = buildApp(((type: string, payload: PlaylistIdInput) => {
+      assert.equal(type, "playlistStopAll");
+      assert.deepEqual(payload, { id: "p1" });
+      const result: DocumentData = { _id: "p1", playing: false };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).post("/api/playlists/p1/stop-all").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "p1", playing: false });
   });
 
   void it("rejects a request with a missing/incorrect API key with 401", async () => {

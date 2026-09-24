@@ -14,8 +14,10 @@ import { describe, it } from "node:test";
 import request from "supertest";
 
 import type {
+  CardsDealInput,
   CardsDrawInput,
   CardsIdInput,
+  CardsPassInput,
   DocumentData,
   DocumentTypeInput,
 } from "@foundry-local-api/shared";
@@ -120,6 +122,63 @@ void describe("Phase 18 cards", () => {
     }) as FoundryClient["call"]);
 
     const res = await request(app).post("/api/cards/deck1/reset").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "deck1", name: "Deck of Many Things" });
+  });
+
+  void it("POST /api/cards/:id/pass moves the given card ids to another stack", async () => {
+    const app = buildApp(((type: string, payload: CardsPassInput) => {
+      assert.equal(type, "cardsPass");
+      assert.deepEqual(payload, { id: "deck1", toId: "hand1", cardIds: ["card1", "card2"] });
+      const result: DocumentData[] = [
+        { _id: "card1", name: "Ace of Spades" },
+        { _id: "card2", name: "King of Hearts" },
+      ];
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/cards/deck1/pass")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ toId: "hand1", cardIds: ["card1", "card2"] });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, [
+      { _id: "card1", name: "Ace of Spades" },
+      { _id: "card2", name: "King of Hearts" },
+    ]);
+  });
+
+  void it("POST /api/cards/:id/deal distributes cards to multiple destinations", async () => {
+    const app = buildApp(((type: string, payload: CardsDealInput) => {
+      assert.equal(type, "cardsDeal");
+      assert.deepEqual(payload, { id: "deck1", toIds: ["hand1", "hand2"], number: 2 });
+      const result: DocumentData = { _id: "deck1", name: "Deck of Many Things" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/cards/deck1/deal")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ toIds: ["hand1", "hand2"], number: 2 });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "deck1", name: "Deck of Many Things" });
+  });
+
+  void it("POST /api/cards/:id/deal defaults number to 1 when omitted", async () => {
+    const app = buildApp(((type: string, payload: CardsDealInput) => {
+      assert.equal(type, "cardsDeal");
+      assert.deepEqual(payload, { id: "deck1", toIds: ["hand1", "hand2"] });
+      const result: DocumentData = { _id: "deck1", name: "Deck of Many Things" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/cards/deck1/deal")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ toIds: ["hand1", "hand2"] });
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "deck1", name: "Deck of Many Things" });

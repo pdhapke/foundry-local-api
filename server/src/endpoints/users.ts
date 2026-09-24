@@ -15,6 +15,7 @@ import { z } from "zod";
 
 import {
   USER_COMMANDS,
+  type ActiveGmResult,
   type CanvasSelectionResult,
   type CanvasTargetsResult,
   type DocumentData,
@@ -36,6 +37,20 @@ const setTargetsSchema = z.object({
   tokenIds: z.array(z.string().min(1)),
   additive: z.boolean().optional(),
 });
+
+const getActiveGmDescriptor: EndpointDescriptor<void, ActiveGmResult> = {
+  name: "foundry_get_active_gm",
+  description:
+    "Looks up the world's currently active GM (game.users.activeGM) — one connected " +
+    "Gamemaster (non-assistant if possible), or null if none is connected. Useful for " +
+    "workflows that should happen once, on a single authoritative client, rather than once " +
+    "per connected GM. Registered ahead of GET /users/:userId so the literal 'active-gm' " +
+    "path segment isn't swallowed by that param route.",
+  method: "get",
+  path: "/users/active-gm",
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, ActiveGmResult>(USER_COMMANDS.GET_ACTIVE_GM),
+};
 
 const getUserDescriptor: EndpointDescriptor<UserIdInput, DocumentData> = {
   name: "foundry_get_user_by_id",
@@ -122,6 +137,7 @@ const setCanvasTargetsDescriptor: EndpointDescriptor<SetCanvasTargetsInput, Canv
 };
 
 export const userEndpointDescriptors: AnyEndpointDescriptor[] = [
+  getActiveGmDescriptor,
   getUserDescriptor,
   createUserDescriptor,
   updateUserDescriptor,

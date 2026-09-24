@@ -19,6 +19,7 @@
 import {
   PLAYLIST_COMMANDS,
   type DocumentData,
+  type PlaylistIdInput,
   type PlaylistSoundIdInput,
 } from "@foundry-local-api/shared";
 
@@ -70,5 +71,23 @@ registerCommand(
       pausedTime: sound.sound?.currentTime ?? 0,
     });
     return updated.toObject();
+  },
+);
+
+registerCommand(
+  PLAYLIST_COMMANDS.PLAY_ALL,
+  async ({ id }: PlaylistIdInput): Promise<DocumentData> => {
+    const playlist = requirePlaylist(id);
+    await playlist.playAll();
+    return requirePlaylist(id).toObject();
+  },
+);
+
+registerCommand(
+  PLAYLIST_COMMANDS.STOP_ALL,
+  async ({ id }: PlaylistIdInput): Promise<DocumentData> => {
+    const playlist = requirePlaylist(id);
+    await playlist.stopAll();
+    return requirePlaylist(id).toObject();
   },
 );

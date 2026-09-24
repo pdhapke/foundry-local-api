@@ -13,6 +13,7 @@ import { describe, it } from "node:test";
 import request from "supertest";
 
 import type {
+  ActiveGmResult,
   CanvasSelectionResult,
   CanvasTargetsResult,
   DocumentData,
@@ -180,6 +181,32 @@ void describe("Phase 25 users & client state", () => {
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { sceneId: "s1", tokenIds: ["t1", "t2"] });
+  });
+
+  void it("GET /api/users/active-gm reads the active GM's user id", async () => {
+    const app = buildApp(((type: string) => {
+      assert.equal(type, "userGetActiveGm");
+      const result: ActiveGmResult = { userId: "u1" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).get("/api/users/active-gm").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { userId: "u1" });
+  });
+
+  void it("GET /api/users/active-gm returns userId: null when no GM is connected", async () => {
+    const app = buildApp(((type: string) => {
+      assert.equal(type, "userGetActiveGm");
+      const result: ActiveGmResult = { userId: null };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).get("/api/users/active-gm").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { userId: null });
   });
 
   void it("rejects a request with a missing/incorrect API key with 401", async () => {

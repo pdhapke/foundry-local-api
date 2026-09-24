@@ -8,11 +8,14 @@
 // with `documentType: "Cards"` (see server/src/endpoints/cards.ts, which
 // calls the same `makeDocumentEndpoints()` factory JournalEntry/Actor/Item/
 // Scene/Macro/Combat/Playlist/RollTable use). This file only adds the
-// card-pile extras PLAN.md's Phase 18 calls for: draw, shuffle, reset.
+// card-pile extras PLAN.md's Phase 18 calls for (draw, shuffle, reset) plus
+// Phase 49's pass/deal.
 import {
   CARDS_COMMANDS,
+  type CardsDealInput,
   type CardsDrawInput,
   type CardsIdInput,
+  type CardsPassInput,
   type DocumentData,
 } from "@foundry-local-api/shared";
 
@@ -48,3 +51,23 @@ registerCommand(CARDS_COMMANDS.RESET, async ({ id }: CardsIdInput): Promise<Docu
   await stack.reset();
   return stack.toObject();
 });
+
+registerCommand(
+  CARDS_COMMANDS.PASS,
+  async ({ id, toId, cardIds }: CardsPassInput): Promise<DocumentData[]> => {
+    const source = requireCardsStack(id);
+    const destination = requireCardsStack(toId);
+    const moved = await source.pass(destination, cardIds);
+    return moved.map((card) => card.toObject());
+  },
+);
+
+registerCommand(
+  CARDS_COMMANDS.DEAL,
+  async ({ id, toIds, number }: CardsDealInput): Promise<DocumentData> => {
+    const source = requireCardsStack(id);
+    const destinations = toIds.map((toId) => requireCardsStack(toId));
+    await source.deal(destinations, number ?? 1);
+    return requireCardsStack(id).toObject();
+  },
+);

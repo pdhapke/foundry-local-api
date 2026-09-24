@@ -85,6 +85,9 @@ its own before moving to the next.
 | 45 — Chat Message Update/Delete | ✅ Done | `cb78b30` |
 | 46 — Fog of War Reset | ✅ Done | `cb78b30` |
 | 47 — Broadcast Camera View to All Players | ✅ Done | `cb78b30` |
+| 48 — Playlist playAll/stopAll | ✅ Done | _pending commit_ |
+| 49 — Cards Pass/Deal | ✅ Done | _pending commit_ |
+| 50 — Active GM Lookup | ✅ Done | _pending commit_ |
 
 ---
 
@@ -484,6 +487,79 @@ free via Foundry's own document-sync socket. Pan/zoom and Phase 42's
 - Phase 42 (next up) can reuse the same `game.socket` plumbing for its
   `target: 'all'` notification broadcast.
 
+## Phase 48 — Playlist playAll/stopAll
+
+Done (pending commit).
+
+Phase 17 deliberately narrowed "play/stop/pause sound" to a single embedded
+`PlaylistSound`; there was no way to start/stop every sound in a playlist at
+once (Foundry's own playlist sidebar's own "play all" control).
+
+- `POST /api/playlists/:id/play-all` / `POST /api/playlists/:id/stop-all`
+  wrapping `Playlist#playAll()`/`Playlist#stopAll()` — confirmed via the live
+  Foundry API docs (`foundryvtt.com/api/classes/foundry.documents.Playlist
+  .html`) rather than a running world, same "check core API docs before
+  coding" shortcut Phase 42 used for `ui.notifications.notify()`.
+- MCP: `foundry_play_all_playlist_sounds`, `foundry_stop_all_playlist_sounds`.
+- New ambient declarations: `FoundryPlaylist#playAll()`/`#stopAll()`.
+- **Deviation from the backlog wording**: "global audio volume (`game.audio`)"
+  was deliberately left out — it isn't a `Playlist` document method at all,
+  it's client settings (`core.globalPlaylistVolume`/`globalAmbientVolume`/
+  `globalInterfaceVolume`), already reachable through Phase 7's generic
+  `GET/PUT /api/settings/:namespace/:key` — same "already reachable through
+  the generic settings endpoint" reasoning the backlog's own module
+  enable/disable entry (below) already used, so a dedicated endpoint would
+  just be a redundant wrapper.
+
+## Phase 49 — Cards Pass/Deal
+
+Done (pending commit).
+
+Phase 18 deliberately narrowed "card pile operations" to draw/shuffle/reset;
+there was no way to move specific cards to one other stack (`pass`) or
+distribute cards to several destination stacks at once (`deal`) — both real
+`Cards` document methods per the live Foundry API docs
+(`foundryvtt.com/api/classes/foundry.documents.Cards.html`).
+
+- `POST /api/cards/:id/pass {toId, cardIds}` wrapping `Cards#pass(to, ids)` —
+  returns the moved Card documents (same "return the created/moved child"
+  convention as `draw`).
+- `POST /api/cards/:id/deal {toIds, number?}` wrapping
+  `Cards#deal(to[], number)` — returns the source stack's own `toObject()`
+  (same convention as `shuffle`/`reset`), since the interesting state change
+  for a multi-destination deal is what's left behind in the source, not any
+  one destination.
+- MCP: `foundry_pass_cards`, `foundry_deal_cards`.
+- New ambient declarations: `FoundryCardsStack#pass()`/`#deal()`.
+- Not live-verified against a running world (same caveat as Phases 40/41/43
+  — flag for the next live smoke-test pass); confirmed against documented
+  core API shape only.
+
+## Phase 50 — Active GM Lookup
+
+Done (pending commit).
+
+`game.users.activeGM` ("one User who is an active Gamemaster (non-assistant
+if possible), or null" per Foundry's own doc comment) was never exposed —
+useful for an agent-driven workflow that should run once, on a single
+authoritative connected client, rather than once per connected GM.
+
+- `GET /api/users/active-gm` wrapping `game.users.activeGM`, returning
+  `{userId: string | null}`.
+- Registered **ahead of** the existing `GET /api/users/:userId` in
+  `userEndpointDescriptors` — Express matches routes in registration order,
+  so the literal `active-gm` path segment would otherwise be swallowed by the
+  `:userId` param route (confirmed by a test asserting the bridge command
+  actually dispatched is `userGetActiveGm`, not `userGet` with
+  `userId: "active-gm"`).
+- MCP: `foundry_get_active_gm`.
+- New ambient declaration: `FoundryUsers` (extends `Map<string, FoundryUser>`
+  with `activeGM: FoundryUser | null`), replacing `game.users`' previous bare
+  `Map<string, FoundryUser>` type — every existing `game.users.get()`/
+  `.values()` call site is unaffected since `Map`'s own methods are still
+  present.
+- Not live-verified (same caveat as Phase 49).
+
 ---
 
 ## Backlog — noted, not scheduled
@@ -494,11 +570,6 @@ any of these to a numbered phase on request.
 - **Compendium pack lifecycle.** Phase 20 covers entries *within* an
   existing pack; creating/deleting/duplicating a pack itself
   (`CompendiumCollection.createCompendium()`) isn't covered.
-- **Playlist `playAll`/`stopAll` and global audio volume** (`game.audio`).
-  Deliberately narrowed out of Phase 17.
-- **Cards `pass`/`deal`** (moving cards between two *other* stacks, or one
-  stack to many). Deliberately narrowed out of Phase 18.
-- **`game.users.activeGM` / primary-GM lookup.**
 - **Adventure document import/export.**
 - **Module enable/disable** via `core.moduleConfiguration` — technically
   reachable through the existing generic settings endpoint (Phase 7), but

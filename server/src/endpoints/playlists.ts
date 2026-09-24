@@ -16,6 +16,7 @@ import { z } from "zod";
 import {
   PLAYLIST_COMMANDS,
   type DocumentData,
+  type PlaylistIdInput,
   type PlaylistSoundIdInput,
 } from "@foundry-local-api/shared";
 
@@ -23,6 +24,7 @@ import { makeDocumentEndpoints } from "./documents.js";
 import type { AnyEndpointDescriptor, EndpointDescriptor } from "./types.js";
 
 const soundIdSchema = z.object({ id: z.string().min(1), soundId: z.string().min(1) });
+const playlistIdSchema = z.object({ id: z.string().min(1) });
 
 const playSoundDescriptor: EndpointDescriptor<PlaylistSoundIdInput, DocumentData> = {
   name: "foundry_play_playlist_sound",
@@ -56,6 +58,26 @@ const pauseSoundDescriptor: EndpointDescriptor<PlaylistSoundIdInput, DocumentDat
     foundryClient.call<PlaylistSoundIdInput, DocumentData>(PLAYLIST_COMMANDS.PAUSE_SOUND, input),
 };
 
+const playAllDescriptor: EndpointDescriptor<PlaylistIdInput, DocumentData> = {
+  name: "foundry_play_all_playlist_sounds",
+  description: "Begins simultaneous playback of every sound in a playlist.",
+  method: "post",
+  path: "/playlists/:id/play-all",
+  inputSchema: playlistIdSchema,
+  handler: ({ id }, { foundryClient }) =>
+    foundryClient.call<PlaylistIdInput, DocumentData>(PLAYLIST_COMMANDS.PLAY_ALL, { id }),
+};
+
+const stopAllDescriptor: EndpointDescriptor<PlaylistIdInput, DocumentData> = {
+  name: "foundry_stop_all_playlist_sounds",
+  description: "Stops playback of every currently-playing sound in a playlist.",
+  method: "post",
+  path: "/playlists/:id/stop-all",
+  inputSchema: playlistIdSchema,
+  handler: ({ id }, { foundryClient }) =>
+    foundryClient.call<PlaylistIdInput, DocumentData>(PLAYLIST_COMMANDS.STOP_ALL, { id }),
+};
+
 export const playlistEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...makeDocumentEndpoints({
     documentType: "Playlist",
@@ -66,4 +88,6 @@ export const playlistEndpointDescriptors: AnyEndpointDescriptor[] = [
   playSoundDescriptor,
   stopSoundDescriptor,
   pauseSoundDescriptor,
+  playAllDescriptor,
+  stopAllDescriptor,
 ];

@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **187**.
+Total tools: **192**.
 
 ## Contents
 
@@ -275,6 +275,18 @@ REST: `POST /api/cards`
 |---|---|---|---|
 | `data` | object | yes |  |
 
+### `foundry_deal_cards`
+
+Deals cards from a Cards stack to one or more destination stacks in cyclical order (e.g. dealing a hand to each player).
+
+REST: `POST /api/cards/:id/deal`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `toIds` | array | yes |  |
+| `number` | integer | no |  |
+
 ### `foundry_delete_cards_stack`
 
 Deletes a Cards document by id.
@@ -314,6 +326,18 @@ Lists every Cards document in the current world.
 REST: `GET /api/cards`
 
 _No input._
+
+### `foundry_pass_cards`
+
+Moves specific cards out of a Cards stack and into another one.
+
+REST: `POST /api/cards/:id/pass`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `toId` | string | yes |  |
+| `cardIds` | array | yes |  |
 
 ### `foundry_reset_cards`
 
@@ -1207,6 +1231,16 @@ REST: `POST /api/playlists/:id/sounds/:soundId/pause`
 | `id` | string | yes |  |
 | `soundId` | string | yes |  |
 
+### `foundry_play_all_playlist_sounds`
+
+Begins simultaneous playback of every sound in a playlist.
+
+REST: `POST /api/playlists/:id/play-all`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
 ### `foundry_play_playlist_sound`
 
 Starts playback of a single sound within a playlist.
@@ -1217,6 +1251,16 @@ REST: `POST /api/playlists/:id/sounds/:soundId/play`
 |---|---|---|---|
 | `id` | string | yes |  |
 | `soundId` | string | yes |  |
+
+### `foundry_stop_all_playlist_sounds`
+
+Stops playback of every currently-playing sound in a playlist.
+
+REST: `POST /api/playlists/:id/stop-all`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
 
 ### `foundry_stop_playlist_sound`
 
@@ -1958,6 +2002,14 @@ REST: `DELETE /api/users/:userId`
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `userId` | string | yes |  |
+
+### `foundry_get_active_gm`
+
+Looks up the world's currently active GM (game.users.activeGM) — one connected Gamemaster (non-assistant if possible), or null if none is connected. Useful for workflows that should happen once, on a single authoritative client, rather than once per connected GM. Registered ahead of GET /users/:userId so the literal 'active-gm' path segment isn't swallowed by that param route.
+
+REST: `GET /api/users/active-gm`
+
+_No input._
 
 ### `foundry_get_user_by_id`
 
