@@ -6,7 +6,8 @@
 //
 // Unlike every document-CRUD phase since Phase 8, packs have no generic
 // factory to fall back on (no `game.collections` entry of their own), so
-// this exercises all seven descriptors directly.
+// this exercises every descriptor directly — Phase 20's original seven plus
+// Phase 51's three pack-lifecycle additions.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -16,6 +17,8 @@ import type {
   DocumentData,
   DocumentDeleteResult,
   PackCreateEntryInput,
+  PackCreatePackInput,
+  PackDuplicatePackInput,
   PackEntryIdInput,
   PackIdInput,
   PackIndexEntry,
@@ -186,5 +189,108 @@ void describe("Phase 20 compendium packs", () => {
 
     const res = await request(app).get("/api/packs");
     assert.equal(res.status, 401);
+  });
+
+  // Phase 51 — Compendium Pack Lifecycle.
+  void it("POST /api/packs creates a new pack from type/label", async () => {
+    const app = buildApp(((type: string, payload: PackCreatePackInput) => {
+      assert.equal(type, "packCreatePack");
+      assert.deepEqual(payload, { type: "JournalEntry", label: "My New Pack" });
+      const result: PackInfo = {
+        id: "world.my-new-pack",
+        label: "My New Pack",
+        type: "JournalEntry",
+        package: "my-world",
+        packageType: "world",
+        path: "packs/my-new-pack",
+      };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/packs")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ type: "JournalEntry", label: "My New Pack" });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, {
+      id: "world.my-new-pack",
+      label: "My New Pack",
+      type: "JournalEntry",
+      package: "my-world",
+      packageType: "world",
+      path: "packs/my-new-pack",
+    });
+  });
+
+  void it("DELETE /api/packs/:packId deletes a pack", async () => {
+    const app = buildApp(((type: string, payload: PackIdInput) => {
+      assert.equal(type, "packDeletePack");
+      assert.deepEqual(payload, { packId: "world.my-macros" });
+      const result: DocumentDeleteResult = { id: "world.my-macros" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .delete("/api/packs/world.my-macros")
+      .set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { id: "world.my-macros" });
+  });
+
+  void it("DELETE /api/packs/:packId does not collide with DELETE /api/packs/:packId/entries/:entryId", async () => {
+    const app = buildApp(((type: string, payload: PackEntryIdInput) => {
+      assert.equal(type, "packDeleteEntry");
+      assert.deepEqual(payload, { packId: "world.my-macros", entryId: "m1" });
+      const result: DocumentDeleteResult = { id: "m1" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .delete("/api/packs/world.my-macros/entries/m1")
+      .set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { id: "m1" });
+  });
+
+  void it("POST /api/packs/:packId/duplicate duplicates a pack", async () => {
+    const app = buildApp(((type: string, payload: PackDuplicatePackInput) => {
+      assert.equal(type, "packDuplicatePack");
+      assert.deepEqual(payload, { packId: "world.my-macros", label: "My Macros (Copy)" });
+      const result: PackInfo = {
+        id: "world.my-macros-copy",
+        label: "My Macros (Copy)",
+        type: "Macro",
+        package: "my-world",
+        packageType: "world",
+        path: "packs/my-macros-copy",
+      };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/packs/world.my-macros/duplicate")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ label: "My Macros (Copy)" });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, {
+      id: "world.my-macros-copy",
+      label: "My Macros (Copy)",
+      type: "Macro",
+      package: "my-world",
+      packageType: "world",
+      path: "packs/my-macros-copy",
+    });
+  });
+
+  void it("foundry_delete_pack carries a destructiveHint annotation", async () => {
+    const { packEndpointDescriptors } = await import("./packs.js");
+    const deleteDescriptor = packEndpointDescriptors.find(
+      (descriptor) => descriptor.name === "foundry_delete_pack",
+    );
+    assert.equal(deleteDescriptor?.annotations?.destructiveHint, true);
   });
 });

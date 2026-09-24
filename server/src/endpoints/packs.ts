@@ -1,10 +1,14 @@
 // Phase 20 — Compendium Packs.
 //
 // A compendium pack has no `game.collections` entry of its own (unlike every
-// document-CRUD phase since Phase 8), so all seven descriptors here are
+// document-CRUD phase since Phase 8), so all descriptors here are
 // hand-rolled, following the same `<parent>Id`/`<child>Id` embedded-id shape
 // Phase 12 established for embedded tokens — packId/entryId here. See
 // module/src/commands/packs.ts for the matching module-side handlers.
+//
+// Phase 51 added the three pack-*lifecycle* descriptors at the bottom
+// (create/delete/duplicate the pack itself) — Phase 20 only ever covered
+// entries within an already-existing pack.
 import { z } from "zod";
 
 import {
@@ -12,6 +16,8 @@ import {
   type DocumentData,
   type DocumentDeleteResult,
   type PackCreateEntryInput,
+  type PackCreatePackInput,
+  type PackDuplicatePackInput,
   type PackEntryIdInput,
   type PackIdInput,
   type PackIndexEntry,
@@ -26,6 +32,18 @@ const packIdSchema = z.object({ packId: z.string().min(1) });
 const entryIdSchema = packIdSchema.extend({ entryId: z.string().min(1) });
 const createSchema = packIdSchema.extend({ data: documentDataSchema });
 const updateSchema = entryIdSchema.extend({ changes: documentDataSchema });
+
+// Phase 51 — pack lifecycle. Read defensively per the Phase 34 convention:
+// `CompendiumCollection.createCompendium()`'s metadata shape is documented
+// but not live-verified against a running world, so this only requires the
+// two fields Foundry's own docs call the minimum (`type`, `label`) and
+// passes everything else through mostly as-is rather than over-specifying.
+const createPackSchema = z.object({
+  type: z.string().min(1),
+  label: z.string().min(1),
+  name: z.string().min(1).optional(),
+});
+const duplicatePackSchema = packIdSchema.extend({ label: z.string().min(1).optional() });
 
 const listPacksDescriptor: EndpointDescriptor<void, PackInfo[]> = {
   name: "foundry_list_packs",
@@ -99,6 +117,50 @@ const importPackEntryDescriptor: EndpointDescriptor<PackEntryIdInput, DocumentDa
     foundryClient.call<PackEntryIdInput, DocumentData>(PACK_COMMANDS.IMPORT_ENTRY, input),
 };
 
+// Phase 51 — Compendium Pack Lifecycle. Phase 20 only covers entries within
+// an existing pack; these three drive the pack itself. `POST /packs` and
+// `DELETE /packs/:packId` are new path shapes not previously registered (the
+// existing entry-level routes all live under `/packs/:packId/entries[/...]`),
+// so there's no Phase-50-style `:packId`-swallowing risk to guard against
+// here — confirmed by reading every existing descriptor above before adding
+// these.
+const createPackDescriptor: EndpointDescriptor<PackCreatePackInput, PackInfo> = {
+  name: "foundry_create_pack",
+  description: "Creates a new, empty compendium pack of the given document type.",
+  method: "post",
+  path: "/packs",
+  inputSchema: createPackSchema,
+  handler: (input, { foundryClient }) =>
+    foundryClient.call<PackCreatePackInput, PackInfo>(PACK_COMMANDS.CREATE_PACK, input),
+};
+
+const deletePackDescriptor: EndpointDescriptor<PackIdInput, DocumentDeleteResult> = {
+  name: "foundry_delete_pack",
+  description:
+    "Deletes an entire compendium pack, including every entry inside it. WARNING: this is " +
+    "destructive and cannot be undone — the pack and all its contents are permanently removed, " +
+    "not just emptied.",
+  method: "delete",
+  path: "/packs/:packId",
+  inputSchema: packIdSchema,
+  annotations: {
+    title: "Delete Compendium Pack",
+    destructiveHint: true,
+  },
+  handler: (input, { foundryClient }) =>
+    foundryClient.call<PackIdInput, DocumentDeleteResult>(PACK_COMMANDS.DELETE_PACK, input),
+};
+
+const duplicatePackDescriptor: EndpointDescriptor<PackDuplicatePackInput, PackInfo> = {
+  name: "foundry_duplicate_pack",
+  description: "Duplicates a compendium pack, including all of its entries, under a new label.",
+  method: "post",
+  path: "/packs/:packId/duplicate",
+  inputSchema: duplicatePackSchema,
+  handler: (input, { foundryClient }) =>
+    foundryClient.call<PackDuplicatePackInput, PackInfo>(PACK_COMMANDS.DUPLICATE_PACK, input),
+};
+
 export const packEndpointDescriptors: AnyEndpointDescriptor[] = [
   listPacksDescriptor,
   getPackIndexDescriptor,
@@ -107,4 +169,7 @@ export const packEndpointDescriptors: AnyEndpointDescriptor[] = [
   updatePackEntryDescriptor,
   deletePackEntryDescriptor,
   importPackEntryDescriptor,
+  createPackDescriptor,
+  deletePackDescriptor,
+  duplicatePackDescriptor,
 ];

@@ -88,6 +88,7 @@ its own before moving to the next.
 | 48 — Playlist playAll/stopAll | ✅ Done | `9232324` |
 | 49 — Cards Pass/Deal | ✅ Done | `9232324` |
 | 50 — Active GM Lookup | ✅ Done | `9232324` |
+| 51 — Compendium Pack Lifecycle | ✅ Done | (pending) |
 
 ---
 
@@ -560,6 +561,52 @@ authoritative connected client, rather than once per connected GM.
   present.
 - Not live-verified (same caveat as Phase 49).
 
+## Phase 51 — Compendium Pack Lifecycle
+
+Done.
+
+Promoted from the Backlog's "Compendium pack lifecycle" entry: Phase 20
+covers CRUD on entries *within* an existing compendium pack, but never added
+lifecycle operations on the pack itself — creating, deleting, or duplicating
+a pack (`CompendiumCollection.createCompendium()`) wasn't covered.
+
+- `POST /api/packs {type, label, name?}` wrapping the **static**
+  `CompendiumCollection.createCompendium()` — not reachable off any pack
+  instance or off `game.packs`, unlike every other Phase 20 pack operation.
+  GM-only per Foundry's own docs ("may only be performed... by a
+  Gamemaster"). Fields beyond `type`/`label` are read defensively per the
+  Phase 34 convention and passed through mostly as-is, rather than
+  over-specifying the zod schema against an API that isn't live-verified.
+- `DELETE /api/packs/:packId` wrapping the **instance** method
+  `pack.deleteCompendium()` — GM-only, same convention. Unlike Phase 37's
+  `Combat#endCombat()` finding, Foundry's docs describe no confirmation
+  dialog for `deleteCompendium()`, so this is a direct pass-through, not a
+  workaround. Flagged `destructiveHint: true` (paired with a plain-language
+  warning in the tool's own `description`, per this project's
+  annotations-are-advisory-only convention) since it deletes the pack and
+  every entry inside it, permanently.
+- `POST /api/packs/:packId/duplicate {label?}` wrapping the **instance**
+  method `pack.duplicateCompendium(label?)` — GM-only for consistency with
+  the other two (Foundry's docs don't explicitly restrict this one to GMs,
+  but it's the same class of world-structural write).
+- MCP: `foundry_create_pack`, `foundry_delete_pack`, `foundry_duplicate_pack`.
+- New route shapes confirmed non-colliding with Phase 20's existing
+  `/packs/:packId/entries[/...]` routes before adding (`POST /packs` and
+  `DELETE /packs/:packId` were never previously registered at all) — see
+  `server/src/endpoints/packs.test.ts`'s explicit non-collision test.
+- New ambient declarations: a standalone top-level `CompendiumCollection`
+  class binding (its static `createCompendium()`), plus
+  `deleteCompendium()`/`duplicateCompendium()` added to the existing
+  `FoundryCompendiumCollection` interface.
+- First GM-gating (`requireGM()`) added to `module/src/commands/packs.ts` —
+  Phase 20's entry-level CRUD predates the Phase 7/25 GM-gating convention
+  and is correctly left ungated (pack *entries* aren't restricted the way
+  the pack lifecycle itself is per Foundry's own docs).
+- **Not live-verified**: implemented against the documented core API shape
+  only (`foundryvtt.com/api` `CompendiumCollection`/`Cards`-style class
+  docs), same caveat as Phases 40/41/43/49/50 — flag for the next live
+  smoke-test pass.
+
 ---
 
 ## Backlog — noted, not scheduled
@@ -567,9 +614,6 @@ authoritative connected client, rather than once per connected GM.
 Lower-priority or more niche gaps surfaced during the same audit. Promote
 any of these to a numbered phase on request.
 
-- **Compendium pack lifecycle.** Phase 20 covers entries *within* an
-  existing pack; creating/deleting/duplicating a pack itself
-  (`CompendiumCollection.createCompendium()`) isn't covered.
 - **Adventure document import/export.**
 - **Module enable/disable** via `core.moduleConfiguration` — technically
   reachable through the existing generic settings endpoint (Phase 7), but

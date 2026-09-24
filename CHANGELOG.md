@@ -13,6 +13,15 @@ log that documents every non-obvious design decision made along the way.
 
 ## [Unreleased]
 
+### Phase 51 — Compendium Pack Lifecycle
+- Create/delete/duplicate a compendium pack itself (`POST /api/packs`,
+  `DELETE /api/packs/:packId`, `POST /api/packs/:packId/duplicate`) —
+  Phase 20 only ever covered CRUD on entries within an already-existing
+  pack.
+- Pack deletion flagged `destructiveHint: true` with a plain-language
+  warning in its tool description (it removes the pack and every entry
+  inside it, permanently); all three lifecycle ops are GM-only.
+
 ### Phase 30 — Documentation & Packaging
 - Full usage README (install/setup, running the server, connecting an MCP
   client, curl + MCP examples, security posture summary).

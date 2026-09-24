@@ -200,6 +200,18 @@
 // declaration below is deliberately left untouched for the same reason —
 // see module/src/commands/dnd5e.ts's header comment for the narrow local
 // cast it uses instead to reach `CONFIG.DND5E`.
+//
+// Phase 51 added the top-level `CompendiumCollection` class ambient binding
+// (its static `createCompendium()`) — the sixth ambient declaration in this
+// file that isn't a Document/collection shape (after Phase 14's `Roll`,
+// Phase 24's `FilePicker`, Phase 27's `TextEditor`, Phase 42's
+// `ui.notifications`, Phase 43's `game.time`) — plus `deleteCompendium()`/
+// `duplicateCompendium()` on `FoundryCompendiumCollection` itself, to back
+// the pack-lifecycle command handlers (module/src/commands/packs.ts).
+// Unlike every other pack API Phase 20 already covered, `createCompendium()`
+// is not reachable off any loaded pack instance or off `game.packs` — it's a
+// static method on the class itself — so this needed its own standalone
+// ambient binding rather than another field on an existing interface.
 
 declare namespace ClientSettings {
   interface RegisterOptions<T> {
@@ -474,7 +486,7 @@ interface FoundryCompendiumMetadata {
   path: string;
 }
 
-/** A loaded compendium pack — the subset of `CompendiumCollection`'s API Phase 20 drives. */
+/** A loaded compendium pack — the subset of `CompendiumCollection`'s API Phase 20/51 drive. */
 interface FoundryCompendiumCollection {
   metadata: FoundryCompendiumMetadata;
   /** The pack's currently-loaded index (may be empty until `getIndex()` is called). */
@@ -487,7 +499,27 @@ interface FoundryCompendiumCollection {
   getDocument(id: string): Promise<FoundryDocument | null>;
   /** The Document class backing this pack's entries, used to create a new entry directly in the pack. */
   documentClass: FoundryDocumentClass;
+  /**
+   * Deletes this world-level Compendium Collection (and every entry inside
+   * it). GM-only per Foundry's own docs (Phase 51).
+   */
+  deleteCompendium(): Promise<FoundryCompendiumCollection>;
+  /** Duplicates this pack, optionally under a new label, returning the new pack (Phase 51). */
+  duplicateCompendium(label?: string): Promise<FoundryCompendiumCollection>;
 }
+
+/**
+ * The global `CompendiumCollection` class — only its static pack-creation
+ * method is needed here (Phase 51). Not reachable off `game.packs`; this is
+ * its own top-level ambient binding.
+ */
+declare const CompendiumCollection: {
+  /** Creates a brand-new compendium pack from `metadata` (`type`/`label` at minimum). GM-only per Foundry's own docs. */
+  createCompendium(
+    metadata: Record<string, unknown>,
+    options?: Record<string, unknown>,
+  ): Promise<FoundryCompendiumCollection>;
+};
 
 /** One die term's individual roll results within an evaluated `Roll` (e.g. a `2d6` roll's two dice). */
 interface FoundryDieTerm {

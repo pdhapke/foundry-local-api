@@ -11,11 +11,23 @@
 // needed there. Creating a new entry does need one, since there's no
 // existing document instance to route through yet:
 // `pack.documentClass.create(data, { pack: pack.metadata.id })`.
+//
+// Phase 51 added the three pack-*lifecycle* handlers at the bottom (create/
+// delete/duplicate the pack itself, as opposed to an entry within one) —
+// GM-gated via the local `requireGM()` helper below, matching the Foundry
+// API's own "may only be performed... by a Gamemaster" requirement for
+// `createCompendium()`/`deleteCompendium()` (and, for consistency,
+// `duplicateCompendium()` too, since it's the same class of destructive/
+// world-structural write). Phase 20's entry-level CRUD predates this
+// project's GM-gating convention (Phase 7/25) and is correctly left
+// ungated here — see PLAN.md's Phase 51 write-up.
 import {
   PACK_COMMANDS,
   type DocumentData,
   type DocumentDeleteResult,
   type PackCreateEntryInput,
+  type PackCreatePackInput,
+  type PackDuplicatePackInput,
   type PackEntryIdInput,
   type PackIdInput,
   type PackIndexEntry,
@@ -33,6 +45,25 @@ function requirePack(packId: string): FoundryCompendiumCollection {
   return pack;
 }
 
+function requireGM(action: string): void {
+  if (!game.user.isGM) {
+    throw new Error(`Only a GM may ${action}.`);
+  }
+}
+
+/** Maps a loaded pack's `.metadata` to the shared `PackInfo` shape — same field set the `LIST` handler below uses. */
+function toPackInfo(pack: FoundryCompendiumCollection): PackInfo {
+  return {
+    id: pack.metadata.id,
+    label: pack.metadata.label,
+    type: pack.metadata.type,
+    package: pack.metadata.package,
+    packageType: pack.metadata.packageType,
+    ...(pack.metadata.system !== undefined ? { system: pack.metadata.system } : {}),
+    path: pack.metadata.path,
+  };
+}
+
 async function requirePackEntry(
   pack: FoundryCompendiumCollection,
   entryId: string,
@@ -45,15 +76,7 @@ async function requirePackEntry(
 }
 
 registerCommand(PACK_COMMANDS.LIST, (): PackInfo[] =>
-  Array.from(game.packs.values()).map((pack) => ({
-    id: pack.metadata.id,
-    label: pack.metadata.label,
-    type: pack.metadata.type,
-    package: pack.metadata.package,
-    packageType: pack.metadata.packageType,
-    ...(pack.metadata.system !== undefined ? { system: pack.metadata.system } : {}),
-    path: pack.metadata.path,
-  })),
+  Array.from(game.packs.values()).map(toPackInfo),
 );
 
 registerCommand(
@@ -108,5 +131,38 @@ registerCommand(
     }
     const imported = await worldCollection.importFromCompendium(pack, entryId);
     return imported.toObject();
+  },
+);
+
+// Phase 51 — pack lifecycle (create/delete/duplicate the pack itself).
+
+registerCommand(
+  PACK_COMMANDS.CREATE_PACK,
+  async ({ type, label, name }: PackCreatePackInput): Promise<PackInfo> => {
+    requireGM("create a compendium pack");
+    const created = await CompendiumCollection.createCompendium({
+      type,
+      label,
+      ...(name !== undefined ? { name } : {}),
+    });
+    return toPackInfo(created);
+  },
+);
+
+registerCommand(
+  PACK_COMMANDS.DELETE_PACK,
+  async ({ packId }: PackIdInput): Promise<DocumentDeleteResult> => {
+    requireGM("delete a compendium pack");
+    await requirePack(packId).deleteCompendium();
+    return { id: packId };
+  },
+);
+
+registerCommand(
+  PACK_COMMANDS.DUPLICATE_PACK,
+  async ({ packId, label }: PackDuplicatePackInput): Promise<PackInfo> => {
+    requireGM("duplicate a compendium pack");
+    const duplicated = await requirePack(packId).duplicateCompendium(label);
+    return toPackInfo(duplicated);
   },
 );

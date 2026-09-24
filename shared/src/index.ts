@@ -112,6 +112,8 @@ export type {
   PackEntryIdInput,
   PackCreateEntryInput,
   PackUpdateEntryInput,
+  PackCreatePackInput,
+  PackDuplicatePackInput,
 } from "./packs.js";
 
 export { EMBEDDED_EFFECT_COMMANDS } from "./active-effects.js";

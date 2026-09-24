@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **192**.
+Total tools: **195**.
 
 ## Contents
 
@@ -1106,6 +1106,18 @@ REST: `POST /api/notify`
 
 ## packs
 
+### `foundry_create_pack`
+
+Creates a new, empty compendium pack of the given document type.
+
+REST: `POST /api/packs`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | yes |  |
+| `label` | string | yes |  |
+| `name` | string | no |  |
+
 ### `foundry_create_pack_entry`
 
 Creates a new entry (document) directly inside a compendium pack.
@@ -1117,6 +1129,16 @@ REST: `POST /api/packs/:packId/entries`
 | `packId` | string | yes |  |
 | `data` | object | yes |  |
 
+### `foundry_delete_pack` ⚠️ **destructive**
+
+Deletes an entire compendium pack, including every entry inside it. WARNING: this is destructive and cannot be undone — the pack and all its contents are permanently removed, not just emptied.
+
+REST: `DELETE /api/packs/:packId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `packId` | string | yes |  |
+
 ### `foundry_delete_pack_entry`
 
 Deletes an entry from a compendium pack by id.
@@ -1127,6 +1149,17 @@ REST: `DELETE /api/packs/:packId/entries/:entryId`
 |---|---|---|---|
 | `packId` | string | yes |  |
 | `entryId` | string | yes |  |
+
+### `foundry_duplicate_pack`
+
+Duplicates a compendium pack, including all of its entries, under a new label.
+
+REST: `POST /api/packs/:packId/duplicate`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `packId` | string | yes |  |
+| `label` | string | no |  |
 
 ### `foundry_get_pack_entry`
 

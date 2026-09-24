@@ -5732,6 +5732,64 @@
             "$ref": "#/components/responses/ServerError"
           }
         }
+      },
+      "post": {
+        "operationId": "foundry_create_pack",
+        "summary": "Creates a new, empty compendium pack of the given document type.",
+        "description": "Creates a new, empty compendium pack of the given document type.",
+        "tags": ["packs"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["type", "label"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
       }
     },
     "/api/packs/{packId}/index": {
@@ -6058,6 +6116,115 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/packs/{packId}": {
+      "delete": {
+        "operationId": "foundry_delete_pack",
+        "summary": "Deletes an entire compendium pack, including every entry inside it.",
+        "description": "Deletes an entire compendium pack, including every entry inside it. WARNING: this is destructive and cannot be undone — the pack and all its contents are permanently removed, not just emptied.\n\n**Warning:** this operation is destructive/irreversible (see MCP tool annotations).",
+        "tags": ["packs"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "packId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/packs/{packId}/duplicate": {
+      "post": {
+        "operationId": "foundry_duplicate_pack",
+        "summary": "Duplicates a compendium pack, including all of its entries, under a new label.",
+        "description": "Duplicates a compendium pack, including all of its entries, under a new label.",
+        "tags": ["packs"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "packId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success.",

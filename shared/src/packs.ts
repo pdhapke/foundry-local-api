@@ -11,6 +11,13 @@
 // Entry data itself reuses Phase 8's `DocumentData`/`DocumentDeleteResult`
 // shapes (shared/src/documents.ts) — a compendium entry is a regular Foundry
 // Document, just stored in a pack instead of a world collection.
+//
+// Phase 51 added lifecycle commands for the pack itself — create/delete/
+// duplicate — distinct from the entry-level CRUD above. `PackInfo` and
+// `PackIdInput` are reused as-is for the new commands' shapes (create
+// returns a `PackInfo`, delete takes a `PackIdInput`); only create and
+// duplicate needed new input types (`PackCreatePackInput`/
+// `PackDuplicatePackInput`).
 
 export const PACK_COMMANDS = {
   LIST: "packList",
@@ -20,6 +27,11 @@ export const PACK_COMMANDS = {
   UPDATE_ENTRY: "packUpdateEntry",
   DELETE_ENTRY: "packDeleteEntry",
   IMPORT_ENTRY: "packImportEntry",
+  // Phase 51 — pack lifecycle (create/delete/duplicate the pack itself,
+  // distinct from the entry-level commands above).
+  CREATE_PACK: "packCreatePack",
+  DELETE_PACK: "packDeletePack",
+  DUPLICATE_PACK: "packDuplicatePack",
 } as const;
 
 /** One pack's metadata, as surfaced by `CompendiumCollection#metadata`. */
@@ -57,4 +69,23 @@ export interface PackUpdateEntryInput {
   packId: string;
   entryId: string;
   changes: Record<string, unknown>;
+}
+
+/**
+ * Input for creating a new pack itself (Phase 51), distinct from
+ * `PackCreateEntryInput` above (which creates an entry inside an existing
+ * pack). `type` and `label` are the minimum Foundry's own
+ * `CompendiumCollection.createCompendium()` needs; `name` is optional and,
+ * if omitted, Foundry derives the pack's id/slug from `label` itself.
+ */
+export interface PackCreatePackInput {
+  type: string;
+  label: string;
+  name?: string | undefined;
+}
+
+/** Input for duplicating an existing pack (Phase 51). `label` is optional — Foundry defaults it itself. */
+export interface PackDuplicatePackInput {
+  packId: string;
+  label?: string | undefined;
 }
