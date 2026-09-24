@@ -78,13 +78,13 @@ its own before moving to the next.
 | 38 — Game Pause/Resume & Bridge Reconnect Fix | ✅ Done | `7b331a1` |
 | 39 — Combatant Update | ✅ Done | `4b15288` |
 | 40 — Combat Turn/Round Navigation | ✅ Done | `4b15288` |
-| 41 — Scene Regions | ⬜ Not started | — |
+| 41 — Scene Regions | ✅ Done | `cb78b30` |
 | 42 — UI Notifications | ⬜ Not started | — |
-| 43 — World Time / Calendar | ⬜ Not started | — |
-| 44 — Token Targeting | ⬜ Not started | — |
-| 45 — Chat Message Update/Delete | ⬜ Not started | — |
-| 46 — Fog of War Reset | ⬜ Not started | — |
-| 47 — Broadcast Camera View to All Players | ⬜ Not started | — |
+| 43 — World Time / Calendar | ✅ Done | `cb78b30` |
+| 44 — Token Targeting | ✅ Done | `cb78b30` |
+| 45 — Chat Message Update/Delete | ✅ Done | `cb78b30` |
+| 46 — Fog of War Reset | ✅ Done | `cb78b30` |
+| 47 — Broadcast Camera View to All Players | ✅ Done | `cb78b30` |
 
 ---
 
@@ -320,20 +320,26 @@ step backward.
 
 ## Phase 41 — Scene Regions
 
+Done (`cb78b30`).
+
 `RegionDocument` (Foundry v11+ Scene Regions) is a real embedded placeable
 type that sits alongside the six Phase 22 already covers (Drawing, Note,
 AmbientLight, AmbientSound, Wall, MeasuredTemplate) but was never added —
 likely because it postdates when Phase 22 was scoped.
 
-- Add `"Region"` as a seventh `documentType` to the Phase 22
-  `makeEmbeddedPlaceableEndpoints()` factory — should need no new server-side
-  code, only a new factory call.
-- Confirm the connected world's core version actually supports Regions
-  before assuming the ambient `Scene#getEmbeddedCollection("regions")`
-  accessor exists; degrade gracefully (clear error, not a crash) on an older
-  core version.
-- MCP tools mirrored via the factory, same naming convention as the other
-  six placeable types.
+- Added `"Region"` as a seventh `documentType` to the Phase 22
+  `makeEmbeddedPlaceableEndpoints()` factory (`server/src/endpoints/
+  placeables.ts`) — needed no new server-side code beyond the one extra
+  factory call, confirming the plan's prediction.
+- No explicit version-guard code was added: `Scene#getEmbeddedCollection()`
+  already throws on an unsupported embedded name, and the command
+  dispatcher (`module/src/command-registry.ts`) already turns any handler
+  exception into a clean `HANDLER_ERROR` bridge response — an older core
+  without Regions degrades to a clear error automatically, not a crash.
+- MCP tools mirrored via the factory (`foundry_list_scene_regions`, etc.),
+  same naming convention as the other six placeable types.
+- Not live-verified against a real Foundry world with Scene Regions enabled
+  (same caveat as Phase 40 — flag for the next live smoke-test pass).
 
 ## Phase 42 — UI Notifications
 
@@ -356,6 +362,8 @@ without polluting the chat log.
 
 ## Phase 43 — World Time / Calendar
 
+Done (`cb78b30`).
+
 `game.time.worldTime` (and advancing it) is untouched by any existing phase,
 despite being relevant to rest mechanics and any calendar-aware system.
 
@@ -363,45 +371,67 @@ despite being relevant to rest mechanics and any calendar-aware system.
 - `POST /api/world-time/advance {seconds}` wrapping `Game#time.advance()`
   (GM-only, same `requireGM()` convention as Phase 7/25).
 - MCP: `foundry_get_world_time`, `foundry_advance_world_time`.
-- Verify against the connected core version whether `game.time` exposes a
-  richer calendar API (added in later V12+ builds) worth a follow-up phase,
-  or whether `worldTime`/`advance()` alone is what's actually there.
+- **Not live-verified**: implemented against the documented core API shape,
+  same caveat as Phase 40. Whether `game.time` exposes a richer calendar API
+  in later V12+ builds worth a follow-up phase was not checked against a
+  running world — flag for the next live smoke-test pass, alongside Phase
+  40/41's same caveat.
 
 ## Phase 44 — Token Targeting
+
+Done (`cb78b30`).
 
 Phase 25 explicitly built canvas *selection* (`canvas.tokens.controlled`)
 and skipped *targeting* (`user.targets`) — but targeting is what most
 systems' attack/save rolls actually key off.
 
 - `GET /api/canvas/targets` wrapping `game.user.targets` (mirrors Phase 25's
-  selection-read shape).
-- `POST /api/canvas/targets {tokenIds}` wrapping `Token#setTarget()` per id
-  (clear existing targets first, unless an `additive` flag is set).
+  selection-read shape, including its "no active canvas" error precedent).
+- `POST /api/canvas/targets {tokenIds, additive?}` wrapping
+  `Token#setTarget()` per id — clears existing targets first (each with
+  `releaseOthers: false`, called manually rather than relying on
+  `setTarget()`'s own default `releaseOthers: true`, which would otherwise
+  clear on every call in a multi-target loop instead of just once up front)
+  unless `additive: true` is passed.
 - MCP: `foundry_get_targets`, `foundry_set_targets`.
+- New ambient declarations: `FoundryUser#targets` (`Set<FoundryPlaceable>`),
+  `FoundryPlaceable#setTarget()`, `canvas.tokens.placeables`.
 
 ## Phase 45 — Chat Message Update/Delete
 
-Phase 14 deliberately scoped `ChatMessage` to create + bounded recent-read,
-not full CRUD; there's now no way to edit or retract a message.
+Done (`cb78b30`).
 
-- `PUT/DELETE /api/chat/:id` — either reuse `DOCUMENT_COMMANDS` with
-  `documentType: "ChatMessage"` (Phase 8's generic factory already covers
-  update/delete; only list/get/create were deliberately narrowed in Phase
-  14) or add matching hand-rolled extras in `chat.ts` — factory reuse is
-  strongly preferred, check first whether it just works.
+Phase 14 deliberately scoped `ChatMessage` to create + bounded recent-read,
+not full CRUD; there was no way to edit or retract a message.
+
+- `PUT/DELETE /api/chat/:id` — reuses Phase 8's already-generic
+  `DOCUMENT_COMMANDS.UPDATE`/`DELETE` with `documentType: "ChatMessage"`
+  baked in directly (`server/src/endpoints/chat.ts`), confirming it "just
+  works": no module-side code at all was needed, since those two commands'
+  handlers (`module/src/commands/documents.ts`) are already fully generic
+  across document types. The full `makeDocumentEndpoints()` factory itself
+  was deliberately *not* called here — it would also regenerate list/create
+  descriptors colliding with the hand-rolled `/chat` route's different
+  request/response shapes at the same path.
 - MCP: `foundry_update_chat_message`, `foundry_delete_chat_message`.
 
 ## Phase 46 — Fog of War Reset
 
-No way currently to clear a scene's explored fog-of-war.
+Done (`cb78b30`).
+
+No way previously existed to clear a scene's explored fog-of-war.
 
 - `POST /api/scenes/:id/reset-fog` wrapping `Scene#resetFog()`.
 - MCP: `foundry_reset_scene_fog`.
-- Confirm whether this needs to target the currently-viewed scene only
-  (like Phase 22's camera pan) or can operate on any scene by id; Foundry's
-  own method may only make sense for the active one.
+- Operates on any scene by id, not just the currently-viewed one: Foundry's
+  own `resetFog()` resolves purely off the target Scene document's own id
+  (it clears that scene's FogExploration records), so no "must be active
+  scene" restriction was needed — same shape as `ACTIVATE`/`GET_DIMENSIONS`.
+- New ambient declaration: `FoundryScene#resetFog()`.
 
 ## Phase 47 — Broadcast Camera View to All Players
+
+Done (`cb78b30`).
 
 Found during a DM-workflow audit (functions an AI running a live session
 needs): Phase 22's camera pan/zoom (`canvas.animatePan()`) only moves the
@@ -414,18 +444,25 @@ free via Foundry's own document-sync socket. Pan/zoom and Phase 42's
 `ui.notifications.notify()` are the two client-local exceptions to that.
 
 - `POST /api/canvas/push-view {x, y, scale}` — the GM's connected module
-  instance relays via `game.socket.emit()` on a module-scoped socket event,
-  rather than calling `canvas.animatePan()` only on itself.
+  instance relays via `game.socket.emit()` on a module-scoped socket event
+  (`module.foundry-local-api`), *and* pans directly on its own client too:
+  `game.socket.emit()` is relayed by Foundry's server to every *other*
+  connected client but never back to the sender itself, so skipping the
+  direct local call would leave the GM's own camera behind.
 - Every client that has this module enabled — including players, who never
-  open a bridge connection at all (`module/src/index.ts`'s `Hooks.once("init"
-  /"ready")` wiring runs on every client regardless of whether its own
-  bridge WS ever connects) — registers a listener for that socket event and
-  calls `canvas.animatePan()` locally on receipt. No change to the "one
-  active bridge connection" design (Phase 3) is needed: this rides Foundry's
-  own always-on multiplayer socket, not the bridge.
+  open a bridge connection at all — registers a listener for that socket
+  event and calls `canvas.animatePan()` locally on receipt. This lives in a
+  new file, `module/src/socket.ts` (deliberately outside `commands/`, same
+  reasoning as `hooks.ts`: it reacts to Foundry's own multiplayer socket,
+  not an inbound bridge request), registered unconditionally from
+  `module/src/index.ts`'s `ready` hook — it runs regardless of whether that
+  client's own bridge WS ever connects. No change to the "one active bridge
+  connection" design (Phase 3) was needed: this rides Foundry's own
+  always-on multiplayer socket, not the bridge.
 - MCP: `foundry_push_view_to_players`.
-- Phase 42 (build after or alongside this one) reuses the same socket
-  plumbing for its `target: 'all'` notification broadcast.
+- New ambient declaration: `game.socket` (`emit()`/`on()`).
+- Phase 42 (next up) can reuse the same `game.socket` plumbing for its
+  `target: 'all'` notification broadcast.
 
 ---
 
@@ -481,18 +518,21 @@ any of these to a numbered phase on request.
   - **Track B — Canvas broadcast** (`placeables.ts` server+module +
     `foundry-globals.d.ts` ambient `game.socket` declaration): Phase 47 →
     Phase 42, **sequential** — 42's `target: 'all'` notification option
-    reuses 47's socket-broadcast plumbing, so 47 must land first.
-  - **Track C — Scene Regions** (`placeables.ts`): Phase 41 alone. Shares
-    `placeables.ts` with Track B (Phase 47 adds `push-view` there too), but
-    both are pure additive descriptor/factory-call insertions in unrelated
-    parts of the file — a trivial merge, not a logical conflict — so 41 can
-    run alongside Track B rather than queuing behind it.
+    reuses 47's socket-broadcast plumbing, so 47 must land first. **Phase 47
+    done** (`cb78b30`); Phase 42 is next up now that its dependency landed.
+  - **Track C — Scene Regions** (`placeables.ts`): Phase 41 alone. **Done**
+    (`cb78b30`) — landed in the same batch as Track B; both were pure
+    additive descriptor/factory-call insertions in unrelated parts of the
+    file, a trivial merge as predicted, not a logical conflict.
   - **Track D — World Time** (`world-time.ts`, new file): Phase 43 alone.
+    **Done** (`cb78b30`).
   - **Track E — Token Targeting** (`users.ts`, mirrors Phase 25's selection
-    endpoint): Phase 44 alone.
-  - **Track F — Chat Message CRUD** (`chat.ts`): Phase 45 alone.
-  - **Track G — Fog of War** (`scenes.ts`): Phase 46 alone.
+    endpoint): Phase 44 alone. **Done** (`cb78b30`).
+  - **Track F — Chat Message CRUD** (`chat.ts`): Phase 45 alone. **Done**
+    (`cb78b30`).
+  - **Track G — Fog of War** (`scenes.ts`): Phase 46 alone. **Done**
+    (`cb78b30`).
 
-  Tracks A–G can all be started at the same time; only the two sequential
-  pairs called out above (39→40, 47→42) impose ordering, and both are within
-  a single track, not across tracks.
+  Tracks A, C, D, E, F, G plus Phase 47 of Track B all landed together in one
+  batch (`cb78b30`) since none of them touch each other's files. Only Phase
+  42 (the second half of Track B) remains, now unblocked.
