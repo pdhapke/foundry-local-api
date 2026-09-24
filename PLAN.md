@@ -88,7 +88,7 @@ its own before moving to the next.
 | 48 — Playlist playAll/stopAll | ✅ Done | `9232324` |
 | 49 — Cards Pass/Deal | ✅ Done | `9232324` |
 | 50 — Active GM Lookup | ✅ Done | `9232324` |
-| 51 — Compendium Pack Lifecycle | ✅ Done | (pending) |
+| 51 — Compendium Pack Lifecycle | ✅ Done | `9382d08` |
 
 ---
 
