@@ -85,9 +85,9 @@ its own before moving to the next.
 | 45 — Chat Message Update/Delete | ✅ Done | `cb78b30` |
 | 46 — Fog of War Reset | ✅ Done | `cb78b30` |
 | 47 — Broadcast Camera View to All Players | ✅ Done | `cb78b30` |
-| 48 — Playlist playAll/stopAll | ✅ Done | _pending commit_ |
-| 49 — Cards Pass/Deal | ✅ Done | _pending commit_ |
-| 50 — Active GM Lookup | ✅ Done | _pending commit_ |
+| 48 — Playlist playAll/stopAll | ✅ Done | `9232324` |
+| 49 — Cards Pass/Deal | ✅ Done | `9232324` |
+| 50 — Active GM Lookup | ✅ Done | `9232324` |
 
 ---
 
@@ -489,7 +489,7 @@ free via Foundry's own document-sync socket. Pan/zoom and Phase 42's
 
 ## Phase 48 — Playlist playAll/stopAll
 
-Done (pending commit).
+Done (`9232324`).
 
 Phase 17 deliberately narrowed "play/stop/pause sound" to a single embedded
 `PlaylistSound`; there was no way to start/stop every sound in a playlist at
@@ -513,7 +513,7 @@ once (Foundry's own playlist sidebar's own "play all" control).
 
 ## Phase 49 — Cards Pass/Deal
 
-Done (pending commit).
+Done (`9232324`).
 
 Phase 18 deliberately narrowed "card pile operations" to draw/shuffle/reset;
 there was no way to move specific cards to one other stack (`pass`) or
@@ -537,7 +537,7 @@ distribute cards to several destination stacks at once (`deal`) — both real
 
 ## Phase 50 — Active GM Lookup
 
-Done (pending commit).
+Done (`9232324`).
 
 `game.users.activeGM` ("one User who is an active Gamemaster (non-assistant
 if possible), or null" per Foundry's own doc comment) was never exposed —
