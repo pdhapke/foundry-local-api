@@ -42,6 +42,7 @@ import {
   SHARED_PACKAGE_NAME,
   TOKEN_COMMANDS,
   USER_COMMANDS,
+  WORLD_TIME_COMMANDS,
 } from "./index.js";
 
 /** Every "*_COMMANDS" constant map exported from shared/src/index.ts, name -> map. */
@@ -71,6 +72,7 @@ const ALL_COMMAND_MAPS: Record<string, Record<string, string>> = {
   SETTINGS_COMMANDS,
   TOKEN_COMMANDS,
   USER_COMMANDS,
+  WORLD_TIME_COMMANDS,
 };
 
 void describe("shared command constant maps", () => {

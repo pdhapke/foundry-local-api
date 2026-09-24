@@ -106,6 +106,9 @@
     },
     {
       "name": "world"
+    },
+    {
+      "name": "world-time"
     }
   ],
   "paths": {
@@ -114,9 +117,7 @@
         "operationId": "foundry_get_status",
         "summary": "Core Foundry world/system/user identifiers: Foundry version, world id, system id, and current user id.",
         "description": "Core Foundry world/system/user identifiers: Foundry version, world id, system id, and current user id.",
-        "tags": [
-          "status"
-        ],
+        "tags": ["status"],
         "security": [
           {
             "apiKeyAuth": []
@@ -151,9 +152,7 @@
         "operationId": "foundry_get_world",
         "summary": "Details of the currently active Foundry world (id, title, description, system, background).",
         "description": "Details of the currently active Foundry world (id, title, description, system, background).",
-        "tags": [
-          "world"
-        ],
+        "tags": ["world"],
         "security": [
           {
             "apiKeyAuth": []
@@ -188,9 +187,7 @@
         "operationId": "foundry_get_system",
         "summary": "Details of the active game system (id, title, version).",
         "description": "Details of the active game system (id, title, version).",
-        "tags": [
-          "system"
-        ],
+        "tags": ["system"],
         "security": [
           {
             "apiKeyAuth": []
@@ -225,9 +222,7 @@
         "operationId": "foundry_get_user",
         "summary": "Details of the current Foundry user connected via the bridge (id, name, role, isGM, active).",
         "description": "Details of the current Foundry user connected via the bridge (id, name, role, isGM, active).",
-        "tags": [
-          "user"
-        ],
+        "tags": ["user"],
         "security": [
           {
             "apiKeyAuth": []
@@ -262,9 +257,7 @@
         "operationId": "foundry_list_users",
         "summary": "Every user in the world (id, name, role, isGM, active).",
         "description": "Every user in the world (id, name, role, isGM, active).",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -297,9 +290,7 @@
         "operationId": "foundry_create_user",
         "summary": "Creates a new User document.",
         "description": "Creates a new User document. GM only.",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -320,9 +311,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -356,9 +345,7 @@
         "operationId": "foundry_list_modules",
         "summary": "Every installed module (id, title, active, version), including inactive ones.",
         "description": "Every installed module (id, title, active, version), including inactive ones.",
-        "tags": [
-          "modules"
-        ],
+        "tags": ["modules"],
         "security": [
           {
             "apiKeyAuth": []
@@ -393,9 +380,7 @@
         "operationId": "foundry_list_settings",
         "summary": "Every registered game setting (namespace, key, name, hint, scope, config, typeName).",
         "description": "Every registered game setting (namespace, key, name, hint, scope, config, typeName).",
-        "tags": [
-          "settings"
-        ],
+        "tags": ["settings"],
         "security": [
           {
             "apiKeyAuth": []
@@ -430,9 +415,7 @@
         "operationId": "foundry_get_setting",
         "summary": "Reads a single registered game setting by namespace and key.",
         "description": "Reads a single registered game setting by namespace and key.",
-        "tags": [
-          "settings"
-        ],
+        "tags": ["settings"],
         "security": [
           {
             "apiKeyAuth": []
@@ -485,9 +468,7 @@
         "operationId": "foundry_set_setting",
         "summary": "Writes a single registered game setting by namespace and key.",
         "description": "Writes a single registered game setting by namespace and key. World-scope settings require the connected Foundry user to be a GM.",
-        "tags": [
-          "settings"
-        ],
+        "tags": ["settings"],
         "security": [
           {
             "apiKeyAuth": []
@@ -522,9 +503,7 @@
                 "properties": {
                   "value": {}
                 },
-                "required": [
-                  "value"
-                ]
+                "required": ["value"]
               }
             }
           }
@@ -558,9 +537,7 @@
         "operationId": "foundry_list_journal_entries",
         "summary": "Lists every JournalEntry document in the current world.",
         "description": "Lists every JournalEntry document in the current world.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -593,9 +570,7 @@
         "operationId": "foundry_create_journal_entry",
         "summary": "Creates a new JournalEntry document.",
         "description": "Creates a new JournalEntry document.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -616,9 +591,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -652,9 +625,7 @@
         "operationId": "foundry_get_journal_entry",
         "summary": "Reads a single JournalEntry document by id.",
         "description": "Reads a single JournalEntry document by id.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -698,9 +669,7 @@
         "operationId": "foundry_update_journal_entry",
         "summary": "Updates fields on an existing JournalEntry document.",
         "description": "Updates fields on an existing JournalEntry document.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -732,9 +701,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -766,9 +733,7 @@
         "operationId": "foundry_delete_journal_entry",
         "summary": "Deletes a JournalEntry document by id.",
         "description": "Deletes a JournalEntry document by id.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -814,9 +779,7 @@
         "operationId": "foundry_list_journal_entry_pages",
         "summary": "Lists a JournalEntry's embedded JournalEntryPage documents.",
         "description": "Lists a JournalEntry's embedded JournalEntryPage documents.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -860,9 +823,7 @@
         "operationId": "foundry_create_journal_entry_page",
         "summary": "Creates a new embedded JournalEntryPage document on a JournalEntry.",
         "description": "Creates a new embedded JournalEntryPage document on a JournalEntry.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -894,9 +855,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -930,9 +889,7 @@
         "operationId": "foundry_get_journal_entry_page",
         "summary": "Reads a single embedded JournalEntryPage document by id.",
         "description": "Reads a single embedded JournalEntryPage document by id.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -985,9 +942,7 @@
         "operationId": "foundry_update_journal_entry_page",
         "summary": "Updates fields on an existing embedded JournalEntryPage document.",
         "description": "Updates fields on an existing embedded JournalEntryPage document.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1028,9 +983,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -1062,9 +1015,7 @@
         "operationId": "foundry_delete_journal_entry_page",
         "summary": "Deletes an embedded JournalEntryPage document from a JournalEntry by id.",
         "description": "Deletes an embedded JournalEntryPage document from a JournalEntry by id.",
-        "tags": [
-          "journal-entries"
-        ],
+        "tags": ["journal-entries"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1119,9 +1070,7 @@
         "operationId": "foundry_list_actors",
         "summary": "Lists every Actor document in the current world.",
         "description": "Lists every Actor document in the current world.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1154,9 +1103,7 @@
         "operationId": "foundry_create_actor",
         "summary": "Creates a new Actor document.",
         "description": "Creates a new Actor document.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1177,9 +1124,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -1213,9 +1158,7 @@
         "operationId": "foundry_get_actor",
         "summary": "Reads a single Actor document by id.",
         "description": "Reads a single Actor document by id.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1259,9 +1202,7 @@
         "operationId": "foundry_update_actor",
         "summary": "Updates fields on an existing Actor document.",
         "description": "Updates fields on an existing Actor document.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1293,9 +1234,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -1327,9 +1266,7 @@
         "operationId": "foundry_delete_actor",
         "summary": "Deletes a Actor document by id.",
         "description": "Deletes a Actor document by id.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1375,9 +1312,7 @@
         "operationId": "foundry_get_actor_roll_data",
         "summary": "Reads an actor's system-specific roll data (Actor#getRollData()).",
         "description": "Reads an actor's system-specific roll data (Actor#getRollData()).",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1423,9 +1358,7 @@
         "operationId": "foundry_list_actor_items",
         "summary": "Lists an actor's embedded Item documents.",
         "description": "Lists an actor's embedded Item documents.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1471,9 +1404,7 @@
         "operationId": "foundry_list_items",
         "summary": "Lists every Item document in the current world.",
         "description": "Lists every Item document in the current world.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1506,9 +1437,7 @@
         "operationId": "foundry_create_item",
         "summary": "Creates a new Item document.",
         "description": "Creates a new Item document.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1529,9 +1458,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -1565,9 +1492,7 @@
         "operationId": "foundry_get_item",
         "summary": "Reads a single Item document by id.",
         "description": "Reads a single Item document by id.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1611,9 +1536,7 @@
         "operationId": "foundry_update_item",
         "summary": "Updates fields on an existing Item document.",
         "description": "Updates fields on an existing Item document.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1645,9 +1568,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -1679,9 +1600,7 @@
         "operationId": "foundry_delete_item",
         "summary": "Deletes a Item document by id.",
         "description": "Deletes a Item document by id.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1727,9 +1646,7 @@
         "operationId": "foundry_get_actor_item",
         "summary": "Reads a single embedded Item document from an actor by id.",
         "description": "Reads a single embedded Item document from an actor by id.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1782,9 +1699,7 @@
         "operationId": "foundry_update_actor_item",
         "summary": "Updates fields on an existing embedded Item document on an actor.",
         "description": "Updates fields on an existing embedded Item document on an actor.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1825,9 +1740,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -1859,9 +1772,7 @@
         "operationId": "foundry_delete_actor_item",
         "summary": "Deletes an embedded Item document from an actor by id.",
         "description": "Deletes an embedded Item document from an actor by id.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1916,9 +1827,7 @@
         "operationId": "foundry_create_actor_item",
         "summary": "Creates a new embedded Item document on an actor.",
         "description": "Creates a new embedded Item document on an actor.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -1950,9 +1859,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -1986,9 +1893,7 @@
         "operationId": "foundry_list_scenes",
         "summary": "Lists every Scene document in the current world.",
         "description": "Lists every Scene document in the current world.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2021,9 +1926,7 @@
         "operationId": "foundry_create_scene",
         "summary": "Creates a new Scene document.",
         "description": "Creates a new Scene document.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2044,9 +1947,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -2080,9 +1981,7 @@
         "operationId": "foundry_get_scene",
         "summary": "Reads a single Scene document by id.",
         "description": "Reads a single Scene document by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2126,9 +2025,7 @@
         "operationId": "foundry_update_scene",
         "summary": "Updates fields on an existing Scene document.",
         "description": "Updates fields on an existing Scene document.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2160,9 +2057,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -2194,9 +2089,7 @@
         "operationId": "foundry_delete_scene",
         "summary": "Deletes a Scene document by id.",
         "description": "Deletes a Scene document by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2242,9 +2135,7 @@
         "operationId": "foundry_activate_scene",
         "summary": "Activates a scene, making it the world's current active/viewed scene.",
         "description": "Activates a scene, making it the world's current active/viewed scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2290,9 +2181,53 @@
         "operationId": "foundry_get_scene_dimensions",
         "summary": "Reads a scene's grid config and computed pixel dimensions (size, distance, units, width/height).",
         "description": "Reads a scene's grid config and computed pixel dimensions (size, distance, units, width/height).",
-        "tags": [
-          "scenes"
+        "tags": ["scenes"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
         ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/scenes/{id}/reset-fog": {
+      "post": {
+        "operationId": "foundry_reset_scene_fog",
+        "summary": "Clears a scene's explored fog-of-war for every connected client.",
+        "description": "Clears a scene's explored fog-of-war for every connected client.",
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2338,9 +2273,7 @@
         "operationId": "foundry_list_scene_tokens",
         "summary": "Lists a scene's embedded Token documents.",
         "description": "Lists a scene's embedded Token documents.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2384,9 +2317,7 @@
         "operationId": "foundry_create_scene_token",
         "summary": "Creates a new embedded Token document on a scene.",
         "description": "Creates a new embedded Token document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2418,9 +2349,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -2454,9 +2383,7 @@
         "operationId": "foundry_get_scene_token",
         "summary": "Reads a single embedded Token document from a scene by id.",
         "description": "Reads a single embedded Token document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2509,9 +2436,7 @@
         "operationId": "foundry_update_scene_token",
         "summary": "Updates fields on an existing embedded Token document on a scene.",
         "description": "Updates fields on an existing embedded Token document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2552,9 +2477,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -2586,9 +2509,7 @@
         "operationId": "foundry_delete_scene_token",
         "summary": "Deletes an embedded Token document from a scene by id.",
         "description": "Deletes an embedded Token document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2643,9 +2564,7 @@
         "operationId": "foundry_move_scene_token",
         "summary": "Moves a token to new x/y canvas coordinates.",
         "description": "Moves a token to new x/y canvas coordinates.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2685,10 +2604,7 @@
                     "type": "number"
                   }
                 },
-                "required": [
-                  "x",
-                  "y"
-                ]
+                "required": ["x", "y"]
               }
             }
           }
@@ -2722,9 +2638,7 @@
         "operationId": "foundry_set_scene_token_visibility",
         "summary": "Sets whether a token is hidden from non-GM players.",
         "description": "Sets whether a token is hidden from non-GM players.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2761,9 +2675,7 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "hidden"
-                ]
+                "required": ["hidden"]
               }
             }
           }
@@ -2797,9 +2709,7 @@
         "operationId": "foundry_roll_dice",
         "summary": "Evaluates a dice roll formula (e.g.",
         "description": "Evaluates a dice roll formula (e.g. \"2d6+3\") against Foundry's Roll engine and returns the total, the resolved expression, and individual die results. Does not post to chat.",
-        "tags": [
-          "rolls"
-        ],
+        "tags": ["rolls"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2824,9 +2734,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "formula"
-                ]
+                "required": ["formula"]
               }
             }
           }
@@ -2860,9 +2768,7 @@
         "operationId": "foundry_list_chat_messages",
         "summary": "Lists recent chat log messages, oldest first.",
         "description": "Lists recent chat log messages, oldest first. Optionally capped by `limit`.",
-        "tags": [
-          "chat"
-        ],
+        "tags": ["chat"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2907,9 +2813,7 @@
         "operationId": "foundry_send_chat_message",
         "summary": "Posts a new message to the chat log (e.g.",
         "description": "Posts a new message to the chat log (e.g. { \"content\": \"Hello!\" }).",
-        "tags": [
-          "chat"
-        ],
+        "tags": ["chat"],
         "security": [
           {
             "apiKeyAuth": []
@@ -2930,13 +2834,121 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/chat/{id}": {
+      "put": {
+        "operationId": "foundry_update_chat_message",
+        "summary": "Updates fields on an existing chat message.",
+        "description": "Updates fields on an existing chat message.",
+        "tags": ["chat"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "changes": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": ["changes"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "foundry_delete_chat_message",
+        "summary": "Deletes a chat message by id.",
+        "description": "Deletes a chat message by id.",
+        "tags": ["chat"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success.",
@@ -2966,9 +2978,7 @@
         "operationId": "foundry_list_macros",
         "summary": "Lists every Macro document in the current world.",
         "description": "Lists every Macro document in the current world.",
-        "tags": [
-          "macros"
-        ],
+        "tags": ["macros"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3001,9 +3011,7 @@
         "operationId": "foundry_create_macro",
         "summary": "Creates a new Macro document.",
         "description": "Creates a new Macro document.",
-        "tags": [
-          "macros"
-        ],
+        "tags": ["macros"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3024,9 +3032,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -3060,9 +3066,7 @@
         "operationId": "foundry_get_macro",
         "summary": "Reads a single Macro document by id.",
         "description": "Reads a single Macro document by id.",
-        "tags": [
-          "macros"
-        ],
+        "tags": ["macros"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3106,9 +3110,7 @@
         "operationId": "foundry_update_macro",
         "summary": "Updates fields on an existing Macro document.",
         "description": "Updates fields on an existing Macro document.",
-        "tags": [
-          "macros"
-        ],
+        "tags": ["macros"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3140,9 +3142,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -3174,9 +3174,7 @@
         "operationId": "foundry_delete_macro",
         "summary": "Deletes a Macro document by id.",
         "description": "Deletes a Macro document by id.",
-        "tags": [
-          "macros"
-        ],
+        "tags": ["macros"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3222,9 +3220,7 @@
         "operationId": "foundry_execute_macro",
         "summary": "Executes a macro by id, running its stored script or chat command with full Foundry client privileges.",
         "description": "Executes a macro by id, running its stored script or chat command with full Foundry client privileges. WARNING: a script-type macro is arbitrary JavaScript — only execute macros you trust, exactly as if you were clicking them on the macro bar yourself.\n\n**Warning:** this operation is destructive/irreversible (see MCP tool annotations).",
-        "tags": [
-          "macros"
-        ],
+        "tags": ["macros"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3270,9 +3266,7 @@
         "operationId": "foundry_list_combats",
         "summary": "Lists every Combat document in the current world.",
         "description": "Lists every Combat document in the current world.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3305,9 +3299,7 @@
         "operationId": "foundry_create_combat",
         "summary": "Creates a new Combat document.",
         "description": "Creates a new Combat document.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3328,9 +3320,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -3364,9 +3354,7 @@
         "operationId": "foundry_get_combat",
         "summary": "Reads a single Combat document by id.",
         "description": "Reads a single Combat document by id.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3410,9 +3398,7 @@
         "operationId": "foundry_update_combat",
         "summary": "Updates fields on an existing Combat document.",
         "description": "Updates fields on an existing Combat document.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3444,9 +3430,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -3478,9 +3462,7 @@
         "operationId": "foundry_delete_combat",
         "summary": "Deletes a Combat document by id.",
         "description": "Deletes a Combat document by id.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3526,9 +3508,7 @@
         "operationId": "foundry_start_combat",
         "summary": "Starts a combat encounter, setting round 1 and rolling the initial turn order.",
         "description": "Starts a combat encounter, setting round 1 and rolling the initial turn order.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3574,9 +3554,7 @@
         "operationId": "foundry_combat_next_turn",
         "summary": "Advances a combat to the next turn.",
         "description": "Advances a combat to the next turn.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3622,9 +3600,7 @@
         "operationId": "foundry_combat_next_round",
         "summary": "Advances a combat to the next round.",
         "description": "Advances a combat to the next round.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3670,9 +3646,7 @@
         "operationId": "foundry_combat_previous_turn",
         "summary": "Steps a combat back to the previous turn.",
         "description": "Steps a combat back to the previous turn.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3718,9 +3692,7 @@
         "operationId": "foundry_combat_previous_round",
         "summary": "Steps a combat back to the previous round.",
         "description": "Steps a combat back to the previous round.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3766,9 +3738,7 @@
         "operationId": "foundry_end_combat",
         "summary": "Ends a combat encounter (deletes it).",
         "description": "Ends a combat encounter (deletes it).",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3814,9 +3784,7 @@
         "operationId": "foundry_add_combatant",
         "summary": "Adds a new embedded Combatant to a combat (e.g.",
         "description": "Adds a new embedded Combatant to a combat (e.g. from a token/actor).",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3848,9 +3816,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -3884,9 +3850,7 @@
         "operationId": "foundry_remove_combatant",
         "summary": "Removes an embedded Combatant from a combat by id.",
         "description": "Removes an embedded Combatant from a combat by id.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3939,9 +3903,7 @@
         "operationId": "foundry_update_combatant",
         "summary": "Updates fields on an embedded Combatant (e.g.",
         "description": "Updates fields on an embedded Combatant (e.g. defeated, hidden, initiative, name override).",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -3982,9 +3944,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -4018,9 +3978,7 @@
         "operationId": "foundry_roll_combat_initiative",
         "summary": "Rolls initiative for the given combatant ids, or for every combatant missing initiative if no ids are given.",
         "description": "Rolls initiative for the given combatant ids, or for every combatant missing initiative if no ids are given.",
-        "tags": [
-          "combats"
-        ],
+        "tags": ["combats"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4086,9 +4044,7 @@
         "operationId": "foundry_list_playlists",
         "summary": "Lists every Playlist document in the current world.",
         "description": "Lists every Playlist document in the current world.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4121,9 +4077,7 @@
         "operationId": "foundry_create_playlist",
         "summary": "Creates a new Playlist document.",
         "description": "Creates a new Playlist document.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4144,9 +4098,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -4180,9 +4132,7 @@
         "operationId": "foundry_get_playlist",
         "summary": "Reads a single Playlist document by id.",
         "description": "Reads a single Playlist document by id.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4226,9 +4176,7 @@
         "operationId": "foundry_update_playlist",
         "summary": "Updates fields on an existing Playlist document.",
         "description": "Updates fields on an existing Playlist document.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4260,9 +4208,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -4294,9 +4240,7 @@
         "operationId": "foundry_delete_playlist",
         "summary": "Deletes a Playlist document by id.",
         "description": "Deletes a Playlist document by id.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4342,9 +4286,7 @@
         "operationId": "foundry_play_playlist_sound",
         "summary": "Starts playback of a single sound within a playlist.",
         "description": "Starts playback of a single sound within a playlist.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4399,9 +4341,7 @@
         "operationId": "foundry_stop_playlist_sound",
         "summary": "Stops playback of a single sound within a playlist and resets its position.",
         "description": "Stops playback of a single sound within a playlist and resets its position.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4456,9 +4396,7 @@
         "operationId": "foundry_pause_playlist_sound",
         "summary": "Pauses playback of a single sound within a playlist, recording its position so a later play resumes from where it left off.",
         "description": "Pauses playback of a single sound within a playlist, recording its position so a later play resumes from where it left off.",
-        "tags": [
-          "playlists"
-        ],
+        "tags": ["playlists"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4513,9 +4451,7 @@
         "operationId": "foundry_list_roll_tables",
         "summary": "Lists every RollTable document in the current world.",
         "description": "Lists every RollTable document in the current world.",
-        "tags": [
-          "roll-tables"
-        ],
+        "tags": ["roll-tables"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4548,9 +4484,7 @@
         "operationId": "foundry_create_roll_table",
         "summary": "Creates a new RollTable document.",
         "description": "Creates a new RollTable document.",
-        "tags": [
-          "roll-tables"
-        ],
+        "tags": ["roll-tables"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4571,9 +4505,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -4607,9 +4539,7 @@
         "operationId": "foundry_get_roll_table",
         "summary": "Reads a single RollTable document by id.",
         "description": "Reads a single RollTable document by id.",
-        "tags": [
-          "roll-tables"
-        ],
+        "tags": ["roll-tables"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4653,9 +4583,7 @@
         "operationId": "foundry_update_roll_table",
         "summary": "Updates fields on an existing RollTable document.",
         "description": "Updates fields on an existing RollTable document.",
-        "tags": [
-          "roll-tables"
-        ],
+        "tags": ["roll-tables"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4687,9 +4615,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -4721,9 +4647,7 @@
         "operationId": "foundry_delete_roll_table",
         "summary": "Deletes a RollTable document by id.",
         "description": "Deletes a RollTable document by id.",
-        "tags": [
-          "roll-tables"
-        ],
+        "tags": ["roll-tables"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4769,9 +4693,7 @@
         "operationId": "foundry_draw_roll_table",
         "summary": "Draws one result from a RollTable by id, evaluating the table's roll formula and returning the drawn TableResult(s).",
         "description": "Draws one result from a RollTable by id, evaluating the table's roll formula and returning the drawn TableResult(s). Posts to chat by default, same as Foundry's own table draw.",
-        "tags": [
-          "roll-tables"
-        ],
+        "tags": ["roll-tables"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4833,9 +4755,7 @@
         "operationId": "foundry_list_cards_stacks",
         "summary": "Lists every Cards document in the current world.",
         "description": "Lists every Cards document in the current world.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4868,9 +4788,7 @@
         "operationId": "foundry_create_cards_stack",
         "summary": "Creates a new Cards document.",
         "description": "Creates a new Cards document.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4891,9 +4809,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -4927,9 +4843,7 @@
         "operationId": "foundry_get_cards_stack",
         "summary": "Reads a single Cards document by id.",
         "description": "Reads a single Cards document by id.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -4973,9 +4887,7 @@
         "operationId": "foundry_update_cards_stack",
         "summary": "Updates fields on an existing Cards document.",
         "description": "Updates fields on an existing Cards document.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5007,9 +4919,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -5041,9 +4951,7 @@
         "operationId": "foundry_delete_cards_stack",
         "summary": "Deletes a Cards document by id.",
         "description": "Deletes a Cards document by id.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5089,9 +4997,7 @@
         "operationId": "foundry_draw_cards",
         "summary": "Draws one or more cards from a source Cards stack (e.g.",
         "description": "Draws one or more cards from a source Cards stack (e.g. a deck) into this one.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5125,9 +5031,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "sourceId"
-                ]
+                "required": ["sourceId"]
               }
             }
           }
@@ -5161,9 +5065,7 @@
         "operationId": "foundry_shuffle_cards",
         "summary": "Shuffles a Cards stack in place, randomizing its cards' order.",
         "description": "Shuffles a Cards stack in place, randomizing its cards' order.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5209,9 +5111,7 @@
         "operationId": "foundry_reset_cards",
         "summary": "Resets a Cards stack, recalling every card dealt out of it back into this stack.",
         "description": "Resets a Cards stack, recalling every card dealt out of it back into this stack.",
-        "tags": [
-          "cards"
-        ],
+        "tags": ["cards"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5257,9 +5157,7 @@
         "operationId": "foundry_list_folders",
         "summary": "Lists every Folder document in the current world.",
         "description": "Lists every Folder document in the current world.",
-        "tags": [
-          "folders"
-        ],
+        "tags": ["folders"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5292,9 +5190,7 @@
         "operationId": "foundry_create_folder",
         "summary": "Creates a new Folder document.",
         "description": "Creates a new Folder document.",
-        "tags": [
-          "folders"
-        ],
+        "tags": ["folders"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5315,9 +5211,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -5351,9 +5245,7 @@
         "operationId": "foundry_get_folder",
         "summary": "Reads a single Folder document by id.",
         "description": "Reads a single Folder document by id.",
-        "tags": [
-          "folders"
-        ],
+        "tags": ["folders"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5397,9 +5289,7 @@
         "operationId": "foundry_update_folder",
         "summary": "Updates fields on an existing Folder document.",
         "description": "Updates fields on an existing Folder document.",
-        "tags": [
-          "folders"
-        ],
+        "tags": ["folders"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5431,9 +5321,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -5465,9 +5353,7 @@
         "operationId": "foundry_delete_folder",
         "summary": "Deletes a Folder document by id.",
         "description": "Deletes a Folder document by id.",
-        "tags": [
-          "folders"
-        ],
+        "tags": ["folders"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5513,9 +5399,7 @@
         "operationId": "foundry_move_document_to_folder",
         "summary": "Moves any folder-capable document (Actor, Item, JournalEntry, Scene, Macro, Playlist, RollTable, Cards, or a Folder itself to renest it) into a folder by id, or to the root when folderId is null.",
         "description": "Moves any folder-capable document (Actor, Item, JournalEntry, Scene, Macro, Playlist, RollTable, Cards, or a Folder itself to renest it) into a folder by id, or to the root when folderId is null.",
-        "tags": [
-          "folders"
-        ],
+        "tags": ["folders"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5548,11 +5432,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "documentType",
-                  "id",
-                  "folderId"
-                ]
+                "required": ["documentType", "id", "folderId"]
               }
             }
           }
@@ -5586,9 +5466,7 @@
         "operationId": "foundry_list_packs",
         "summary": "Lists every compendium pack available in the world (id, label, document type, source package).",
         "description": "Lists every compendium pack available in the world (id, label, document type, source package).",
-        "tags": [
-          "packs"
-        ],
+        "tags": ["packs"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5623,9 +5501,7 @@
         "operationId": "foundry_get_pack_index",
         "summary": "Reads a compendium pack's index: lightweight entries (id, name, and a few other fields) without loading each full document.",
         "description": "Reads a compendium pack's index: lightweight entries (id, name, and a few other fields) without loading each full document.",
-        "tags": [
-          "packs"
-        ],
+        "tags": ["packs"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5671,9 +5547,7 @@
         "operationId": "foundry_get_pack_entry",
         "summary": "Reads a single compendium entry's full document data by id.",
         "description": "Reads a single compendium entry's full document data by id.",
-        "tags": [
-          "packs"
-        ],
+        "tags": ["packs"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5726,9 +5600,7 @@
         "operationId": "foundry_update_pack_entry",
         "summary": "Updates fields on an existing compendium entry.",
         "description": "Updates fields on an existing compendium entry.",
-        "tags": [
-          "packs"
-        ],
+        "tags": ["packs"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5769,9 +5641,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -5803,9 +5673,7 @@
         "operationId": "foundry_delete_pack_entry",
         "summary": "Deletes an entry from a compendium pack by id.",
         "description": "Deletes an entry from a compendium pack by id.",
-        "tags": [
-          "packs"
-        ],
+        "tags": ["packs"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5860,9 +5728,7 @@
         "operationId": "foundry_create_pack_entry",
         "summary": "Creates a new entry (document) directly inside a compendium pack.",
         "description": "Creates a new entry (document) directly inside a compendium pack.",
-        "tags": [
-          "packs"
-        ],
+        "tags": ["packs"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5894,9 +5760,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -5930,9 +5794,7 @@
         "operationId": "foundry_import_pack_entry",
         "summary": "Imports a compendium entry into the world, creating a new document in the matching world collection.",
         "description": "Imports a compendium entry into the world, creating a new document in the matching world collection.",
-        "tags": [
-          "packs"
-        ],
+        "tags": ["packs"],
         "security": [
           {
             "apiKeyAuth": []
@@ -5987,9 +5849,7 @@
         "operationId": "foundry_list_actor_effects",
         "summary": "Lists every embedded ActiveEffect document on a Actor.",
         "description": "Lists every embedded ActiveEffect document on a Actor.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6033,9 +5893,7 @@
         "operationId": "foundry_create_actor_effect",
         "summary": "Creates a new embedded ActiveEffect document on a Actor.",
         "description": "Creates a new embedded ActiveEffect document on a Actor.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6067,9 +5925,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -6103,9 +5959,7 @@
         "operationId": "foundry_get_actor_effect",
         "summary": "Reads a single embedded ActiveEffect document from a Actor by id.",
         "description": "Reads a single embedded ActiveEffect document from a Actor by id.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6158,9 +6012,7 @@
         "operationId": "foundry_update_actor_effect",
         "summary": "Updates fields on an existing embedded ActiveEffect document on a Actor.",
         "description": "Updates fields on an existing embedded ActiveEffect document on a Actor.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6201,9 +6053,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -6235,9 +6085,7 @@
         "operationId": "foundry_delete_actor_effect",
         "summary": "Deletes an embedded ActiveEffect document from a Actor by id.",
         "description": "Deletes an embedded ActiveEffect document from a Actor by id.",
-        "tags": [
-          "actors"
-        ],
+        "tags": ["actors"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6292,9 +6140,7 @@
         "operationId": "foundry_list_item_effects",
         "summary": "Lists every embedded ActiveEffect document on a Item.",
         "description": "Lists every embedded ActiveEffect document on a Item.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6338,9 +6184,7 @@
         "operationId": "foundry_create_item_effect",
         "summary": "Creates a new embedded ActiveEffect document on a Item.",
         "description": "Creates a new embedded ActiveEffect document on a Item.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6372,9 +6216,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -6408,9 +6250,7 @@
         "operationId": "foundry_get_item_effect",
         "summary": "Reads a single embedded ActiveEffect document from a Item by id.",
         "description": "Reads a single embedded ActiveEffect document from a Item by id.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6463,9 +6303,7 @@
         "operationId": "foundry_update_item_effect",
         "summary": "Updates fields on an existing embedded ActiveEffect document on a Item.",
         "description": "Updates fields on an existing embedded ActiveEffect document on a Item.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6506,9 +6344,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -6540,9 +6376,7 @@
         "operationId": "foundry_delete_item_effect",
         "summary": "Deletes an embedded ActiveEffect document from a Item by id.",
         "description": "Deletes an embedded ActiveEffect document from a Item by id.",
-        "tags": [
-          "items"
-        ],
+        "tags": ["items"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6597,9 +6431,7 @@
         "operationId": "foundry_list_scene_drawings",
         "summary": "Lists every embedded Drawing document on a scene.",
         "description": "Lists every embedded Drawing document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6643,9 +6475,7 @@
         "operationId": "foundry_create_scene_drawing",
         "summary": "Creates a new embedded Drawing document on a scene.",
         "description": "Creates a new embedded Drawing document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6677,9 +6507,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -6713,9 +6541,7 @@
         "operationId": "foundry_get_scene_drawing",
         "summary": "Reads a single embedded Drawing document from a scene by id.",
         "description": "Reads a single embedded Drawing document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6768,9 +6594,7 @@
         "operationId": "foundry_update_scene_drawing",
         "summary": "Updates fields on an existing embedded Drawing document on a scene.",
         "description": "Updates fields on an existing embedded Drawing document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6811,9 +6635,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -6845,9 +6667,7 @@
         "operationId": "foundry_delete_scene_drawing",
         "summary": "Deletes an embedded Drawing document from a scene by id.",
         "description": "Deletes an embedded Drawing document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6902,9 +6722,7 @@
         "operationId": "foundry_list_scene_notes",
         "summary": "Lists every embedded Note document on a scene.",
         "description": "Lists every embedded Note document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6948,9 +6766,7 @@
         "operationId": "foundry_create_scene_note",
         "summary": "Creates a new embedded Note document on a scene.",
         "description": "Creates a new embedded Note document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -6982,9 +6798,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -7018,9 +6832,7 @@
         "operationId": "foundry_get_scene_note",
         "summary": "Reads a single embedded Note document from a scene by id.",
         "description": "Reads a single embedded Note document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7073,9 +6885,7 @@
         "operationId": "foundry_update_scene_note",
         "summary": "Updates fields on an existing embedded Note document on a scene.",
         "description": "Updates fields on an existing embedded Note document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7116,9 +6926,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -7150,9 +6958,7 @@
         "operationId": "foundry_delete_scene_note",
         "summary": "Deletes an embedded Note document from a scene by id.",
         "description": "Deletes an embedded Note document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7207,9 +7013,7 @@
         "operationId": "foundry_list_scene_lights",
         "summary": "Lists every embedded AmbientLight document on a scene.",
         "description": "Lists every embedded AmbientLight document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7253,9 +7057,7 @@
         "operationId": "foundry_create_scene_light",
         "summary": "Creates a new embedded AmbientLight document on a scene.",
         "description": "Creates a new embedded AmbientLight document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7287,9 +7089,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -7323,9 +7123,7 @@
         "operationId": "foundry_get_scene_light",
         "summary": "Reads a single embedded AmbientLight document from a scene by id.",
         "description": "Reads a single embedded AmbientLight document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7378,9 +7176,7 @@
         "operationId": "foundry_update_scene_light",
         "summary": "Updates fields on an existing embedded AmbientLight document on a scene.",
         "description": "Updates fields on an existing embedded AmbientLight document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7421,9 +7217,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -7455,9 +7249,7 @@
         "operationId": "foundry_delete_scene_light",
         "summary": "Deletes an embedded AmbientLight document from a scene by id.",
         "description": "Deletes an embedded AmbientLight document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7512,9 +7304,7 @@
         "operationId": "foundry_list_scene_sounds",
         "summary": "Lists every embedded AmbientSound document on a scene.",
         "description": "Lists every embedded AmbientSound document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7558,9 +7348,7 @@
         "operationId": "foundry_create_scene_sound",
         "summary": "Creates a new embedded AmbientSound document on a scene.",
         "description": "Creates a new embedded AmbientSound document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7592,9 +7380,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -7628,9 +7414,7 @@
         "operationId": "foundry_get_scene_sound",
         "summary": "Reads a single embedded AmbientSound document from a scene by id.",
         "description": "Reads a single embedded AmbientSound document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7683,9 +7467,7 @@
         "operationId": "foundry_update_scene_sound",
         "summary": "Updates fields on an existing embedded AmbientSound document on a scene.",
         "description": "Updates fields on an existing embedded AmbientSound document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7726,9 +7508,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -7760,9 +7540,7 @@
         "operationId": "foundry_delete_scene_sound",
         "summary": "Deletes an embedded AmbientSound document from a scene by id.",
         "description": "Deletes an embedded AmbientSound document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7817,9 +7595,7 @@
         "operationId": "foundry_list_scene_walls",
         "summary": "Lists every embedded Wall document on a scene.",
         "description": "Lists every embedded Wall document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7863,9 +7639,7 @@
         "operationId": "foundry_create_scene_wall",
         "summary": "Creates a new embedded Wall document on a scene.",
         "description": "Creates a new embedded Wall document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7897,9 +7671,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -7933,9 +7705,7 @@
         "operationId": "foundry_get_scene_wall",
         "summary": "Reads a single embedded Wall document from a scene by id.",
         "description": "Reads a single embedded Wall document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -7988,9 +7758,7 @@
         "operationId": "foundry_update_scene_wall",
         "summary": "Updates fields on an existing embedded Wall document on a scene.",
         "description": "Updates fields on an existing embedded Wall document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8031,9 +7799,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -8065,9 +7831,7 @@
         "operationId": "foundry_delete_scene_wall",
         "summary": "Deletes an embedded Wall document from a scene by id.",
         "description": "Deletes an embedded Wall document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8122,9 +7886,7 @@
         "operationId": "foundry_list_scene_templates",
         "summary": "Lists every embedded MeasuredTemplate document on a scene.",
         "description": "Lists every embedded MeasuredTemplate document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8168,9 +7930,7 @@
         "operationId": "foundry_create_scene_template",
         "summary": "Creates a new embedded MeasuredTemplate document on a scene.",
         "description": "Creates a new embedded MeasuredTemplate document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8202,9 +7962,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "data"
-                ]
+                "required": ["data"]
               }
             }
           }
@@ -8238,9 +7996,7 @@
         "operationId": "foundry_get_scene_template",
         "summary": "Reads a single embedded MeasuredTemplate document from a scene by id.",
         "description": "Reads a single embedded MeasuredTemplate document from a scene by id.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8293,9 +8049,7 @@
         "operationId": "foundry_update_scene_template",
         "summary": "Updates fields on an existing embedded MeasuredTemplate document on a scene.",
         "description": "Updates fields on an existing embedded MeasuredTemplate document on a scene.",
-        "tags": [
-          "scenes"
-        ],
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8336,9 +8090,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -8370,9 +8122,298 @@
         "operationId": "foundry_delete_scene_template",
         "summary": "Deletes an embedded MeasuredTemplate document from a scene by id.",
         "description": "Deletes an embedded MeasuredTemplate document from a scene by id.",
-        "tags": [
-          "scenes"
+        "tags": ["scenes"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
         ],
+        "parameters": [
+          {
+            "name": "sceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "placeableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/scenes/{sceneId}/regions": {
+      "get": {
+        "operationId": "foundry_list_scene_regions",
+        "summary": "Lists every embedded Region document on a scene.",
+        "description": "Lists every embedded Region document on a scene.",
+        "tags": ["scenes"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "foundry_create_scene_region",
+        "summary": "Creates a new embedded Region document on a scene.",
+        "description": "Creates a new embedded Region document on a scene.",
+        "tags": ["scenes"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": ["data"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/scenes/{sceneId}/regions/{placeableId}": {
+      "get": {
+        "operationId": "foundry_get_scene_region",
+        "summary": "Reads a single embedded Region document from a scene by id.",
+        "description": "Reads a single embedded Region document from a scene by id.",
+        "tags": ["scenes"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "placeableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "foundry_update_scene_region",
+        "summary": "Updates fields on an existing embedded Region document on a scene.",
+        "description": "Updates fields on an existing embedded Region document on a scene.",
+        "tags": ["scenes"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sceneId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "placeableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "changes": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": ["changes"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "foundry_delete_scene_region",
+        "summary": "Deletes an embedded Region document from a scene by id.",
+        "description": "Deletes an embedded Region document from a scene by id.",
+        "tags": ["scenes"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8427,9 +8468,64 @@
         "operationId": "foundry_pan_canvas",
         "summary": "Pans/zooms the currently-viewed canvas on the connected client.",
         "description": "Pans/zooms the currently-viewed canvas on the connected client. Omitted x/y/scale keep their current value.",
-        "tags": [
-          "canvas"
+        "tags": ["canvas"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "scale": {
+                    "type": "number"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/canvas/push-view": {
+      "post": {
+        "operationId": "foundry_push_view_to_players",
+        "summary": "Pans/zooms every connected client's canvas (GM and players alike) to the same view, via a module-scoped socket broadcast — unlike foundry_pan_canvas, which only moves the connected client's own camera.",
+        "description": "Pans/zooms every connected client's canvas (GM and players alike) to the same view, via a module-scoped socket broadcast — unlike foundry_pan_canvas, which only moves the connected client's own camera. Omitted x/y/scale keep each client's current value.",
+        "tags": ["canvas"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8486,9 +8582,7 @@
         "operationId": "foundry_get_document_ownership",
         "summary": "Reads a document's ownership map (default level plus any per-user overrides).",
         "description": "Reads a document's ownership map (default level plus any per-user overrides).",
-        "tags": [
-          "documents"
-        ],
+        "tags": ["documents"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8541,9 +8635,7 @@
         "operationId": "foundry_set_document_ownership",
         "summary": "Sets a document's ownership map.",
         "description": "Sets a document's ownership map. Pass a full replacement map (e.g. { \"default\": 0, \"<userId>\": 3 }) using CONST.DOCUMENT_OWNERSHIP_LEVELS values. GM only.",
-        "tags": [
-          "documents"
-        ],
+        "tags": ["documents"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8586,9 +8678,7 @@
                     }
                   }
                 },
-                "required": [
-                  "ownership"
-                ]
+                "required": ["ownership"]
               }
             }
           }
@@ -8622,9 +8712,7 @@
         "operationId": "foundry_get_user_role",
         "summary": "Reads a user's world permission level (CONST.USER_ROLES value).",
         "description": "Reads a user's world permission level (CONST.USER_ROLES value).",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8668,9 +8756,7 @@
         "operationId": "foundry_set_user_role",
         "summary": "Sets a user's world permission level (CONST.USER_ROLES value).",
         "description": "Sets a user's world permission level (CONST.USER_ROLES value). GM only.",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8700,9 +8786,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "role"
-                ]
+                "required": ["role"]
               }
             }
           }
@@ -8736,9 +8820,7 @@
         "operationId": "foundry_browse_files",
         "summary": "Lists the directories and files under a FilePicker path (default source \"data\", default target the root).",
         "description": "Lists the directories and files under a FilePicker path (default source \"data\", default target the root).",
-        "tags": [
-          "files"
-        ],
+        "tags": ["files"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8792,9 +8874,7 @@
         "operationId": "foundry_upload_file",
         "summary": "Uploads a file (base64-encoded content) to a FilePicker directory, subject to Foundry's own upload security model (allowed extensions, size limits, source permissions).",
         "description": "Uploads a file (base64-encoded content) to a FilePicker directory, subject to Foundry's own upload security model (allowed extensions, size limits, source permissions).",
-        "tags": [
-          "files"
-        ],
+        "tags": ["files"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8827,11 +8907,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "path",
-                  "fileName",
-                  "contentBase64"
-                ]
+                "required": ["path", "fileName", "contentBase64"]
               }
             }
           }
@@ -8865,9 +8941,7 @@
         "operationId": "foundry_create_file_directory",
         "summary": "Creates a new directory under a FilePicker source.",
         "description": "Creates a new directory under a FilePicker source.",
-        "tags": [
-          "files"
-        ],
+        "tags": ["files"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8889,9 +8963,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "target"
-                ]
+                "required": ["target"]
               }
             }
           }
@@ -8925,9 +8997,7 @@
         "operationId": "foundry_get_user_by_id",
         "summary": "Reads a single User document's full data by id.",
         "description": "Reads a single User document's full data by id.",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -8971,9 +9041,7 @@
         "operationId": "foundry_update_user",
         "summary": "Updates fields on an existing User document.",
         "description": "Updates fields on an existing User document. GM only.",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9005,9 +9073,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "changes"
-                ]
+                "required": ["changes"]
               }
             }
           }
@@ -9039,9 +9105,7 @@
         "operationId": "foundry_delete_user",
         "summary": "Deletes a User document by id.",
         "description": "Deletes a User document by id. GM only.",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9087,9 +9151,7 @@
         "operationId": "foundry_get_user_status",
         "summary": "Reads whether a user currently has an active connection to the world.",
         "description": "Reads whether a user currently has an active connection to the world.",
-        "tags": [
-          "users"
-        ],
+        "tags": ["users"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9135,9 +9197,7 @@
         "operationId": "foundry_get_canvas_selection",
         "summary": "Reads the currently controlled/selected tokens on the connected client's canvas (canvas.tokens.controlled), plus the currently-viewed scene id.",
         "description": "Reads the currently controlled/selected tokens on the connected client's canvas (canvas.tokens.controlled), plus the currently-viewed scene id.",
-        "tags": [
-          "canvas"
-        ],
+        "tags": ["canvas"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9167,14 +9227,103 @@
         }
       }
     },
+    "/api/canvas/targets": {
+      "get": {
+        "operationId": "foundry_get_targets",
+        "summary": "Reads the tokens currently targeted by the connected client's user (game.user.targets), plus the currently-viewed scene id.",
+        "description": "Reads the tokens currently targeted by the connected client's user (game.user.targets), plus the currently-viewed scene id.",
+        "tags": ["canvas"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "foundry_set_targets",
+        "summary": "Targets the given tokens for the connected client's user, replacing any existing targets unless `additive` is true.",
+        "description": "Targets the given tokens for the connected client's user, replacing any existing targets unless `additive` is true.",
+        "tags": ["canvas"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tokenIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additive": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["tokenIds"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
     "/api/localize": {
       "get": {
         "operationId": "foundry_localize",
         "summary": "Resolves a localization key via game.i18n.",
         "description": "Resolves a localization key via game.i18n. With `data`, interpolates via game.i18n.format(); without it, plain game.i18n.localize().",
-        "tags": [
-          "localize"
-        ],
+        "tags": ["localize"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9228,9 +9377,7 @@
         "operationId": "foundry_enrich_html",
         "summary": "Enriches raw HTML/content-link text (e.g.",
         "description": "Enriches raw HTML/content-link text (e.g. @UUID[...], @Actor[...], inline rolls) into resolved HTML via Foundry's TextEditor.enrichHTML().",
-        "tags": [
-          "enrich-html"
-        ],
+        "tags": ["enrich-html"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9247,9 +9394,7 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "content"
-                ]
+                "required": ["content"]
               }
             }
           }
@@ -9283,9 +9428,7 @@
         "operationId": "foundry_search",
         "summary": "Case-insensitive name-substring search across world document collections (game.collections).",
         "description": "Case-insensitive name-substring search across world document collections (game.collections). `types` optionally limits the search to a comma-separated list of document type names (e.g. \"Actor,Item\"); omit to search every collection.",
-        "tags": [
-          "search"
-        ],
+        "tags": ["search"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9339,9 +9482,7 @@
         "operationId": "foundry_get_recent_events",
         "summary": "Reads the most recently published Foundry hook events (createActor, updateToken, etc.) from a bounded in-memory buffer — a polling alternative to the live-streaming GET /api/events SSE endpoint, for MCP clients without a subscribe-to-a-stream primitive.",
         "description": "Reads the most recently published Foundry hook events (createActor, updateToken, etc.) from a bounded in-memory buffer — a polling alternative to the live-streaming GET /api/events SSE endpoint, for MCP clients without a subscribe-to-a-stream primitive. Optional `limit` caps how many of the most recent events are returned.",
-        "tags": [
-          "events"
-        ],
+        "tags": ["events"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9388,9 +9529,7 @@
         "operationId": "foundry_query_documents",
         "summary": "Lists documents of the given type, filtered by exact-match equality on top-level fields (e.g.",
         "description": "Lists documents of the given type, filtered by exact-match equality on top-level fields (e.g. {\"name\": \"Goblin\"}), optionally capped to `limit` results.",
-        "tags": [
-          "documents"
-        ],
+        "tags": ["documents"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9420,9 +9559,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "documentType"
-                ]
+                "required": ["documentType"]
               }
             }
           }
@@ -9456,9 +9593,7 @@
         "operationId": "foundry_batch_create_documents",
         "summary": "Creates many documents of the given type in one call.",
         "description": "Creates many documents of the given type in one call.",
-        "tags": [
-          "documents"
-        ],
+        "tags": ["documents"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9487,10 +9622,7 @@
                     }
                   }
                 },
-                "required": [
-                  "documentType",
-                  "items"
-                ]
+                "required": ["documentType", "items"]
               }
             }
           }
@@ -9524,9 +9656,7 @@
         "operationId": "foundry_batch_update_documents",
         "summary": "Updates many documents of the given type in one call, each identified by its own id.",
         "description": "Updates many documents of the given type in one call, each identified by its own id.",
-        "tags": [
-          "documents"
-        ],
+        "tags": ["documents"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9561,17 +9691,11 @@
                           "additionalProperties": {}
                         }
                       },
-                      "required": [
-                        "id",
-                        "changes"
-                      ]
+                      "required": ["id", "changes"]
                     }
                   }
                 },
-                "required": [
-                  "documentType",
-                  "updates"
-                ]
+                "required": ["documentType", "updates"]
               }
             }
           }
@@ -9605,9 +9729,7 @@
         "operationId": "foundry_batch_delete_documents",
         "summary": "Permanently deletes every document of the given type whose id is listed.",
         "description": "Permanently deletes every document of the given type whose id is listed. This cannot be undone — use with care.\n\n**Warning:** this operation is destructive/irreversible (see MCP tool annotations).",
-        "tags": [
-          "documents"
-        ],
+        "tags": ["documents"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9633,10 +9755,7 @@
                     }
                   }
                 },
-                "required": [
-                  "documentType",
-                  "ids"
-                ]
+                "required": ["documentType", "ids"]
               }
             }
           }
@@ -9670,9 +9789,7 @@
         "operationId": "foundry_get_game_paused",
         "summary": "Whether the game is currently paused (the \"GAME PAUSED\" banner) for every connected client.",
         "description": "Whether the game is currently paused (the \"GAME PAUSED\" banner) for every connected client.",
-        "tags": [
-          "game"
-        ],
+        "tags": ["game"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9705,9 +9822,7 @@
         "operationId": "foundry_set_game_paused",
         "summary": "Pauses or unpauses the game for every connected client (the \"GAME PAUSED\" banner), broadcast from the connected GM user.",
         "description": "Pauses or unpauses the game for every connected client (the \"GAME PAUSED\" banner), broadcast from the connected GM user. Returns the resulting paused state.",
-        "tags": [
-          "game"
-        ],
+        "tags": ["game"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9724,9 +9839,93 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "paused"
-                ]
+                "required": ["paused"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/world-time": {
+      "get": {
+        "operationId": "foundry_get_world_time",
+        "summary": "Reads the current world time (game.time.worldTime), in seconds.",
+        "description": "Reads the current world time (game.time.worldTime), in seconds.",
+        "tags": ["world-time"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/world-time/advance": {
+      "post": {
+        "operationId": "foundry_advance_world_time",
+        "summary": "Advances the world time by the given number of seconds (negative rewinds it).",
+        "description": "Advances the world time by the given number of seconds (negative rewinds it). GM only.",
+        "tags": ["world-time"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "seconds": {
+                    "type": "number"
+                  }
+                },
+                "required": ["seconds"]
               }
             }
           }
@@ -9760,9 +9959,7 @@
         "operationId": "dnd5e_get_config",
         "summary": "Relevant slices of dnd5e's CONFIG.DND5E (abilities, skills, damage types, condition types) so a caller doesn't need hardcoded dnd5e knowledge to interpret raw actor data.",
         "description": "Relevant slices of dnd5e's CONFIG.DND5E (abilities, skills, damage types, condition types) so a caller doesn't need hardcoded dnd5e knowledge to interpret raw actor data.",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9801,9 +9998,7 @@
         "operationId": "dnd5e_get_actor_sheet",
         "summary": "Structured dnd5e actor sheet summary: abilities, saves, skills, AC, HP, senses, currency, spell slots, class/level, proficiency bonus.",
         "description": "Structured dnd5e actor sheet summary: abilities, saves, skills, AC, HP, senses, currency, spell slots, class/level, proficiency bonus.",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9853,9 +10048,7 @@
         "operationId": "dnd5e_get_actor_inventory",
         "summary": "An actor's items with dnd5e-specific fields: quantity, equipped, attuned, activities.",
         "description": "An actor's items with dnd5e-specific fields: quantity, equipped, attuned, activities.",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9905,9 +10098,7 @@
         "operationId": "dnd5e_roll_ability_check",
         "summary": "Rolls a dnd5e ability check for an actor (e.g.",
         "description": "Rolls a dnd5e ability check for an actor (e.g. a Strength check).",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -9936,9 +10127,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "ability"
-                ]
+                "required": ["ability"]
               }
             }
           }
@@ -9976,9 +10165,7 @@
         "operationId": "dnd5e_roll_saving_throw",
         "summary": "Rolls a dnd5e saving throw for an actor (e.g.",
         "description": "Rolls a dnd5e saving throw for an actor (e.g. a Dexterity save).",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -10007,9 +10194,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "ability"
-                ]
+                "required": ["ability"]
               }
             }
           }
@@ -10047,9 +10232,7 @@
         "operationId": "dnd5e_roll_skill",
         "summary": "Rolls a dnd5e skill check for an actor (e.g.",
         "description": "Rolls a dnd5e skill check for an actor (e.g. Stealth).",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -10078,9 +10261,7 @@
                     "minLength": 1
                   }
                 },
-                "required": [
-                  "skill"
-                ]
+                "required": ["skill"]
               }
             }
           }
@@ -10118,9 +10299,7 @@
         "operationId": "dnd5e_roll_death_save",
         "summary": "Rolls a dnd5e death saving throw for an actor.",
         "description": "Rolls a dnd5e death saving throw for an actor.",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -10170,9 +10349,7 @@
         "operationId": "dnd5e_rest",
         "summary": "Runs a short or long rest for an actor (HP/resource recovery).",
         "description": "Runs a short or long rest for an actor (HP/resource recovery).",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -10198,15 +10375,10 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "short",
-                      "long"
-                    ]
+                    "enum": ["short", "long"]
                   }
                 },
-                "required": [
-                  "type"
-                ]
+                "required": ["type"]
               }
             }
           }
@@ -10244,9 +10416,7 @@
         "operationId": "dnd5e_adjust_spell_slot",
         "summary": "Spends or restores one dnd5e spell slot for an actor (negative delta spends, positive restores).",
         "description": "Spends or restores one dnd5e spell slot for an actor (negative delta spends, positive restores).",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -10289,10 +10459,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "level",
-                  "delta"
-                ]
+                "required": ["level", "delta"]
               }
             }
           }
@@ -10330,9 +10497,7 @@
         "operationId": "dnd5e_use_item",
         "summary": "Triggers a dnd5e item's use (e.g.",
         "description": "Triggers a dnd5e item's use (e.g. consuming a charge, activating an activity), searched across world items and every actor's embedded items.",
-        "tags": [
-          "dnd5e"
-        ],
+        "tags": ["dnd5e"],
         "security": [
           {
             "apiKeyAuth": []
@@ -10382,9 +10547,7 @@
         "operationId": "health",
         "summary": "Liveness check.",
         "description": "Unauthenticated liveness check — status/uptime/version. Does not require an API key and is not rate-limited.",
-        "tags": [
-          "meta"
-        ],
+        "tags": ["meta"],
         "security": [],
         "responses": {
           "200": {
@@ -10417,9 +10580,7 @@
         "operationId": "foundry_events_stream",
         "summary": "Server-Sent Events stream of Foundry hook events.",
         "description": "Long-lived Server-Sent Events (SSE) stream of Foundry hook events (Phase 26). Hand-rolled outside the descriptor pattern because SSE needs to hold the connection open rather than return a single JSON response — see server/src/endpoints/events-sse.ts. Not exposed as an MCP tool (MCP has no streaming-response primitive here); the equivalent polling MCP tool is `foundry_get_recent_events`.",
-        "tags": [
-          "events"
-        ],
+        "tags": ["events"],
         "security": [
           {
             "apiKeyAuth": []

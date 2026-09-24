@@ -6,13 +6,14 @@
 // generically by Phase 8's documentList/Get/Create/Update/Delete commands
 // with `documentType: "Scene"` (see server/src/endpoints/scenes.ts, which
 // calls the same `makeDocumentEndpoints()` factory JournalEntry/Actor/Item
-// use). This file only adds the two scene-specific extras PLAN.md's Phase 11
-// calls for: activation and grid/dimension info.
+// use). This file only adds the scene-specific extras: activation and
+// grid/dimension info (PLAN.md's Phase 11), plus fog-of-war reset (Phase 46).
 import {
   SCENE_COMMANDS,
   type DocumentData,
   type SceneDimensions,
   type SceneIdInput,
+  type SceneResetFogResult,
 } from "@foundry-local-api/shared";
 
 import { registerCommand } from "../command-registry.js";
@@ -31,6 +32,15 @@ registerCommand(SCENE_COMMANDS.ACTIVATE, async ({ id }: SceneIdInput): Promise<D
   await scene.activate();
   return scene.toObject();
 });
+
+registerCommand(
+  SCENE_COMMANDS.RESET_FOG,
+  async ({ id }: SceneIdInput): Promise<SceneResetFogResult> => {
+    const scene = requireScene(id);
+    await scene.resetFog();
+    return { id };
+  },
+);
 
 registerCommand(SCENE_COMMANDS.GET_DIMENSIONS, ({ id }: SceneIdInput): SceneDimensions => {
   const scene = requireScene(id);

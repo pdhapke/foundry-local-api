@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **173**.
+Total tools: **186**.
 
 ## Contents
 
@@ -35,6 +35,7 @@ Total tools: **173**.
 - [user](#user)
 - [users](#users)
 - [world](#world)
+- [world-time](#world-time)
 - [Integration: dnd5e](#integration-dnd5e-system)
 
 ## actors
@@ -218,6 +219,14 @@ REST: `GET /api/canvas/selection`
 
 _No input._
 
+### `foundry_get_targets`
+
+Reads the tokens currently targeted by the connected client's user (game.user.targets), plus the currently-viewed scene id.
+
+REST: `GET /api/canvas/targets`
+
+_No input._
+
 ### `foundry_pan_canvas`
 
 Pans/zooms the currently-viewed canvas on the connected client. Omitted x/y/scale keep their current value.
@@ -229,6 +238,29 @@ REST: `POST /api/canvas/pan`
 | `x` | number | no |  |
 | `y` | number | no |  |
 | `scale` | number | no |  |
+
+### `foundry_push_view_to_players`
+
+Pans/zooms every connected client's canvas (GM and players alike) to the same view, via a module-scoped socket broadcast — unlike foundry_pan_canvas, which only moves the connected client's own camera. Omitted x/y/scale keep each client's current value.
+
+REST: `POST /api/canvas/push-view`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `x` | number | no |  |
+| `y` | number | no |  |
+| `scale` | number | no |  |
+
+### `foundry_set_targets`
+
+Targets the given tokens for the connected client's user, replacing any existing targets unless `additive` is true.
+
+REST: `POST /api/canvas/targets`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `tokenIds` | array | yes |  |
+| `additive` | boolean | no |  |
 
 ## cards
 
@@ -315,6 +347,16 @@ REST: `PUT /api/cards/:id`
 
 ## chat
 
+### `foundry_delete_chat_message`
+
+Deletes a chat message by id.
+
+REST: `DELETE /api/chat/:id`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
 ### `foundry_list_chat_messages`
 
 Lists recent chat log messages, oldest first. Optionally capped by `limit`.
@@ -334,6 +376,17 @@ REST: `POST /api/chat`
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `data` | object | yes |  |
+
+### `foundry_update_chat_message`
+
+Updates fields on an existing chat message.
+
+REST: `PUT /api/chat/:id`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `changes` | object | yes |  |
 
 ## combats
 
@@ -1302,6 +1355,17 @@ REST: `POST /api/scenes/:sceneId/notes`
 | `sceneId` | string | yes |  |
 | `data` | object | yes |  |
 
+### `foundry_create_scene_region`
+
+Creates a new embedded Region document on a scene.
+
+REST: `POST /api/scenes/:sceneId/regions`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `data` | object | yes |  |
+
 ### `foundry_create_scene_sound`
 
 Creates a new embedded AmbientSound document on a scene.
@@ -1383,6 +1447,17 @@ REST: `DELETE /api/scenes/:sceneId/lights/:placeableId`
 Deletes an embedded Note document from a scene by id.
 
 REST: `DELETE /api/scenes/:sceneId/notes/:placeableId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `placeableId` | string | yes |  |
+
+### `foundry_delete_scene_region`
+
+Deletes an embedded Region document from a scene by id.
+
+REST: `DELETE /api/scenes/:sceneId/regions/:placeableId`
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -1486,6 +1561,17 @@ REST: `GET /api/scenes/:sceneId/notes/:placeableId`
 | `sceneId` | string | yes |  |
 | `placeableId` | string | yes |  |
 
+### `foundry_get_scene_region`
+
+Reads a single embedded Region document from a scene by id.
+
+REST: `GET /api/scenes/:sceneId/regions/:placeableId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `placeableId` | string | yes |  |
+
 ### `foundry_get_scene_sound`
 
 Reads a single embedded AmbientSound document from a scene by id.
@@ -1560,6 +1646,16 @@ REST: `GET /api/scenes/:sceneId/notes`
 |---|---|---|---|
 | `sceneId` | string | yes |  |
 
+### `foundry_list_scene_regions`
+
+Lists every embedded Region document on a scene.
+
+REST: `GET /api/scenes/:sceneId/regions`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+
 ### `foundry_list_scene_sounds`
 
 Lists every embedded AmbientSound document on a scene.
@@ -1621,6 +1717,16 @@ REST: `POST /api/scenes/:sceneId/tokens/:tokenId/move`
 | `x` | number | yes |  |
 | `y` | number | yes |  |
 
+### `foundry_reset_scene_fog`
+
+Clears a scene's explored fog-of-war for every connected client.
+
+REST: `POST /api/scenes/:id/reset-fog`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
 ### `foundry_set_scene_token_visibility`
 
 Sets whether a token is hidden from non-GM players.
@@ -1673,6 +1779,18 @@ REST: `PUT /api/scenes/:sceneId/lights/:placeableId`
 Updates fields on an existing embedded Note document on a scene.
 
 REST: `PUT /api/scenes/:sceneId/notes/:placeableId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `placeableId` | string | yes |  |
+| `changes` | object | yes |  |
+
+### `foundry_update_scene_region`
+
+Updates fields on an existing embedded Region document on a scene.
+
+REST: `PUT /api/scenes/:sceneId/regions/:placeableId`
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -1893,6 +2011,26 @@ REST: `PUT /api/users/:userId`
 Details of the currently active Foundry world (id, title, description, system, background).
 
 REST: `GET /api/world`
+
+_No input._
+
+## world-time
+
+### `foundry_advance_world_time`
+
+Advances the world time by the given number of seconds (negative rewinds it). GM only.
+
+REST: `POST /api/world-time/advance`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `seconds` | number | yes |  |
+
+### `foundry_get_world_time`
+
+Reads the current world time (game.time.worldTime), in seconds.
+
+REST: `GET /api/world-time`
 
 _No input._
 

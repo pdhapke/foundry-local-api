@@ -1,11 +1,13 @@
 // Phase 11 — Scenes.
 //
 // Base CRUD reuses the Phase 8 `makeDocumentEndpoints()` factory with
-// `documentType: "Scene"`, same as JournalEntry/Actor/Item. The two extras
+// `documentType: "Scene"`, same as JournalEntry/Actor/Item. The extras
 // PLAN.md's Phase 11 calls for (activate scene, grid/dimension info) are
 // hand-rolled here since they're scene-specific, not generic document
 // behavior — see module/src/commands/scenes.ts for the matching module-side
 // handlers.
+//
+// Phase 46 added fog-of-war reset the same way.
 import { z } from "zod";
 
 import {
@@ -13,6 +15,7 @@ import {
   type DocumentData,
   type SceneDimensions,
   type SceneIdInput,
+  type SceneResetFogResult,
 } from "@foundry-local-api/shared";
 
 import { makeDocumentEndpoints } from "./documents.js";
@@ -41,6 +44,16 @@ const getDimensionsDescriptor: EndpointDescriptor<SceneIdInput, SceneDimensions>
     foundryClient.call<SceneIdInput, SceneDimensions>(SCENE_COMMANDS.GET_DIMENSIONS, { id }),
 };
 
+const resetFogDescriptor: EndpointDescriptor<SceneIdInput, SceneResetFogResult> = {
+  name: "foundry_reset_scene_fog",
+  description: "Clears a scene's explored fog-of-war for every connected client.",
+  method: "post",
+  path: "/scenes/:id/reset-fog",
+  inputSchema: idSchema,
+  handler: ({ id }, { foundryClient }) =>
+    foundryClient.call<SceneIdInput, SceneResetFogResult>(SCENE_COMMANDS.RESET_FOG, { id }),
+};
+
 export const sceneEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...makeDocumentEndpoints({
     documentType: "Scene",
@@ -50,4 +63,5 @@ export const sceneEndpointDescriptors: AnyEndpointDescriptor[] = [
   }),
   activateDescriptor,
   getDimensionsDescriptor,
+  resetFogDescriptor,
 ];

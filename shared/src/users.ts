@@ -22,6 +22,13 @@
 // Canvas selection reuses `DocumentData`/`DocumentDeleteResult` (shared/src/
 // documents.ts) for user document shapes, since a User is a regular Foundry
 // Document once loaded.
+//
+// Phase 44 added target read/write. Phase 25 explicitly scoped itself to
+// canvas *selection* (`canvas.tokens.controlled`) and skipped *targeting*
+// (`user.targets`) — but targeting is what most systems' attack/save rolls
+// actually key off, so it gets its own pair of commands here rather than
+// retrofitting the selection shape, mirroring `game.user.targets`'
+// independence from `canvas.tokens.controlled` in Foundry's own API.
 
 export const USER_COMMANDS = {
   GET: "userGet",
@@ -30,6 +37,8 @@ export const USER_COMMANDS = {
   DELETE: "userDelete",
   GET_STATUS: "userGetStatus",
   GET_CANVAS_SELECTION: "userGetCanvasSelection",
+  GET_TARGETS: "userGetTargets",
+  SET_TARGETS: "userSetTargets",
 } as const;
 
 export interface UserIdInput {
@@ -55,4 +64,18 @@ export interface CanvasSelectionResult {
   sceneId: string | null;
   /** Ids of the TokenDocuments currently controlled/selected on the canvas (`canvas.tokens.controlled`). */
   tokenIds: string[];
+}
+
+export interface CanvasTargetsResult {
+  /** The currently-viewed scene's id, or `null` if the connected client has none active (should not happen when a target exists). */
+  sceneId: string | null;
+  /** Ids of the TokenDocuments currently targeted by the connected user (`game.user.targets`). */
+  tokenIds: string[];
+}
+
+export interface SetCanvasTargetsInput {
+  /** TokenDocument ids to target on the currently-viewed scene. */
+  tokenIds: string[];
+  /** When true, adds to the existing target set instead of replacing it. Defaults to false (replace). */
+  additive?: boolean | undefined;
 }

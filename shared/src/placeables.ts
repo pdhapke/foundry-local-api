@@ -12,6 +12,23 @@
 // carries `documentType` alongside `sceneId`, and the server's factory (one
 // call per placeable type) bakes `documentType` in via closure, mirroring
 // how Phase 21's factory bakes in `parentType`.
+//
+// Phase 41 added "Region" (`RegionDocument`, Foundry v11+ Scene Regions) as
+// a seventh placeable type — it postdates when Phase 22 was originally
+// scoped. It needed no new server-side code beyond one more factory call
+// (server/src/endpoints/placeables.ts): `Scene#getEmbeddedCollection()`
+// already handles any embedded document type generically.
+//
+// Phase 47 added `PUSH_VIEW`: unlike every document write since Phase 8
+// (which already propagates to every connected client for free via
+// Foundry's own document-sync socket), `canvas.animatePan()` (`PAN` above)
+// only ever moves the camera of whichever single client the bridge happens
+// to be connected to — it cannot reach other players. `PUSH_VIEW` relays the
+// same x/y/scale via a module-scoped `game.socket` broadcast instead (see
+// module/src/socket.ts), so every client with this module enabled — GM and
+// players alike — pans together. Same input shape as `PAN` (`CanvasPanInput`
+// is reused, not duplicated) since "what to pan/zoom to" is identical; only
+// the delivery mechanism differs.
 
 export const EMBEDDED_PLACEABLE_COMMANDS = {
   LIST: "placeableList",
@@ -23,11 +40,21 @@ export const EMBEDDED_PLACEABLE_COMMANDS = {
 
 export const CANVAS_COMMANDS = {
   PAN: "canvasPan",
+  PUSH_VIEW: "canvasPushView",
 } as const;
 
-/** The six placeable document types embedded on a Scene that this phase covers. */
+/** The module-scoped `game.socket` event name Phase 47's view-broadcast rides on. */
+export const CANVAS_PUSH_VIEW_SOCKET_EVENT = "module.foundry-local-api";
+
+/** One broadcast socket message's shape, carried as the `game.socket` event payload. */
+export interface CanvasPushViewMessage {
+  type: "pushView";
+  view: CanvasPanInput;
+}
+
+/** The seven placeable document types embedded on a Scene that this phase covers. */
 export type PlaceableDocumentType =
-  "Drawing" | "Note" | "AmbientLight" | "AmbientSound" | "Wall" | "MeasuredTemplate";
+  "Drawing" | "Note" | "AmbientLight" | "AmbientSound" | "Wall" | "MeasuredTemplate" | "Region";
 
 export interface PlaceableParentInput {
   documentType: PlaceableDocumentType;

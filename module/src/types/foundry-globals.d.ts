@@ -161,6 +161,27 @@
 // ambient surface at all: it resolves entirely off Phase 8's existing
 // `game.collections`/`FoundryDocument#toObject()` shapes.
 //
+// Phase 47 added `game.socket` (`emit()`/`on()`) — Foundry's always-on
+// multiplayer socket, distinct from the bridge WebSocket (Phase 3) — to
+// back the camera-view-broadcast send side (module/src/commands/
+// placeables.ts's `canvasPushView`) and receive side (module/src/socket.ts).
+//
+// Phase 46 added `FoundryScene#resetFog()` to back the fog-of-war reset
+// command handler (module/src/commands/scenes.ts).
+//
+// Phase 44 added `FoundryUser#targets` (a Set of Token placeables),
+// `FoundryPlaceable#setTarget()`, and `canvas.tokens.placeables` (every
+// rendered Token placeable, used to resolve a target command's token ids) to
+// back the targeting command handlers (module/src/commands/users.ts) — a
+// sibling of Phase 25's `canvas.tokens.controlled` (selection), which
+// PLAN.md's Phase 44 text explicitly distinguishes from targeting.
+//
+// Phase 43 added `game.time` (`worldTime`/`advance()`) to back the
+// world-time command handlers (module/src/commands/world-time.ts) — the
+// fourth ambient declaration in this file that isn't a Document/collection
+// shape (after Phase 14's `Roll`, Phase 24's `FilePicker`, Phase 27's
+// `TextEditor`).
+//
 // Phase 34 added `system: Record<string, unknown>` to `FoundryActor`/
 // `FoundryItem` — the first phase needing a document's *live, derived*
 // system data at runtime (every earlier phase only ever needed
@@ -221,6 +242,8 @@ interface FoundryUser {
   /** Updates this user document's fields (e.g. `{ role }`) — a User is itself a Document. */
   update(changes: Record<string, unknown>): Promise<FoundryUser>;
   delete(): Promise<FoundryUser>;
+  /** The Token placeables this user currently has targeted (Phase 44) — distinct from canvas selection. */
+  targets: Set<FoundryPlaceable>;
 }
 
 /** Shape of each value in `game.modules`. */
@@ -316,6 +339,8 @@ interface FoundryScene extends FoundryDocument {
   };
   /** Makes this the world's active/viewed scene. */
   activate(): Promise<FoundryScene>;
+  /** Clears this scene's explored fog-of-war for every connected client (Phase 46). */
+  resetFog(): Promise<void>;
   /** The scene's embedded Token documents. */
   tokens: Map<string, FoundryDocument>;
   /** Creates one or more embedded documents of the given type (e.g. "Token") on this scene. */
@@ -494,6 +519,23 @@ declare const game: {
    * client and requires a GM user. Returns the new paused state.
    */
   togglePause(pause?: boolean, options?: { broadcast?: boolean }): boolean;
+  /** The world's in-game clock — the subset of its API Phase 43 drives. */
+  time: {
+    /** Seconds elapsed in the game world. */
+    worldTime: number;
+    /** Advances (or with a negative value, rewinds) the world time by the given number of seconds, returning the new value. */
+    advance(seconds: number): Promise<number>;
+  };
+  /**
+   * Foundry's always-on multiplayer socket, distinct from the bridge
+   * WebSocket (Phase 3). `emit()` on one client is relayed by Foundry's
+   * server to every *other* connected client, never back to the sender
+   * itself (Phase 47's `module/src/socket.ts` relies on this).
+   */
+  socket: {
+    emit(event: string, data: unknown): void;
+    on(event: string, callback: (data: unknown) => void): void;
+  };
 };
 
 /** Keyed by Foundry document type name (e.g. "JournalEntry"). */
@@ -540,6 +582,8 @@ declare class TextEditor {
 interface FoundryPlaceable {
   id: string;
   document: FoundryDocument;
+  /** Targets (or, with `targeted: false`, un-targets) this placeable for `options.user` (Phase 44). */
+  setTarget(targeted?: boolean, options?: { user?: FoundryUser; releaseOthers?: boolean }): void;
 }
 
 /** The currently-rendered game canvas, `null` before a scene has been activated/viewed. */
@@ -557,7 +601,11 @@ declare const canvas:
       /** The Scene document currently being viewed. */
       scene: FoundryDocument | null;
       /** The token layer, whose `controlled` array holds the currently-selected Token placeables. */
-      tokens: { controlled: FoundryPlaceable[] };
+      tokens: {
+        controlled: FoundryPlaceable[];
+        /** Every Token placeable currently rendered on this layer (Phase 44's target lookup resolves ids against this). */
+        placeables: FoundryPlaceable[];
+      };
     }
   | null
   | undefined;

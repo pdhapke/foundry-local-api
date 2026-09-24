@@ -150,6 +150,23 @@ void describe("Phase 22 canvas & scene placeables", () => {
     assert.deepEqual(res.body, [{ _id: "w1" }]);
   });
 
+  void it("GET /api/scenes/:sceneId/regions lists a scene's embedded regions with documentType: Region", async () => {
+    // Phase 41 — Scene Regions, a seventh placeable type added via one more
+    // `makeEmbeddedPlaceableEndpoints()` call, same wiring proof as the Wall
+    // case above.
+    const app = buildApp(((type: string, payload: PlaceableParentInput) => {
+      assert.equal(type, "placeableList");
+      assert.deepEqual(payload, { documentType: "Region", sceneId: "s1" });
+      const result: DocumentData[] = [{ _id: "r1" }];
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).get("/api/scenes/s1/regions").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, [{ _id: "r1" }]);
+  });
+
   void it("POST /api/canvas/pan forwards x/y/scale to the bridge", async () => {
     const app = buildApp(((type: string, payload: CanvasPanInput) => {
       assert.equal(type, "canvasPan");
@@ -165,6 +182,26 @@ void describe("Phase 22 canvas & scene placeables", () => {
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { x: 100, y: 200, scale: 1.5 });
+  });
+
+  void it("POST /api/canvas/push-view forwards x/y/scale to the bridge", async () => {
+    // Phase 47 — broadcasts the view to every connected client, unlike
+    // foundry_pan_canvas above which only moves the connected client's own
+    // camera; same wire shape (canvasPushView vs. canvasPan).
+    const app = buildApp(((type: string, payload: CanvasPanInput) => {
+      assert.equal(type, "canvasPushView");
+      assert.deepEqual(payload, { x: 50, y: 75, scale: 1 });
+      const result: CanvasPanResult = { x: 50, y: 75, scale: 1 };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/canvas/push-view")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ x: 50, y: 75, scale: 1 });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { x: 50, y: 75, scale: 1 });
   });
 
   void it("rejects a request with a missing/incorrect API key with 401", async () => {

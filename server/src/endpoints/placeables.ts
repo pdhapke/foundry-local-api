@@ -1,16 +1,24 @@
 // Phase 22 — Canvas & Scene Placeables.
 //
-// Six placeable document types (Drawing, Note, AmbientLight, AmbientSound,
-// Wall, MeasuredTemplate) are all embedded on a Scene, the same parent
-// Phase 12's Token uses — so this file defines one factory
+// Seven placeable document types (Drawing, Note, AmbientLight, AmbientSound,
+// Wall, MeasuredTemplate, Region) are all embedded on a Scene, the same
+// parent Phase 12's Token uses — so this file defines one factory
 // (`makeEmbeddedPlaceableEndpoints()`, mirroring Phase 21's
 // `makeEmbeddedEffectEndpoints()`) and calls it once per placeable type
-// rather than hand-rolling six near-identical sets of descriptors.
+// rather than hand-rolling near-identical sets of descriptors per type.
 // `documentType` is baked into each call's descriptors via closure; only
 // `sceneId`/`placeableId` travel as REST path params. Also adds the
 // scene-independent camera pan/zoom endpoint PLAN.md's Phase 22 text calls
 // for. See module/src/commands/placeables.ts for the matching module-side
 // handlers.
+//
+// Phase 41 added "Region" (`RegionDocument`, Foundry v11+ Scene Regions) as
+// a seventh call to the same factory — no new server-side code otherwise.
+// On a pre-v11 core, `Scene#getEmbeddedCollection("regions")` throws
+// module-side (see requirePlaceable()/the collection lookup in
+// module/src/commands/placeables.ts), which the registry's existing
+// FoundryBridgeError handling already turns into a clear REST/MCP error
+// rather than a crash — no extra version-guard code was needed.
 import { z } from "zod";
 
 import {
@@ -152,6 +160,19 @@ const canvasPanDescriptor: EndpointDescriptor<CanvasPanInput, CanvasPanResult> =
     foundryClient.call<CanvasPanInput, CanvasPanResult>(CANVAS_COMMANDS.PAN, input),
 };
 
+const pushViewDescriptor: EndpointDescriptor<CanvasPanInput, CanvasPanResult> = {
+  name: "foundry_push_view_to_players",
+  description:
+    "Pans/zooms every connected client's canvas (GM and players alike) to the same view, via a " +
+    "module-scoped socket broadcast — unlike foundry_pan_canvas, which only moves the connected " +
+    "client's own camera. Omitted x/y/scale keep each client's current value.",
+  method: "post",
+  path: "/canvas/push-view",
+  inputSchema: canvasPanSchema,
+  handler: (input, { foundryClient }) =>
+    foundryClient.call<CanvasPanInput, CanvasPanResult>(CANVAS_COMMANDS.PUSH_VIEW, input),
+};
+
 export const placeableEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...makeEmbeddedPlaceableEndpoints({
     documentType: "Drawing",
@@ -183,5 +204,11 @@ export const placeableEndpointDescriptors: AnyEndpointDescriptor[] = [
     routeBase: "templates",
     toolPrefix: "template",
   }),
+  ...makeEmbeddedPlaceableEndpoints({
+    documentType: "Region",
+    routeBase: "regions",
+    toolPrefix: "region",
+  }),
   canvasPanDescriptor,
+  pushViewDescriptor,
 ];

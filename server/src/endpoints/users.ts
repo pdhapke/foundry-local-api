@@ -16,8 +16,10 @@ import { z } from "zod";
 import {
   USER_COMMANDS,
   type CanvasSelectionResult,
+  type CanvasTargetsResult,
   type DocumentData,
   type DocumentDeleteResult,
+  type SetCanvasTargetsInput,
   type UserCreateInput,
   type UserIdInput,
   type UserStatusResult,
@@ -30,6 +32,10 @@ const documentDataSchema = z.record(z.string(), z.unknown());
 const userIdSchema = z.object({ userId: z.string().min(1) });
 const createSchema = z.object({ data: documentDataSchema });
 const updateSchema = userIdSchema.extend({ changes: documentDataSchema });
+const setTargetsSchema = z.object({
+  tokenIds: z.array(z.string().min(1)),
+  additive: z.boolean().optional(),
+});
 
 const getUserDescriptor: EndpointDescriptor<UserIdInput, DocumentData> = {
   name: "foundry_get_user_by_id",
@@ -91,6 +97,30 @@ const getCanvasSelectionDescriptor: EndpointDescriptor<void, CanvasSelectionResu
     foundryClient.call<undefined, CanvasSelectionResult>(USER_COMMANDS.GET_CANVAS_SELECTION),
 };
 
+const getCanvasTargetsDescriptor: EndpointDescriptor<void, CanvasTargetsResult> = {
+  name: "foundry_get_targets",
+  description:
+    "Reads the tokens currently targeted by the connected client's user (game.user.targets), plus the currently-viewed scene id.",
+  method: "get",
+  path: "/canvas/targets",
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, CanvasTargetsResult>(USER_COMMANDS.GET_TARGETS),
+};
+
+const setCanvasTargetsDescriptor: EndpointDescriptor<SetCanvasTargetsInput, CanvasTargetsResult> = {
+  name: "foundry_set_targets",
+  description:
+    "Targets the given tokens for the connected client's user, replacing any existing targets unless `additive` is true.",
+  method: "post",
+  path: "/canvas/targets",
+  inputSchema: setTargetsSchema,
+  handler: (input, { foundryClient }) =>
+    foundryClient.call<SetCanvasTargetsInput, CanvasTargetsResult>(
+      USER_COMMANDS.SET_TARGETS,
+      input,
+    ),
+};
+
 export const userEndpointDescriptors: AnyEndpointDescriptor[] = [
   getUserDescriptor,
   createUserDescriptor,
@@ -98,4 +128,6 @@ export const userEndpointDescriptors: AnyEndpointDescriptor[] = [
   deleteUserDescriptor,
   getUserStatusDescriptor,
   getCanvasSelectionDescriptor,
+  getCanvasTargetsDescriptor,
+  setCanvasTargetsDescriptor,
 ];

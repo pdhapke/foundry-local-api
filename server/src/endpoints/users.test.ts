@@ -14,8 +14,10 @@ import request from "supertest";
 
 import type {
   CanvasSelectionResult,
+  CanvasTargetsResult,
   DocumentData,
   DocumentDeleteResult,
+  SetCanvasTargetsInput,
   UserCreateInput,
   UserIdInput,
   UserStatusResult,
@@ -145,6 +147,36 @@ void describe("Phase 25 users & client state", () => {
     }) as FoundryClient["call"]);
 
     const res = await request(app).get("/api/canvas/selection").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { sceneId: "s1", tokenIds: ["t1", "t2"] });
+  });
+
+  void it("GET /api/canvas/targets reads the currently targeted tokens and scene id", async () => {
+    const app = buildApp(((type: string) => {
+      assert.equal(type, "userGetTargets");
+      const result: CanvasTargetsResult = { sceneId: "s1", tokenIds: ["t1"] };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).get("/api/canvas/targets").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { sceneId: "s1", tokenIds: ["t1"] });
+  });
+
+  void it("POST /api/canvas/targets forwards tokenIds/additive and returns the resulting targets", async () => {
+    const app = buildApp(((type: string, payload: SetCanvasTargetsInput) => {
+      assert.equal(type, "userSetTargets");
+      assert.deepEqual(payload, { tokenIds: ["t1", "t2"], additive: true });
+      const result: CanvasTargetsResult = { sceneId: "s1", tokenIds: ["t1", "t2"] };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .post("/api/canvas/targets")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ tokenIds: ["t1", "t2"], additive: true });
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { sceneId: "s1", tokenIds: ["t1", "t2"] });

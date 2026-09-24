@@ -54,7 +54,7 @@ export type {
 } from "./items.js";
 
 export { SCENE_COMMANDS } from "./scenes.js";
-export type { SceneIdInput, SceneDimensions } from "./scenes.js";
+export type { SceneIdInput, SceneDimensions, SceneResetFogResult } from "./scenes.js";
 
 export { TOKEN_COMMANDS } from "./tokens.js";
 export type {
@@ -123,7 +123,11 @@ export type {
   EffectUpdateInput,
 } from "./active-effects.js";
 
-export { EMBEDDED_PLACEABLE_COMMANDS, CANVAS_COMMANDS } from "./placeables.js";
+export {
+  EMBEDDED_PLACEABLE_COMMANDS,
+  CANVAS_COMMANDS,
+  CANVAS_PUSH_VIEW_SOCKET_EVENT,
+} from "./placeables.js";
 export type {
   PlaceableDocumentType,
   PlaceableParentInput,
@@ -132,6 +136,7 @@ export type {
   PlaceableUpdateInput,
   CanvasPanInput,
   CanvasPanResult,
+  CanvasPushViewMessage,
 } from "./placeables.js";
 
 export { PERMISSION_COMMANDS } from "./permissions.js";
@@ -162,6 +167,8 @@ export type {
   UserUpdateInput,
   UserStatusResult,
   CanvasSelectionResult,
+  CanvasTargetsResult,
+  SetCanvasTargetsInput,
 } from "./users.js";
 
 export { LOCALIZATION_COMMANDS } from "./localization.js";
@@ -179,6 +186,9 @@ export type { FoundryEventRecord, RecentEventsInput, RecentEventsResult } from "
 
 export { GAME_STATE_COMMANDS } from "./game-state.js";
 export type { GamePausedResult, SetGamePausedInput } from "./game-state.js";
+
+export { WORLD_TIME_COMMANDS } from "./world-time.js";
+export type { WorldTimeResult, AdvanceWorldTimeInput } from "./world-time.js";
 
 export { DND5E_COMMANDS } from "./dnd5e.js";
 export type {

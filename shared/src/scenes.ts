@@ -5,12 +5,24 @@
 // (server/src/endpoints/scenes.ts) and the module's scene command handlers
 // (module/src/commands/scenes.ts).
 
+// Phase 46 added fog-of-war reset (`RESET_FOG`), wrapping Foundry's own
+// `Scene#resetFog()`. Foundry's implementation resolves purely off the
+// target Scene document's own id (it clears that scene's FogExploration
+// records, not anything tied to whichever scene is currently viewed), so
+// this operates on any scene by id, same as `ACTIVATE`/`GET_DIMENSIONS`
+// above — no "must be the active scene" restriction was needed.
 export const SCENE_COMMANDS = {
   ACTIVATE: "sceneActivate",
   GET_DIMENSIONS: "sceneGetDimensions",
+  RESET_FOG: "sceneResetFog",
 } as const;
 
 export interface SceneIdInput {
+  id: string;
+}
+
+/** `Scene#resetFog()` itself resolves with no meaningful data (it's a fire-and-forget socket request); this just confirms which scene was targeted. */
+export interface SceneResetFogResult {
   id: string;
 }
 

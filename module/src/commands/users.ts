@@ -20,11 +20,22 @@
 // Canvas selection is read-only and scene-independent, a sibling of Phase
 // 22's camera pan (module/src/commands/placeables.ts) — same "no active
 // canvas" error precedent.
+//
+// Phase 44 added target read/write, resolving off `game.user.targets` (a Set
+// of Token placeables, distinct from `canvas.tokens.controlled` which is
+// selection) and each Token placeable's own `setTarget()`. Replacing the
+// target set (the non-additive default) is done manually — clear every
+// existing target with `releaseOthers: false`, then set each new one the
+// same way — rather than relying on `setTarget()`'s own `releaseOthers`
+// default (`true`), which would otherwise clear on every call in a multi-
+// target loop instead of just once up front.
 import {
   USER_COMMANDS,
   type CanvasSelectionResult,
+  type CanvasTargetsResult,
   type DocumentData,
   type DocumentDeleteResult,
+  type SetCanvasTargetsInput,
   type UserCreateInput,
   type UserIdInput,
   type UserStatusResult,
@@ -102,3 +113,37 @@ registerCommand(USER_COMMANDS.GET_CANVAS_SELECTION, (): CanvasSelectionResult =>
     tokenIds: canvas.tokens.controlled.map((placeable) => placeable.document.id),
   };
 });
+
+function currentTargetsResult(): CanvasTargetsResult {
+  if (!canvas) {
+    throw new Error("No active canvas — no scene is currently being viewed");
+  }
+  return {
+    sceneId: canvas.scene?.id ?? null,
+    tokenIds: Array.from(game.user.targets).map((placeable) => placeable.document.id),
+  };
+}
+
+registerCommand(USER_COMMANDS.GET_TARGETS, (): CanvasTargetsResult => currentTargetsResult());
+
+registerCommand(
+  USER_COMMANDS.SET_TARGETS,
+  ({ tokenIds, additive }: SetCanvasTargetsInput): CanvasTargetsResult => {
+    if (!canvas) {
+      throw new Error("No active canvas — no scene is currently being viewed");
+    }
+    if (!additive) {
+      for (const placeable of Array.from(game.user.targets)) {
+        placeable.setTarget(false, { user: game.user, releaseOthers: false });
+      }
+    }
+    for (const tokenId of tokenIds) {
+      const placeable = canvas.tokens.placeables.find((t) => t.id === tokenId);
+      if (!placeable) {
+        throw new Error(`Token "${tokenId}" not found on the current canvas`);
+      }
+      placeable.setTarget(true, { user: game.user, releaseOthers: false });
+    }
+    return currentTargetsResult();
+  },
+);

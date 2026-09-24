@@ -29,6 +29,7 @@ import { settingsEndpointDescriptors } from "./settings.js";
 import { tokenEndpointDescriptors } from "./tokens.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 import { userEndpointDescriptors } from "./users.js";
+import { worldTimeEndpointDescriptors } from "./world-time.js";
 
 export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   healthEndpointDescriptor,
@@ -58,6 +59,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...eventEndpointDescriptors,
   ...bulkEndpointDescriptors,
   ...gameStateEndpointDescriptors,
+  ...worldTimeEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";

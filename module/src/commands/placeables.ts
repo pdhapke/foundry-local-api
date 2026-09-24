@@ -3,17 +3,25 @@
 // (module/src/command-registry.ts) and imported for side effects from
 // module/src/index.ts.
 //
-// Six placeable document types (Drawing, Note, AmbientLight, AmbientSound,
-// Wall, MeasuredTemplate) are all embedded on a Scene, so every CRUD handler
-// below resolves its collection generically off `Scene#getEmbeddedCollection
-// (documentType)` rather than naming six separate scene properties —
-// mirroring how Phase 21's handlers resolve their parent generically off
-// `game.collections.get(parentType)`.
+// Seven placeable document types (Drawing, Note, AmbientLight, AmbientSound,
+// Wall, MeasuredTemplate, Region) are all embedded on a Scene, so every CRUD
+// handler below resolves its collection generically off
+// `Scene#getEmbeddedCollection(documentType)` rather than naming each scene
+// property individually — mirroring how Phase 21's handlers resolve their
+// parent generically off `game.collections.get(parentType)`.
+//
+// Phase 47 added `canvasPushView`, a sibling of `canvasPan` that also
+// broadcasts the same x/y/scale to every other connected client via
+// `game.socket` (see module/src/socket.ts for the matching receive-side
+// listener, registered unconditionally at module load so it fires even on
+// clients — players — that never open a bridge connection at all).
 import {
   CANVAS_COMMANDS,
+  CANVAS_PUSH_VIEW_SOCKET_EVENT,
   EMBEDDED_PLACEABLE_COMMANDS,
   type CanvasPanInput,
   type CanvasPanResult,
+  type CanvasPushViewMessage,
   type DocumentData,
   type DocumentDeleteResult,
   type PlaceableCreateInput,
@@ -104,3 +112,20 @@ registerCommand(CANVAS_COMMANDS.PAN, async (input: CanvasPanInput): Promise<Canv
   await canvas.animatePan(input);
   return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
 });
+
+registerCommand(
+  CANVAS_COMMANDS.PUSH_VIEW,
+  async (input: CanvasPanInput): Promise<CanvasPanResult> => {
+    if (!canvas) {
+      throw new Error("No active canvas — no scene is currently being viewed");
+    }
+    // `game.socket.emit()` is not delivered back to the emitting client (see
+    // module/src/socket.ts's header comment), so the connected (GM) client's
+    // own camera is panned directly here, alongside the broadcast every
+    // *other* client's listener picks up.
+    const message: CanvasPushViewMessage = { type: "pushView", view: input };
+    game.socket.emit(CANVAS_PUSH_VIEW_SOCKET_EVENT, message);
+    await canvas.animatePan(input);
+    return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
+  },
+);

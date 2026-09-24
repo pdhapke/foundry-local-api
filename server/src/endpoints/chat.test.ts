@@ -8,7 +8,14 @@ import { describe, it } from "node:test";
 
 import request from "supertest";
 
-import type { ChatListInput, ChatMessageData, ChatSendInput } from "@foundry-local-api/shared";
+import type {
+  ChatListInput,
+  ChatMessageData,
+  ChatSendInput,
+  DocumentDeleteResult,
+  DocumentIdInput,
+  DocumentUpdateInput,
+} from "@foundry-local-api/shared";
 
 import { createApp } from "../app.js";
 import type { FoundryClient } from "../bridge/foundry-client.js";
@@ -75,6 +82,43 @@ void describe("Phase 14 chat", () => {
 
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, { _id: "m2", content: "Hello!" });
+  });
+
+  void it("PUT /api/chat/:id updates a message via the generic ChatMessage document commands", async () => {
+    // Phase 45 — reuses Phase 8's generic DOCUMENT_COMMANDS.UPDATE with
+    // documentType: "ChatMessage", not a dedicated chat command.
+    const app = buildApp(((type: string, payload: DocumentUpdateInput) => {
+      assert.equal(type, "documentUpdate");
+      assert.deepEqual(payload, {
+        documentType: "ChatMessage",
+        id: "m1",
+        changes: { content: "Edited" },
+      });
+      const result: ChatMessageData = { _id: "m1", content: "Edited" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .put("/api/chat/m1")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ changes: { content: "Edited" } });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "m1", content: "Edited" });
+  });
+
+  void it("DELETE /api/chat/:id deletes a message via the generic ChatMessage document commands", async () => {
+    const app = buildApp(((type: string, payload: DocumentIdInput) => {
+      assert.equal(type, "documentDelete");
+      assert.deepEqual(payload, { documentType: "ChatMessage", id: "m1" });
+      const result: DocumentDeleteResult = { id: "m1" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).delete("/api/chat/m1").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { id: "m1" });
   });
 
   void it("rejects a request with a missing/incorrect API key with 401", async () => {

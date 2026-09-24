@@ -5,6 +5,14 @@
 // running the Phase 8 generic factory against `ChatMessage`. Shared between
 // the server's chat endpoints (server/src/endpoints/chat.ts) and the
 // module's chat command handlers (module/src/commands/chat.ts).
+//
+// Phase 45 added update/delete of a single message. These reuse Phase 8's
+// generic `DOCUMENT_COMMANDS.UPDATE`/`DELETE` with `documentType:
+// "ChatMessage"` directly (see server/src/endpoints/chat.ts) rather than
+// adding new commands here — the module-side handlers already registered
+// for Phase 8 are fully generic across document types and need no
+// ChatMessage-specific code. Only list/create were ever narrowed; update/
+// delete were simply never wired up to a route.
 
 export const CHAT_COMMANDS = {
   LIST: "chatList",
