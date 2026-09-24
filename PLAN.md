@@ -76,14 +76,15 @@ its own before moving to the next.
 | 36 — Integration Template & Second Example | ✅ Done | `e8aaa46` |
 | 37 — Live Smoke-Test Pass | ✅ Done | `5378438` |
 | 38 — Game Pause/Resume & Bridge Reconnect Fix | ✅ Done | `7b331a1` |
-| 39 — Combatant Update | ⬜ Not started | — |
-| 40 — Combat Turn/Round Navigation | ⬜ Not started | — |
+| 39 — Combatant Update | ✅ Done | `4b15288` |
+| 40 — Combat Turn/Round Navigation | ✅ Done | `4b15288` |
 | 41 — Scene Regions | ⬜ Not started | — |
 | 42 — UI Notifications | ⬜ Not started | — |
 | 43 — World Time / Calendar | ⬜ Not started | — |
 | 44 — Token Targeting | ⬜ Not started | — |
 | 45 — Chat Message Update/Delete | ⬜ Not started | — |
 | 46 — Fog of War Reset | ⬜ Not started | — |
+| 47 — Broadcast Camera View to All Players | ⬜ Not started | — |
 
 ---
 
@@ -288,6 +289,8 @@ Done (`7b331a1`).
 
 ## Phase 39 — Combatant Update
 
+Done (`4b15288`).
+
 Phase 16 added embedded Combatant create/remove only; there's no way to
 change a combatant's fields without deleting and re-adding it.
 
@@ -296,10 +299,12 @@ change a combatant's fields without deleting and re-adding it.
   pattern as every embedded document since Phase 10) — `defeated`, `hidden`,
   `initiative`, name override, etc.
 - MCP: `foundry_update_combatant`.
-- No new ambient declaration expected — an embedded Combatant is already a
-  `FoundryDocument`.
+- No new ambient declaration was needed — an embedded Combatant is already a
+  `FoundryDocument`, confirming the plan's prediction.
 
 ## Phase 40 — Combat Turn/Round Navigation
+
+Done (`4b15288`).
 
 Phase 16 added `start`/`next-turn`/`next-round`/`end` only; there's no way to
 step backward.
@@ -307,8 +312,11 @@ step backward.
 - `POST /api/combats/:id/previous-turn`, `POST /api/combats/:id/previous-
   round` wrapping `Combat#previousTurn()`/`Combat#previousRound()`.
 - MCP: `foundry_combat_previous_turn`, `foundry_combat_previous_round`.
-- Check whether either method shows a blocking dialog the way Phase 37 found
-  `endCombat()` did, before assuming a direct call is headless-safe.
+- **Not live-verified**: Foundry core's source shows neither method opening a
+  dialog the way Phase 37 found `endCombat()` did, so they're implemented as
+  direct pass-throughs like `next-turn`/`next-round`. Unlike Phase 37's
+  findings this wasn't confirmed against a running world — flag for the next
+  live smoke-test pass.
 
 ## Phase 41 — Scene Regions
 
@@ -333,8 +341,15 @@ No way currently to push a message to a connected client's screen outside of
 chat — useful for an agent that wants to surface a status update to the GM
 without polluting the chat log.
 
-- `POST /api/notify {message, type: 'info'|'warn'|'error'}` wrapping
-  `ui.notifications.notify(message, type)`.
+- `POST /api/notify {message, type: 'info'|'warn'|'error', target?:
+  'caller'|'all'}` wrapping `ui.notifications.notify(message, type)`.
+  `ui.notifications.notify()` is client-local only — it does **not**
+  propagate to other connected clients the way a document write does — so
+  `target: 'all'` (default `'caller'`, matching the historical single-client
+  behavior) relays through the same `game.socket.emit()` broadcast mechanism
+  built in Phase 47, letting a notification actually reach players, not just
+  the GM's own screen. Build after or alongside Phase 47, reusing its socket
+  plumbing rather than inventing a second one.
 - MCP: `foundry_notify`.
 - New ambient declaration: a minimal `ui.notifications` surface in
   `foundry-globals.d.ts` (this project's first ambient `ui.*` declaration).
@@ -386,6 +401,32 @@ No way currently to clear a scene's explored fog-of-war.
   (like Phase 22's camera pan) or can operate on any scene by id; Foundry's
   own method may only make sense for the active one.
 
+## Phase 47 — Broadcast Camera View to All Players
+
+Found during a DM-workflow audit (functions an AI running a live session
+needs): Phase 22's camera pan/zoom (`canvas.animatePan()`) only moves the
+camera of whichever single client the bridge happens to be connected to
+(`server/src/bridge/gateway.ts` intentionally supports exactly one active
+bridge connection). It does not, and structurally cannot, reach other
+connected players — unlike document writes (scene activate, HP changes,
+token moves, chat messages), which already propagate to every client for
+free via Foundry's own document-sync socket. Pan/zoom and Phase 42's
+`ui.notifications.notify()` are the two client-local exceptions to that.
+
+- `POST /api/canvas/push-view {x, y, scale}` — the GM's connected module
+  instance relays via `game.socket.emit()` on a module-scoped socket event,
+  rather than calling `canvas.animatePan()` only on itself.
+- Every client that has this module enabled — including players, who never
+  open a bridge connection at all (`module/src/index.ts`'s `Hooks.once("init"
+  /"ready")` wiring runs on every client regardless of whether its own
+  bridge WS ever connects) — registers a listener for that socket event and
+  calls `canvas.animatePan()` locally on receipt. No change to the "one
+  active bridge connection" design (Phase 3) is needed: this rides Foundry's
+  own always-on multiplayer socket, not the bridge.
+- MCP: `foundry_push_view_to_players`.
+- Phase 42 (build after or alongside this one) reuses the same socket
+  plumbing for its `target: 'all'` notification broadcast.
+
 ---
 
 ## Backlog — noted, not scheduled
@@ -410,6 +451,12 @@ any of these to a numbered phase on request.
   (drops every connected player); probably should **not** be exposed via
   this API at all rather than being a scheduling gap. Flagging for an
   explicit decision, not implementation.
+- **Launching Foundry / logging into a world / the Setup screen.** These all
+  happen *before* any world is running and before this module's code loads
+  at all — the module only activates inside an already-running world, in an
+  already-authenticated browser tab. Not a phase gap: it's a different
+  automation surface (driving the actual browser/Electron UI), out of scope
+  for this REST/MCP server entirely.
 
 ---
 
@@ -422,7 +469,30 @@ any of these to a numbered phase on request.
   methods).
 - Every phase = endpoint(s) + matching MCP tool(s) + test — never land a
   REST route without its MCP counterpart in the same phase.
-- Phases 39–46 are mutually independent domain additions (same shape as the
-  original Phases 22–28 "Execution Batching"), except 39/40 both touch
-  `combats.ts`/`shared/src/combats.ts` and should not be worked fully in
-  parallel against each other.
+- Phases 39–47 are mutually independent domain additions (same shape as the
+  original Phases 22–28 "Execution Batching"), grouped below into tracks that
+  touch disjoint files and so can genuinely run in parallel (e.g. as separate
+  engineers or separate agent sessions) without stepping on each other:
+
+  - **Track A — Combat** (`combats.ts` + `shared/src/combats.ts`): Phase 39
+    → Phase 40, **sequential** — both touch the same combat-domain files, so
+    don't work them fully in parallel against each other. **Done** — both
+    landed together in one pass since they're small and share a file anyway.
+  - **Track B — Canvas broadcast** (`placeables.ts` server+module +
+    `foundry-globals.d.ts` ambient `game.socket` declaration): Phase 47 →
+    Phase 42, **sequential** — 42's `target: 'all'` notification option
+    reuses 47's socket-broadcast plumbing, so 47 must land first.
+  - **Track C — Scene Regions** (`placeables.ts`): Phase 41 alone. Shares
+    `placeables.ts` with Track B (Phase 47 adds `push-view` there too), but
+    both are pure additive descriptor/factory-call insertions in unrelated
+    parts of the file — a trivial merge, not a logical conflict — so 41 can
+    run alongside Track B rather than queuing behind it.
+  - **Track D — World Time** (`world-time.ts`, new file): Phase 43 alone.
+  - **Track E — Token Targeting** (`users.ts`, mirrors Phase 25's selection
+    endpoint): Phase 44 alone.
+  - **Track F — Chat Message CRUD** (`chat.ts`): Phase 45 alone.
+  - **Track G — Fog of War** (`scenes.ts`): Phase 46 alone.
+
+  Tracks A–G can all be started at the same time; only the two sequential
+  pairs called out above (39→40, 47→42) impose ordering, and both are within
+  a single track, not across tracks.
