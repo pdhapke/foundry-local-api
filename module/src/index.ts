@@ -12,7 +12,7 @@ import {
   registerBridgeSettings,
 } from "./bridge-client.js";
 import { registerHookForwarding } from "./hooks.js";
-import { registerCanvasBroadcastListener } from "./socket.js";
+import { registerModuleSocketListener } from "./socket.js";
 import "./command-registry.js";
 import "./commands/meta.js";
 import "./commands/settings.js";
@@ -41,6 +41,7 @@ import "./commands/bulk.js";
 import "./commands/game-state.js";
 import "./commands/dnd5e.js";
 import "./commands/world-time.js";
+import "./commands/notifications.js";
 
 // Set once `ready` constructs the client; `registerBridgeSettings()` is
 // called from `init` (before the client exists), but a GM can't reach the
@@ -58,6 +59,6 @@ Hooks.once("ready", () => {
   client.connect();
   registerHookForwarding(client);
   // Registered unconditionally — must fire on every client (including
-  // players, who never open a bridge connection) per PLAN.md's Phase 47.
-  registerCanvasBroadcastListener();
+  // players, who never open a bridge connection) per PLAN.md's Phase 47/42.
+  registerModuleSocketListener();
 });

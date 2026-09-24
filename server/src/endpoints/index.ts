@@ -18,6 +18,7 @@ import { journalPageEndpointDescriptors } from "./journal-pages.js";
 import { localizationEndpointDescriptors } from "./localization.js";
 import { macroEndpointDescriptors } from "./macros.js";
 import { metaEndpointDescriptors } from "./meta.js";
+import { notificationEndpointDescriptors } from "./notifications.js";
 import { packEndpointDescriptors } from "./packs.js";
 import { permissionEndpointDescriptors } from "./permissions.js";
 import { placeableEndpointDescriptors } from "./placeables.js";
@@ -60,6 +61,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...bulkEndpointDescriptors,
   ...gameStateEndpointDescriptors,
   ...worldTimeEndpointDescriptors,
+  ...notificationEndpointDescriptors,
 ];
 
 export { makeDocumentEndpoints } from "./documents.js";

@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **186**.
+Total tools: **187**.
 
 ## Contents
 
@@ -23,6 +23,7 @@ Total tools: **186**.
 - [macros](#macros)
 - [meta](#meta)
 - [modules](#modules)
+- [notify](#notify)
 - [packs](#packs)
 - [playlists](#playlists)
 - [roll-tables](#roll-tables)
@@ -1064,6 +1065,20 @@ Every installed module (id, title, active, version), including inactive ones.
 REST: `GET /api/modules`
 
 _No input._
+
+## notify
+
+### `foundry_notify`
+
+Shows a UI notification (toast/banner) on the connected client. `target: "all"` (default "caller") also broadcasts it to every other connected client, GM and players alike, unlike ui.notifications.notify()'s normal client-local-only behavior.
+
+REST: `POST /api/notify`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `message` | string | yes |  |
+| `type` | string | no |  |
+| `target` | string | no |  |
 
 ## packs
 

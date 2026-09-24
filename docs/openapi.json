@@ -72,6 +72,9 @@
       "name": "modules"
     },
     {
+      "name": "notify"
+    },
+    {
       "name": "packs"
     },
     {
@@ -9926,6 +9929,66 @@
                   }
                 },
                 "required": ["seconds"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/notify": {
+      "post": {
+        "operationId": "foundry_notify",
+        "summary": "Shows a UI notification (toast/banner) on the connected client.",
+        "description": "Shows a UI notification (toast/banner) on the connected client. `target: \"all\"` (default \"caller\") also broadcasts it to every other connected client, GM and players alike, unlike ui.notifications.notify()'s normal client-local-only behavior.",
+        "tags": ["notify"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["info", "warning", "error"]
+                  },
+                  "target": {
+                    "type": "string",
+                    "enum": ["caller", "all"]
+                  }
+                },
+                "required": ["message"]
               }
             }
           }

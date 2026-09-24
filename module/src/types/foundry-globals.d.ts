@@ -182,6 +182,12 @@
 // shape (after Phase 14's `Roll`, Phase 24's `FilePicker`, Phase 27's
 // `TextEditor`).
 //
+// Phase 42 added the top-level `ui.notifications` global (`notify()`) — the
+// fifth ambient declaration in this file that isn't a Document/collection
+// shape (after Phase 14's `Roll`, Phase 24's `FilePicker`, Phase 27's
+// `TextEditor`, Phase 43's `game.time`) — to back the UI-notification command
+// handler (module/src/commands/notifications.ts).
+//
 // Phase 34 added `system: Record<string, unknown>` to `FoundryActor`/
 // `FoundryItem` — the first phase needing a document's *live, derived*
 // system data at runtime (every earlier phase only ever needed
@@ -577,6 +583,14 @@ declare class TextEditor {
   /** Resolves content links (@UUID/@Actor/...), inline rolls, etc. in `content` into real HTML. */
   static enrichHTML(content: string, options?: Record<string, unknown>): Promise<string>;
 }
+
+/** Foundry's client-local toast/banner notification system — the subset of its API Phase 42 drives. */
+declare const ui: {
+  notifications: {
+    /** Shows a toast/banner on this client only — never propagated to other connected clients. */
+    notify(message: string, type?: "info" | "warning" | "error"): void;
+  };
+};
 
 /** A rendered canvas object (e.g. a Token) — distinct from its underlying Document, found at `.document`. */
 interface FoundryPlaceable {

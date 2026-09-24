@@ -17,8 +17,8 @@
 // clients — players — that never open a bridge connection at all).
 import {
   CANVAS_COMMANDS,
-  CANVAS_PUSH_VIEW_SOCKET_EVENT,
   EMBEDDED_PLACEABLE_COMMANDS,
+  MODULE_SOCKET_EVENT,
   type CanvasPanInput,
   type CanvasPanResult,
   type CanvasPushViewMessage,
@@ -124,7 +124,7 @@ registerCommand(
     // own camera is panned directly here, alongside the broadcast every
     // *other* client's listener picks up.
     const message: CanvasPushViewMessage = { type: "pushView", view: input };
-    game.socket.emit(CANVAS_PUSH_VIEW_SOCKET_EVENT, message);
+    game.socket.emit(MODULE_SOCKET_EVENT, message);
     await canvas.animatePan(input);
     return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
   },

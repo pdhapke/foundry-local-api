@@ -123,11 +123,7 @@ export type {
   EffectUpdateInput,
 } from "./active-effects.js";
 
-export {
-  EMBEDDED_PLACEABLE_COMMANDS,
-  CANVAS_COMMANDS,
-  CANVAS_PUSH_VIEW_SOCKET_EVENT,
-} from "./placeables.js";
+export { EMBEDDED_PLACEABLE_COMMANDS, CANVAS_COMMANDS } from "./placeables.js";
 export type {
   PlaceableDocumentType,
   PlaceableParentInput,
@@ -138,6 +134,8 @@ export type {
   CanvasPanResult,
   CanvasPushViewMessage,
 } from "./placeables.js";
+
+export { MODULE_SOCKET_EVENT } from "./socket.js";
 
 export { PERMISSION_COMMANDS } from "./permissions.js";
 export type {
@@ -189,6 +187,14 @@ export type { GamePausedResult, SetGamePausedInput } from "./game-state.js";
 
 export { WORLD_TIME_COMMANDS } from "./world-time.js";
 export type { WorldTimeResult, AdvanceWorldTimeInput } from "./world-time.js";
+
+export { NOTIFICATION_COMMANDS } from "./notifications.js";
+export type {
+  NotificationType,
+  NotifyInput,
+  NotifyResult,
+  NotifyBroadcastMessage,
+} from "./notifications.js";
 
 export { DND5E_COMMANDS } from "./dnd5e.js";
 export type {

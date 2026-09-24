@@ -28,7 +28,9 @@
 // module/src/socket.ts), so every client with this module enabled — GM and
 // players alike — pans together. Same input shape as `PAN` (`CanvasPanInput`
 // is reused, not duplicated) since "what to pan/zoom to" is identical; only
-// the delivery mechanism differs.
+// the delivery mechanism differs. The broadcast's socket-event name itself
+// now lives in shared/src/socket.ts (`MODULE_SOCKET_EVENT`) — pulled out
+// once Phase 42 became a second consumer of the same channel.
 
 export const EMBEDDED_PLACEABLE_COMMANDS = {
   LIST: "placeableList",
@@ -43,10 +45,7 @@ export const CANVAS_COMMANDS = {
   PUSH_VIEW: "canvasPushView",
 } as const;
 
-/** The module-scoped `game.socket` event name Phase 47's view-broadcast rides on. */
-export const CANVAS_PUSH_VIEW_SOCKET_EVENT = "module.foundry-local-api";
-
-/** One broadcast socket message's shape, carried as the `game.socket` event payload. */
+/** One broadcast socket message's shape, carried as the `game.socket` event payload (see shared/src/socket.ts). */
 export interface CanvasPushViewMessage {
   type: "pushView";
   view: CanvasPanInput;
