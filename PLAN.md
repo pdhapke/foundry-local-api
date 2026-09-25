@@ -90,6 +90,7 @@ its own before moving to the next.
 | 50 — Active GM Lookup | ✅ Done | `9232324` |
 | 51 — Compendium Pack Lifecycle | ✅ Done | `9382d08` |
 | 52 — Digital TableTops Integration (Battlemap Control) | ✅ Done | `707eb37` |
+| 53 — Adventure Document Import/Export | ✅ Done | |
 
 ---
 
@@ -701,12 +702,103 @@ file) rather than third-party docs.
 
 ---
 
+## Phase 53 — Adventure Document Import/Export
+
+Done.
+
+Promoted from the Backlog's "Adventure document import/export" entry on
+request.
+
+`Adventure` is compendium-only in Foundry (v10+) — no `game.collections`
+entry, no top-level world collection, unlike Actor/Item/Scene/etc. It only
+ever lives inside an Adventure-type compendium pack, reached the same way
+Phase 20/51 reach any pack entry (`game.packs` → `pack.getDocument(id)`).
+Its content is a fixed set of embedded-data arrays covering every other
+document type this project already drives: `actors`, `combats`, `items`,
+`journal`, `scenes`, `tables`, `macros`, `cards`, `playlists`, `folders`
+(`Adventure.contentFields`).
+
+- **Import** wraps the instance method `adventure.import()` — a bulk
+  operation distinct from Phase 20's existing `foundry_import_pack_entry`
+  (`worldCollection.importFromCompendium()`), which only ever pulls a
+  *single* document of the pack's own type into its matching world
+  collection. An Adventure entry has no single matching world collection —
+  importing it creates/updates documents across *many* world collections in
+  one call. New command `ADVENTURE_COMMANDS.IMPORT` →
+  `POST /api/packs/:packId/adventures/:entryId/import`, tool
+  `foundry_import_adventure`. Handler: `requirePack(packId)` →
+  `requirePackEntry(pack, entryId)` → cast to a new ambient
+  `FoundryAdventureDocument` (adds only `import(options?: {dialog?: boolean})
+  : Promise<Record<string, unknown>>` to the base `FoundryDocument`
+  interface) → call with `{dialog: false}` to skip Foundry's own UI
+  confirmation dialog (this is a headless API caller, not a browser click).
+  GM-gated (`requireGM`, per the Phase 51 precedent for world-structural
+  writes) since it creates/updates arbitrary world content.
+  - **Read defensively** (Phase 34 convention): the exact
+    `AdventureImportResult` field shape isn't live-verified against a
+    running world, so the return type is a plain `Record<string, unknown>`
+    pass-through of whatever `.import()` resolves to, not a hand-specified
+    interface.
+  - **Deviation**: calling `.import({dialog: false})` (rather than the
+    dialog-prompting default) is an inferred parameter, not confirmed
+    against live Foundry source — flag alongside the phase's own
+    not-live-verified note below.
+- **Export** has no dedicated Foundry API — there's no `Adventure.create()`
+  or `toCompendium()`-equivalent; building one is a UI-only drag-and-drop
+  workflow in the real app. The closest existing coverage,
+  `foundry_create_pack_entry` (`POST /packs/:packId/entries {data}`),
+  *technically* already lets a caller create an Adventure entry, but only if
+  they first fetch and hand-assemble every included document's full data
+  themselves. The actual friction worth removing is that assembly step, so
+  this phase adds one convenience command that takes world-document *ids*
+  per content type instead of pre-fetched blobs: `ADVENTURE_COMMANDS.EXPORT`
+  → `POST /api/packs/:packId/adventures
+  {packId, name, img?, caption?, description?, actorIds?, itemIds?,
+  sceneIds?, journalIds?, macroIds?, tableIds?, cardsIds?, playlistIds?,
+  folderIds?, combatIds?}`, tool `foundry_export_adventure`. Handler:
+  `requireGM`, then for each populated `*Ids` field look up
+  `game.collections.get(<matching Foundry type>)?.get(id)` (throwing on a
+  missing id, same not-found convention as `requirePackEntry`), `.toObject()`
+  each found document, and assemble them under the matching
+  `Adventure.contentFields` key (`journalIds` → `journal`, `tableIds` →
+  `tables`, `cardsIds` → `cards`, everything else `<x>Ids` → `<x>s`) —
+  documented as an explicit id→type→content-field table in
+  `module/src/commands/adventures.ts`, not inferred generically from string
+  manipulation. Then `pack.documentClass.create(data, {pack:
+  pack.metadata.id})`, same creation call Phase 20's `CREATE_ENTRY` already
+  uses. Returns the created Adventure's full `.toObject()` (`DocumentData`),
+  matching `foundry_create_pack_entry`'s existing return shape.
+- New files (own domain, not folded into `packs.ts`, since this is
+  content-assembly + a bulk-mutation verb rather than pack-entry CRUD):
+  `shared/src/adventures.ts`, `server/src/endpoints/adventures.ts`,
+  `module/src/commands/adventures.ts`,
+  `server/src/endpoints/adventures.test.ts`. `requirePack()`/
+  `requirePackEntry()`/`requireGM()` are duplicated locally in
+  `adventures.ts` rather than imported from `packs.ts` — matching this
+  project's existing precedent of a small per-file `requireGM()` in
+  `packs.ts`/`permissions.ts`/`users.ts`/`world-time.ts` rather than a
+  shared helpers module.
+- Route paths (`/packs/:packId/adventures[...]`) confirmed non-colliding
+  with Phase 20/51's existing `/packs/:packId/entries[...]` and
+  `/packs/:packId/duplicate` routes before adding — new path segment, same
+  check Phase 51 did.
+- MCP: `foundry_export_adventure`, `foundry_import_adventure`.
+- No `module.json` changes — core domain functionality, not an optional
+  integration (Phase 32/33 convention only applies to system/module-specific
+  integrations).
+- **Not live-verified**: implemented against general knowledge of Foundry
+  v10+'s `Adventure` document class (introduced v10; `contentFields`,
+  `import()`/`prepareImport()`/`importContent()`) rather than a fetched
+  `foundryvtt.com/api` page or a running world — flag for the next live
+  smoke-test pass, same caveat as Phases 40/41/43/49/50/51/52.
+
+---
+
 ## Backlog — noted, not scheduled
 
 Lower-priority or more niche gaps surfaced during the same audit. Promote
 any of these to a numbered phase on request.
 
-- **Adventure document import/export.**
 - **Module enable/disable** via `core.moduleConfiguration` — technically
   reachable through the existing generic settings endpoint (Phase 7), but
   requires a world reload to take effect and wasn't built as a dedicated,

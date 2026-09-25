@@ -13,6 +13,20 @@ log that documents every non-obvious design decision made along the way.
 
 ## [Unreleased]
 
+### Phase 53 — Adventure Document Import/Export
+- `foundry_export_adventure` (`POST /api/packs/:packId/adventures`)
+  assembles world documents (by id, per content type) into a new Adventure
+  compendium entry — the convenience step around hand-composing an
+  Adventure's `actors`/`items`/`scenes`/`journal`/`macros`/`tables`/`cards`/
+  `playlists`/`folders`/`combats` content fields.
+  `foundry_import_adventure` (`POST /api/packs/:packId/adventures/:entryId/
+  import`) wraps `Adventure#import()`, bulk-creating/updating documents
+  across every world collection the entry's content covers in one call —
+  distinct from Phase 20's single-document `foundry_import_pack_entry`.
+- Both GM-only; import flagged `destructiveHint: true` (can create or
+  overwrite many documents at once).
+- Not yet live-verified against a running Foundry world.
+
 ### Phase 52 — Digital TableTops Integration (Battlemap Control)
 - Second `kind: "module"` integration (dnd5e is `kind: "system"`): detects
   the third-party `digital-tabletops` module and, when active, adds

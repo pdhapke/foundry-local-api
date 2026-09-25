@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **195**.
+Total tools: **197**.
 
 ## Contents
 
@@ -1162,6 +1162,30 @@ REST: `POST /api/packs/:packId/duplicate`
 | `packId` | string | yes |  |
 | `label` | string | no |  |
 
+### `foundry_export_adventure`
+
+Assembles world documents (by id, per document type) into a new Adventure compendium entry inside the given pack — the convenience assembly step around creating an Adventure entry by hand.
+
+REST: `POST /api/packs/:packId/adventures`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `packId` | string | yes |  |
+| `name` | string | yes |  |
+| `img` | string | no |  |
+| `caption` | string | no |  |
+| `description` | string | no |  |
+| `actorIds` | array | no |  |
+| `itemIds` | array | no |  |
+| `sceneIds` | array | no |  |
+| `journalIds` | array | no |  |
+| `macroIds` | array | no |  |
+| `tableIds` | array | no |  |
+| `cardsIds` | array | no |  |
+| `playlistIds` | array | no |  |
+| `folderIds` | array | no |  |
+| `combatIds` | array | no |  |
+
 ### `foundry_get_pack_entry`
 
 Reads a single compendium entry's full document data by id.
@@ -1182,6 +1206,17 @@ REST: `GET /api/packs/:packId/index`
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `packId` | string | yes |  |
+
+### `foundry_import_adventure` ⚠️ **destructive**
+
+Imports an Adventure compendium entry into the world, creating/updating documents across every world collection the adventure's content covers (actors, scenes, items, journals, etc.) in one bulk operation. WARNING: this can create or overwrite many documents at once.
+
+REST: `POST /api/packs/:packId/adventures/:entryId/import`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `packId` | string | yes |  |
+| `entryId` | string | yes |  |
 
 ### `foundry_import_pack_entry`
 

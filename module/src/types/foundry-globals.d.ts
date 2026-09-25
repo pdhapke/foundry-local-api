@@ -508,6 +508,12 @@ interface FoundryCompendiumCollection {
   duplicateCompendium(label?: string): Promise<FoundryCompendiumCollection>;
 }
 
+/** A loaded Adventure document — the `FoundryDocument` subset plus the bulk-import API Phase 53 drives. Compendium-only; never appears in `game.collections`. */
+interface FoundryAdventureDocument extends FoundryDocument {
+  /** Creates/updates documents across every world collection this adventure's content covers, in one bulk operation. `dialog: false` skips Foundry's own UI confirmation dialog. */
+  import(options?: { dialog?: boolean }): Promise<Record<string, unknown>>;
+}
+
 /**
  * The global `CompendiumCollection` class — only its static pack-creation
  * method is needed here (Phase 51). Not reachable off `game.packs`; this is

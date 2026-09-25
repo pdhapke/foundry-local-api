@@ -3,6 +3,7 @@
 // own descriptor array here.
 import { activeEffectEndpointDescriptors } from "./active-effects.js";
 import { actorEndpointDescriptors } from "./actors.js";
+import { adventureEndpointDescriptors } from "./adventures.js";
 import { bulkEndpointDescriptors } from "./bulk.js";
 import { cardsEndpointDescriptors } from "./cards.js";
 import { chatEndpointDescriptors } from "./chat.js";
@@ -51,6 +52,7 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...cardsEndpointDescriptors,
   ...folderEndpointDescriptors,
   ...packEndpointDescriptors,
+  ...adventureEndpointDescriptors,
   ...activeEffectEndpointDescriptors,
   ...placeableEndpointDescriptors,
   ...permissionEndpointDescriptors,

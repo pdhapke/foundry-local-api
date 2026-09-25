@@ -31,6 +31,7 @@ import "./commands/roll-tables.js";
 import "./commands/cards.js";
 import "./commands/folders.js";
 import "./commands/packs.js";
+import "./commands/adventures.js";
 import "./commands/active-effects.js";
 import "./commands/placeables.js";
 import "./commands/permissions.js";

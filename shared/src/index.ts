@@ -116,6 +116,9 @@ export type {
   PackDuplicatePackInput,
 } from "./packs.js";
 
+export { ADVENTURE_COMMANDS } from "./adventures.js";
+export type { AdventureExportInput, AdventureImportResult } from "./adventures.js";
+
 export { EMBEDDED_EFFECT_COMMANDS } from "./active-effects.js";
 export type {
   EffectParentType,
