@@ -89,7 +89,7 @@ its own before moving to the next.
 | 49 — Cards Pass/Deal | ✅ Done | `9232324` |
 | 50 — Active GM Lookup | ✅ Done | `9232324` |
 | 51 — Compendium Pack Lifecycle | ✅ Done | `9382d08` |
-| 52 — Digital TableTops Integration (Battlemap Control) | ✅ Done | `PENDING_COMMIT` |
+| 52 — Digital TableTops Integration (Battlemap Control) | ✅ Done | `707eb37` |
 
 ---
 
@@ -612,7 +612,7 @@ a pack (`CompendiumCollection.createCompendium()`) wasn't covered.
 
 ## Phase 52 — Digital TableTops Integration (Battlemap Control)
 
-Done (`PENDING_COMMIT`).
+Done (`707eb37`).
 
 Second `kind: "module"` integration (dnd5e is `kind: "system"`) — the first
 real exercise of that half of the Phase 32 framework. Target:
