@@ -89,6 +89,19 @@ void describe("digital-tabletops integration endpoints", () => {
     assert.deepEqual(res.body, ACK_FIXTURE);
   });
 
+  void it("POST /digital-tabletops/mirror-gm-view calls MIRROR_GM_VIEW with no input and returns its result untouched", async () => {
+    const app = buildTestApp(((type: string, payload: unknown) => {
+      assert.equal(type, "dttMirrorGmView");
+      assert.equal(payload, undefined);
+      return Promise.resolve(ACK_FIXTURE);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).post("/digital-tabletops/mirror-gm-view").send({});
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, ACK_FIXTURE);
+  });
+
   void it("GET /digital-tabletops/status calls GET_STATUS and returns its result untouched", async () => {
     const app = buildTestApp(((type: string, payload: unknown) => {
       assert.equal(type, "dttGetStatus");

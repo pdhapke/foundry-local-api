@@ -2,7 +2,7 @@
 
 Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
 
-Total tools: **197**.
+Total tools: **198**.
 
 ## Contents
 
@@ -218,6 +218,14 @@ REST: `PUT /api/actors/:actorId/items/:itemId`
 Reads the currently controlled/selected tokens on the connected client's canvas (canvas.tokens.controlled), plus the currently-viewed scene id.
 
 REST: `GET /api/canvas/selection`
+
+_No input._
+
+### `foundry_get_canvas_viewport`
+
+Reads the currently-viewed canvas's camera position and zoom on the connected client, without moving it.
+
+REST: `GET /api/canvas/viewport`
 
 _No input._
 
@@ -2287,6 +2295,14 @@ _These tools only appear when module `digital-tabletops` is active in the connec
 Convenience composite read for the digital-tabletops integration: whether the module is active, whether a Foundry user named "TV" (case-insensitive, matching dtt.js's own check) exists and is currently online, and the module's four current world settings (namespace "digital-tabletops": hideUI, lockPan, display-width, port-number — also individually reachable via the generic GET/PUT /api/settings/digital-tabletops/:key endpoints). Call this before dtt_pan_battlemap/dtt_scale_battlemap_to_physical to confirm a display is actually connected.
 
 REST: `GET /api/integrations/digital-tabletops/status`
+
+_No input._
+
+### `dtt_mirror_gm_view`
+
+Mirrors the GM's current camera view (position and zoom) onto the digital-tabletops battlemap display (the "TV" Foundry user) — the literal TV2GM action from the module's own scene-control toolbar. Advisory only, same caveat as dtt_pan_battlemap: this broadcasts over Foundry's own multiplayer socket (module.digital-tabletops) and does not read back whether the TV client actually applied it, or whether a TV client is even connected, or whether the connected bridge client is actually the GM's own screen — call dtt_get_status first to confirm a TV display is actually connected.
+
+REST: `POST /api/integrations/digital-tabletops/mirror-gm-view`
 
 _No input._
 

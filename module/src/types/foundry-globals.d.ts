@@ -201,6 +201,15 @@
 // see module/src/commands/dnd5e.ts's header comment for the narrow local
 // cast it uses instead to reach `CONFIG.DND5E`.
 //
+// Phase 54 added `canvas.stage.scale.x`, `canvas.app.screen.width`/`height`,
+// and `canvas.canvasCoordinatesFromClient()` to back the digital-tabletops
+// `dttMirrorGmView` command handler (module/src/commands/
+// digital-tabletops.ts), which replicates the third-party `digital-tabletops`
+// module's own `TV2GM` button math (screen-center client coordinates
+// converted to canvas coordinates, plus the render scale) directly rather
+// than round-tripping through the new `canvasGetViewport` core command
+// internally.
+//
 // Phase 51 added the top-level `CompendiumCollection` class ambient binding
 // (its static `createCompendium()`) — the sixth ambient declaration in this
 // file that isn't a Document/collection shape (after Phase 14's `Roll`,
@@ -655,7 +664,11 @@ interface FoundryPlaceable {
 /** The currently-rendered game canvas, `null` before a scene has been activated/viewed. */
 declare const canvas:
   | {
-      stage: { pivot: { x: number; y: number } };
+      stage: {
+        pivot: { x: number; y: number };
+        /** The render stage's current scale factor (Phase 54: `.x` matches the uniform `canvas.scale` zoom). */
+        scale: { x: number; y: number };
+      };
       /** Current zoom factor. */
       scale: number;
       /** Pans/zooms the view; omitted fields keep their current value. */
@@ -672,6 +685,10 @@ declare const canvas:
         /** Every Token placeable currently rendered on this layer (Phase 44's target lookup resolves ids against this). */
         placeables: FoundryPlaceable[];
       };
+      /** The underlying PIXI application driving the canvas render (Phase 54: only its viewport pixel size is needed). */
+      app: { screen: { width: number; height: number } };
+      /** Converts a point in browser client coordinates (e.g. screen center) into canvas world coordinates (Phase 54). */
+      canvasCoordinatesFromClient(point: { x: number; y: number }): { x: number; y: number };
     }
   | null
   | undefined;

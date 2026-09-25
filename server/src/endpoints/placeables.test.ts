@@ -204,6 +204,20 @@ void describe("Phase 22 canvas & scene placeables", () => {
     assert.deepEqual(res.body, { x: 50, y: 75, scale: 1 });
   });
 
+  void it("GET /api/canvas/viewport calls canvasGetViewport with no payload and returns the fixture untouched", async () => {
+    const app = buildApp(((type: string, payload: unknown) => {
+      assert.equal(type, "canvasGetViewport");
+      assert.equal(payload, undefined);
+      const result: CanvasPanResult = { x: 10, y: 20, scale: 2 };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app).get("/api/canvas/viewport").set(API_KEY_HEADER, API_KEY);
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { x: 10, y: 20, scale: 2 });
+  });
+
   void it("rejects a request with a missing/incorrect API key with 401", async () => {
     const app = buildApp((() => Promise.resolve({})) as FoundryClient["call"]);
 

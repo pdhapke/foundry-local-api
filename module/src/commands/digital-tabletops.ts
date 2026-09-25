@@ -21,6 +21,12 @@
 // `"module.foundry-local-api"`). Kept as a local constant here rather than
 // exported from shared/, since it's meaningless outside this one
 // integration.
+//
+// Phase 54 added `dttMirrorGmView`, the literal `TV2GM` equivalent —
+// replicates `dtt.js`'s own button math (screen-center client coordinates
+// converted to canvas coordinates via `canvas.canvasCoordinatesFromClient()`,
+// plus the render scale) directly against the live canvas, same as the
+// module's own button does.
 import {
   DTT_COMMANDS,
   type DttAckResult,
@@ -50,6 +56,31 @@ registerCommand(DTT_COMMANDS.SCALE_TO_PHYSICAL, (): DttAckResult => {
   // copy): sets the TV client's zoom so 1 grid unit = 1 real-world
   // inch/mm, per its own `display-width` setting.
   game.socket.emit(DTT_SOCKET_EVENT, { action: "panCanvas", scale: "physical" });
+  return { acknowledged: true };
+});
+
+registerCommand(DTT_COMMANDS.MIRROR_GM_VIEW, (): DttAckResult => {
+  // dtt.js's own `TV2GM` scene-control button (lines 196-213 of the
+  // installed copy): pans the TV client to whatever this (GM) client's own
+  // camera is currently centered on, replicating its exact math rather than
+  // round-tripping through the new `canvasGetViewport` core command
+  // internally (both handlers run in the same client process — see PLAN.md's
+  // Phase 54 text for why).
+  if (!canvas) {
+    throw new Error("No active canvas — no scene is currently being viewed");
+  }
+  const scale = canvas.stage.scale.x;
+  const { x, y } = canvas.canvasCoordinatesFromClient({
+    x: 0.5 * canvas.app.screen.width,
+    y: 0.5 * canvas.app.screen.height,
+  });
+  game.socket.emit(DTT_SOCKET_EVENT, {
+    action: "panCanvas",
+    x,
+    y,
+    targetWidth: canvas.app.screen.width / scale,
+    targetHeight: canvas.app.screen.height / scale,
+  });
   return { acknowledged: true };
 });
 

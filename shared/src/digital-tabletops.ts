@@ -23,10 +23,16 @@
 // `GET/PUT /api/settings/digital-tabletops/:key` endpoints (Phase 7). Only
 // `dtt_get_status` reads them, as a read-only convenience composite (same
 // role as dnd5e's `dnd5e_get_config`).
+// Phase 54 added `MIRROR_GM_VIEW`, the literal `TV2GM` equivalent from the
+// installed module's own scene-control toolbar (`dtt.js` lines 196-213): pans
+// the TV client to whatever the currently-connected (GM) client's own camera
+// is presently centered on. No input, same fire-and-forget-broadcast
+// `DttAckResult` shape as `SCALE_TO_PHYSICAL`.
 export const DTT_COMMANDS = {
   PAN: "dttPan",
   SCALE_TO_PHYSICAL: "dttScaleToPhysical",
   GET_STATUS: "dttGetStatus",
+  MIRROR_GM_VIEW: "dttMirrorGmView",
 } as const;
 
 /**

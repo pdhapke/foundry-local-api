@@ -9182,6 +9182,41 @@
         }
       }
     },
+    "/api/canvas/viewport": {
+      "get": {
+        "operationId": "foundry_get_canvas_viewport",
+        "summary": "Reads the currently-viewed canvas's camera position and zoom on the connected client, without moving it.",
+        "description": "Reads the currently-viewed canvas's camera position and zoom on the connected client, without moving it.",
+        "tags": ["canvas"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
     "/api/documents/{documentType}/{documentId}/ownership": {
       "get": {
         "operationId": "foundry_get_document_ownership",
@@ -11311,6 +11346,45 @@
         "operationId": "dtt_scale_battlemap_to_physical",
         "summary": "Scales the digital-tabletops battlemap display (the \"TV\" Foundry user) so 1 grid unit = 1 real-world inch/mm, per the module's configured display-width setting.",
         "description": "Scales the digital-tabletops battlemap display (the \"TV\" Foundry user) so 1 grid unit = 1 real-world inch/mm, per the module's configured display-width setting. Advisory only, same caveat as dtt_pan_battlemap — call dtt_get_status first to confirm a TV display is actually connected.",
+        "tags": ["digital-tabletops"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "digital-tabletops",
+          "kind": "module"
+        }
+      }
+    },
+    "/api/integrations/digital-tabletops/mirror-gm-view": {
+      "post": {
+        "operationId": "dtt_mirror_gm_view",
+        "summary": "Mirrors the GM's current camera view (position and zoom) onto the digital-tabletops battlemap display (the \"TV\" Foundry user) — the literal TV2GM action from the module's own scene-control toolbar.",
+        "description": "Mirrors the GM's current camera view (position and zoom) onto the digital-tabletops battlemap display (the \"TV\" Foundry user) — the literal TV2GM action from the module's own scene-control toolbar. Advisory only, same caveat as dtt_pan_battlemap: this broadcasts over Foundry's own multiplayer socket (module.digital-tabletops) and does not read back whether the TV client actually applied it, or whether a TV client is even connected, or whether the connected bridge client is actually the GM's own screen — call dtt_get_status first to confirm a TV display is actually connected.",
         "tags": ["digital-tabletops"],
         "security": [
           {

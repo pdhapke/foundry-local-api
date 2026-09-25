@@ -13,6 +13,18 @@ log that documents every non-obvious design decision made along the way.
 
 ## [Unreleased]
 
+### Phase 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity
+- `foundry_get_canvas_viewport` (`GET /api/canvas/viewport`) reads the
+  connected client's current camera position/zoom without moving it — a
+  read-only counterpart to Phase 22/47's pan/push-view commands.
+- `dtt_mirror_gm_view` (`POST /api/integrations/digital-tabletops/mirror-gm-
+  view`) is the literal `TV2GM` action from the digital-tabletops module's own
+  scene-control toolbar: mirrors the connected (GM) client's current camera
+  view onto the "TV" battlemap display. Closes the last gap in Phase 52's
+  parity with that module's UI.
+- Not yet live-verified against a running Foundry + digital-tabletops
+  session.
+
 ### Phase 53 — Adventure Document Import/Export
 - `foundry_export_adventure` (`POST /api/packs/:packId/adventures`)
   assembles world documents (by id, per content type) into a new Adventure

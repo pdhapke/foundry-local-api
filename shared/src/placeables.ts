@@ -31,6 +31,13 @@
 // the delivery mechanism differs. The broadcast's socket-event name itself
 // now lives in shared/src/socket.ts (`MODULE_SOCKET_EVENT`) — pulled out
 // once Phase 42 became a second consumer of the same channel.
+//
+// Phase 54 added `GET_VIEWPORT`: a pure read of the connected client's
+// current camera position/scale, no side effect (unlike `PAN`/`PUSH_VIEW`,
+// neither of which the caller can use to find out where the camera
+// currently is without also moving it). Reuses `CanvasPanResult` as-is —
+// the same `{x, y, scale}` shape `PAN`/`PUSH_VIEW` already return after
+// panning, just read without calling `animatePan()` first.
 
 export const EMBEDDED_PLACEABLE_COMMANDS = {
   LIST: "placeableList",
@@ -43,6 +50,7 @@ export const EMBEDDED_PLACEABLE_COMMANDS = {
 export const CANVAS_COMMANDS = {
   PAN: "canvasPan",
   PUSH_VIEW: "canvasPushView",
+  GET_VIEWPORT: "canvasGetViewport",
 } as const;
 
 /** One broadcast socket message's shape, carried as the `game.socket` event payload (see shared/src/socket.ts). */

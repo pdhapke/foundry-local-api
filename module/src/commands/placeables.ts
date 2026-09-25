@@ -15,6 +15,10 @@
 // `game.socket` (see module/src/socket.ts for the matching receive-side
 // listener, registered unconditionally at module load so it fires even on
 // clients — players — that never open a bridge connection at all).
+//
+// Phase 54 added `canvasGetViewport`, a pure read of the same
+// `{x, y, scale}` `canvasPan`/`canvasPushView` already return after moving
+// the camera — this reads it without moving anything.
 import {
   CANVAS_COMMANDS,
   EMBEDDED_PLACEABLE_COMMANDS,
@@ -129,3 +133,12 @@ registerCommand(
     return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
   },
 );
+
+// Phase 54 — pure read, no `animatePan()` call: reports where the connected
+// client's camera currently is without moving it.
+registerCommand(CANVAS_COMMANDS.GET_VIEWPORT, (): CanvasPanResult => {
+  if (!canvas) {
+    throw new Error("No active canvas — no scene is currently being viewed");
+  }
+  return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
+});

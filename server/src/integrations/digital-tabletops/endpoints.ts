@@ -1,6 +1,6 @@
 // Phase 52 — Digital TableTops Integration (Battlemap Control).
 //
-// Three descriptors following the exact `EndpointDescriptor` pattern every
+// Four descriptors following the exact `EndpointDescriptor` pattern every
 // core domain and dnd5e (Phase 34) use — only mounted through the Phase 32
 // integration registry/router (../registry.ts -> ./index.ts's
 // `dttIntegration`), active only when the connected world has the
@@ -20,6 +20,11 @@
 // reserved for genuinely dangerous actions like macro execution
 // (server/src/endpoints/macros.ts), not an ordinary state-changing action
 // like panning a display.
+//
+// Phase 54 added `mirrorGmViewDescriptor` (`dtt_mirror_gm_view`), the last
+// remaining un-parity'd action from the module's own GM toolbar (the literal
+// `TV2GM` button) — same no-input/`DttAckResult` shape as
+// `scaleToPhysicalDescriptor`.
 import { z } from "zod";
 
 import {
@@ -59,6 +64,16 @@ const scaleToPhysicalDescriptor: EndpointDescriptor<void, DttAckResult> = {
     foundryClient.call<undefined, DttAckResult>(DTT_COMMANDS.SCALE_TO_PHYSICAL),
 };
 
+const mirrorGmViewDescriptor: EndpointDescriptor<void, DttAckResult> = {
+  name: "dtt_mirror_gm_view",
+  description:
+    "Mirrors the GM's current camera view (position and zoom) onto the digital-tabletops battlemap display (the \"TV\" Foundry user) — the literal TV2GM action from the module's own scene-control toolbar. Advisory only, same caveat as dtt_pan_battlemap: this broadcasts over Foundry's own multiplayer socket (module.digital-tabletops) and does not read back whether the TV client actually applied it, or whether a TV client is even connected, or whether the connected bridge client is actually the GM's own screen — call dtt_get_status first to confirm a TV display is actually connected.",
+  method: "post",
+  path: "/digital-tabletops/mirror-gm-view",
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, DttAckResult>(DTT_COMMANDS.MIRROR_GM_VIEW),
+};
+
 const getStatusDescriptor: EndpointDescriptor<void, DttStatusResult> = {
   name: "dtt_get_status",
   description:
@@ -72,5 +87,6 @@ const getStatusDescriptor: EndpointDescriptor<void, DttStatusResult> = {
 export const dttEndpointDescriptors: AnyEndpointDescriptor[] = [
   panDescriptor,
   scaleToPhysicalDescriptor,
+  mirrorGmViewDescriptor,
   getStatusDescriptor,
 ];

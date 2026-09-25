@@ -91,6 +91,7 @@ its own before moving to the next.
 | 51 — Compendium Pack Lifecycle | ✅ Done | `9382d08` |
 | 52 — Digital TableTops Integration (Battlemap Control) | ✅ Done | `707eb37` |
 | 53 — Adventure Document Import/Export | ✅ Done | `536bd3e` |
+| 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity | ✅ Done | (pending) |
 
 ---
 
@@ -791,6 +792,89 @@ document type this project already drives: `actors`, `combats`, `items`,
   `import()`/`prepareImport()`/`importContent()`) rather than a fetched
   `foundryvtt.com/api` page or a running world — flag for the next live
   smoke-test pass, same caveat as Phases 40/41/43/49/50/51/52.
+
+---
+
+## Phase 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity
+
+Done.
+
+Promoted (user request: "complete control of the digital tabletop module")
+from the specific gap Phase 52's own write-up flagged and deferred: *"a
+literal `TV2GM` equivalent (mirror whatever the GM's own browser is currently
+looking at)... If a real need shows up later, add a `canvas_get_viewport`
+core endpoint first (its own phase, core domain, not integration-specific —
+other callers would want it too), then revisit."* That need has now shown
+up — this phase does exactly that, plus the integration action it unblocks.
+
+Re-read `Data/modules/digital-tabletops/dtt.js` (v1.0.6) directly (same
+no-guessing precedent as Phase 52). Its `TV2GM` scene-control button (lines
+196-213) is the one remaining un-parity'd action:
+
+```js
+const scale = canvas.stage.scale.x;
+const { x, y } = canvas.canvasCoordinatesFromClient({
+  x: 0.5 * canvas.app.screen.width, y: 0.5 * canvas.app.screen.height,
+});
+game.socket.emit("module.digital-tabletops", {
+  action: "panCanvas", x, y,
+  targetWidth: canvas.app.screen.width / scale,
+  targetHeight: canvas.app.screen.height / scale,
+});
+```
+
+Everything else in the module's own GM toolbar (`hideUI`, `lockPan`,
+`scaleTV`, `panTV`) already has API parity as of Phase 52 — this phase closes
+the last gap, giving genuinely complete remote-control coverage of the
+module's own UI.
+
+- **Core (`shared/src/placeables.ts`, `server/src/endpoints/placeables.ts`,
+  `module/src/commands/placeables.ts`):** new `CANVAS_COMMANDS.GET_VIEWPORT`
+  (`"canvasGetViewport"`). `GET /api/canvas/viewport` → `foundry_get_canvas_viewport`,
+  no input. Module-side handler is a pure read, no `animatePan()` call:
+  `{ x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale }`
+  — reusing `CanvasPanResult` as-is (Phase 22's `PAN` handler already computes
+  and returns this exact shape after panning; this just reads it without the
+  side effect), same "no active canvas" error as `PAN`/`PUSH_VIEW` when
+  `!canvas`.
+- **Integration (`shared/src/digital-tabletops.ts`,
+  `server/src/integrations/digital-tabletops/endpoints.ts`,
+  `module/src/commands/digital-tabletops.ts`):** new `DTT_COMMANDS.MIRROR_GM_VIEW`
+  (`"dttMirrorGmView"`). `POST /digital-tabletops/mirror-gm-view` →
+  `dtt_mirror_gm_view`, no input, returns `DttAckResult` (same
+  fire-and-forget-broadcast shape as `dtt_pan_battlemap`/
+  `dtt_scale_battlemap_to_physical`). The module-side handler replicates
+  `TV2GM`'s exact math above inline (screen-center `canvasCoordinatesFromClient`
+  + scale-derived target width/height) rather than round-tripping through the
+  new core `canvasGetViewport` command internally — both handlers execute in
+  the same client process, and there's no precedent in this codebase for one
+  command handler invoking another's REST route internally; the core endpoint
+  exists for external callers (e.g. "where is the GM currently looking?"
+  before deciding where to pan), the integration handler just reads the same
+  live canvas state directly, same as `dtt.js`'s own button does.
+- MCP: `foundry_get_canvas_viewport`, `dtt_mirror_gm_view`.
+- No `module.json` changes — reuses the existing `digital-tabletops`
+  `optionalIntegrations` entry from Phase 52 (already `"implemented": true`);
+  this only adds an action to an integration already declared.
+- Same caveat Phase 52 already recorded for every action in this
+  integration: assumes the bridge's connected client *is* the GM's own real
+  screen, which isn't guaranteed by anything in this codebase — document in
+  the tool description, don't attempt to verify it.
+- Tests: `server/src/endpoints/placeables.test.ts` (new case for
+  `GET /api/canvas/viewport`, mirroring the existing `canvasPan`/
+  `canvasPushView` cases) and
+  `server/src/integrations/digital-tabletops/endpoints.test.ts` (new case for
+  `POST /digital-tabletops/mirror-gm-view`, mirroring
+  `scale-to-physical`'s no-input/ack-result shape).
+- **Deviation**: `module/src/types/foundry-globals.d.ts`'s ambient `canvas`
+  type needed two distinct scale fields, not one — the pre-existing
+  top-level `canvas.scale: number` convenience field (`PAN`/`GET_VIEWPORT`
+  use this) is a different value from PIXI's own `canvas.stage.scale.x`
+  (`dtt.js`'s `TV2GM` reads this one specifically) — both now coexist on the
+  ambient type since Foundry itself exposes both.
+- **Not live-verified**: same standing caveat as the rest of the
+  digital-tabletops integration (Phase 52) — no live Foundry + digital-tabletops
+  session with a real or simulated "TV" client was available.
 
 ---
 

@@ -19,6 +19,10 @@
 // module/src/commands/placeables.ts), which the registry's existing
 // FoundryBridgeError handling already turns into a clear REST/MCP error
 // rather than a crash — no extra version-guard code was needed.
+//
+// Phase 54 added `getViewportDescriptor` (`GET /canvas/viewport`, no input):
+// a pure read of the same `CanvasPanResult` shape `canvasPanDescriptor`/
+// `pushViewDescriptor` already return after moving the camera.
 import { z } from "zod";
 
 import {
@@ -173,6 +177,16 @@ const pushViewDescriptor: EndpointDescriptor<CanvasPanInput, CanvasPanResult> = 
     foundryClient.call<CanvasPanInput, CanvasPanResult>(CANVAS_COMMANDS.PUSH_VIEW, input),
 };
 
+const getViewportDescriptor: EndpointDescriptor<void, CanvasPanResult> = {
+  name: "foundry_get_canvas_viewport",
+  description:
+    "Reads the currently-viewed canvas's camera position and zoom on the connected client, without moving it.",
+  method: "get",
+  path: "/canvas/viewport",
+  handler: (_input, { foundryClient }) =>
+    foundryClient.call<undefined, CanvasPanResult>(CANVAS_COMMANDS.GET_VIEWPORT),
+};
+
 export const placeableEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...makeEmbeddedPlaceableEndpoints({
     documentType: "Drawing",
@@ -211,4 +225,5 @@ export const placeableEndpointDescriptors: AnyEndpointDescriptor[] = [
   }),
   canvasPanDescriptor,
   pushViewDescriptor,
+  getViewportDescriptor,
 ];
