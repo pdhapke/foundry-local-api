@@ -90,7 +90,7 @@ its own before moving to the next.
 | 50 — Active GM Lookup | ✅ Done | `9232324` |
 | 51 — Compendium Pack Lifecycle | ✅ Done | `9382d08` |
 | 52 — Digital TableTops Integration (Battlemap Control) | ✅ Done | `707eb37` |
-| 53 — Adventure Document Import/Export | ✅ Done | |
+| 53 — Adventure Document Import/Export | ✅ Done | `536bd3e` |
 
 ---
 
