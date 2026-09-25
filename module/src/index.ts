@@ -40,6 +40,7 @@ import "./commands/localization.js";
 import "./commands/bulk.js";
 import "./commands/game-state.js";
 import "./commands/dnd5e.js";
+import "./commands/digital-tabletops.js";
 import "./commands/world-time.js";
 import "./commands/notifications.js";
 

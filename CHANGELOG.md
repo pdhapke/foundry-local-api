@@ -13,6 +13,20 @@ log that documents every non-obvious design decision made along the way.
 
 ## [Unreleased]
 
+### Phase 52 — Digital TableTops Integration (Battlemap Control)
+- Second `kind: "module"` integration (dnd5e is `kind: "system"`): detects
+  the third-party `digital-tabletops` module and, when active, adds
+  `dtt_pan_battlemap` (`POST /api/integrations/digital-tabletops/pan`),
+  `dtt_scale_battlemap_to_physical` (`POST /api/integrations/digital-
+  tabletops/scale-to-physical`), and a convenience `dtt_get_status`
+  (`GET /api/integrations/digital-tabletops/status`) covering module
+  active/TV-user online/current settings.
+- No new code needed for the module's own `hideUI`/`lockPan`/
+  `display-width`/`port-number` world settings — already reachable through
+  the existing generic settings endpoints (Phase 7).
+- Not yet smoke-tested against a live digital-tabletops session with a real
+  or simulated "TV" client.
+
 ### Phase 51 — Compendium Pack Lifecycle
 - Create/delete/duplicate a compendium pack itself (`POST /api/packs`,
   `DELETE /api/packs/:packId`, `POST /api/packs/:packId/duplicate`) —

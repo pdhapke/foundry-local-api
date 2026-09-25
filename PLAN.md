@@ -89,6 +89,7 @@ its own before moving to the next.
 | 49 — Cards Pass/Deal | ✅ Done | `9232324` |
 | 50 — Active GM Lookup | ✅ Done | `9232324` |
 | 51 — Compendium Pack Lifecycle | ✅ Done | `9382d08` |
+| 52 — Digital TableTops Integration (Battlemap Control) | ✅ Done | `PENDING_COMMIT` |
 
 ---
 
@@ -606,6 +607,97 @@ a pack (`CompendiumCollection.createCompendium()`) wasn't covered.
   only (`foundryvtt.com/api` `CompendiumCollection`/`Cards`-style class
   docs), same caveat as Phases 40/41/43/49/50 — flag for the next live
   smoke-test pass.
+
+---
+
+## Phase 52 — Digital TableTops Integration (Battlemap Control)
+
+Done (`PENDING_COMMIT`).
+
+Second `kind: "module"` integration (dnd5e is `kind: "system"`) — the first
+real exercise of that half of the Phase 32 framework. Target:
+`digital-tabletops`, installed side-by-side with this repo under
+`Data/modules/`, whose job is driving a physical TV/touch-frame battlemap
+display for in-person sessions. A special Foundry user named "TV" (a second
+browser/screen) *is* the display; the GM's client controls it purely by
+broadcasting on Foundry's own multiplayer socket (`game.socket`, channel
+`"module.digital-tabletops"`) — the exact same primitive Phase 47's
+`canvasPushView` already proved out (`game.socket.emit(event, data)`, typed
+generically in `module/src/types/foundry-globals.d.ts`), just a third-party
+channel name/payload shape instead of this project's own
+`MODULE_SOCKET_EVENT`. Read directly from `dtt.js` source (a single small
+file) rather than third-party docs.
+
+- `detect: (_activeSystemId, activeModuleIds) =>
+  activeModuleIds.includes("digital-tabletops")`. No `minVersion`/
+  `maxVersion` — implemented against the one shipped version (1.0.6) read
+  directly from source, same no-version-pin precedent as dnd5e.
+- **Two of the module's four actions need no new code at all.** `hideUI`,
+  `lockPan`, `display-width`, and `port-number` are plain Foundry world
+  settings (`game.settings.register("digital-tabletops", ...)`) whose own
+  `onChange` handlers do the real socket emit — already fully reachable via
+  the existing generic `GET/PUT /api/settings/digital-tabletops/:key`
+  endpoints (Phase 7), synced to every connected client (including the TV
+  user) by Foundry's own settings-sync. No integration-specific wrapper
+  needed; just document the exact namespace/keys in this integration's
+  endpoint descriptions/README so a caller doesn't have to go read `dtt.js`
+  itself to find them.
+- New commands (`shared/src/digital-tabletops.ts`,
+  `module/src/commands/digital-tabletops.ts`,
+  `server/src/integrations/digital-tabletops/{index,endpoints}.ts`):
+  - `dtt_pan_battlemap` — `POST /digital-tabletops/pan`
+    `{x, y, targetWidth?, targetHeight?}` →
+    `game.socket.emit("module.digital-tabletops", {action: "panCanvas", x, y, targetWidth, targetHeight})`.
+    The general "point the battlemap at this region" primitive — covers the
+    *effect* of the module's own `panTV` (click-to-location) and `TV2GM`
+    (mirror GM view) buttons, generalized to explicit coordinates a caller
+    computes itself (e.g. from a token's position or a scene's dimensions)
+    rather than reading a live DOM viewport.
+  - `dtt_scale_battlemap_to_physical` — `POST /digital-tabletops/scale-to-physical`,
+    no input → emits `{action: "panCanvas", scale: "physical"}` (1 grid = 1
+    real-world inch, per the configured `display-width` setting).
+  - `dtt_get_status` — `GET /digital-tabletops/status` → convenience
+    composite read: module active, whether a user named "TV"
+    (case-insensitive, matching `dtt.js`'s own check) exists and is
+    currently online (`FoundryUser#active`), plus the four current settings
+    values — so a caller can confirm a battlemap display is actually
+    connected before driving it, without hand-composing four settings reads
+    plus a users-list-and-filter. Mirrors dnd5e's `dnd5e_get_config`
+    precedent: a pure-discovery tool that isn't new capability so much as
+    reduced friction for this integration's actual use case.
+- **Deliberately not built**: a literal `TV2GM` equivalent ("mirror
+  whatever the GM's own browser is currently looking at"). That button reads
+  the connected client's *live DOM* canvas viewport
+  (`canvas.canvasCoordinatesFromClient`/`canvas.stage.scale`) at the moment
+  it's clicked — there is no existing "get current camera position" read
+  endpoint in this codebase to source that from headlessly (Phase 22/47 only
+  ever *set* the camera, never read it back), and faking it would silently
+  assume the bridge's connected client is the GM's own real screen, which
+  isn't guaranteed. If a real need shows up later, add a
+  `canvas_get_viewport` **core** endpoint first (its own phase, core domain,
+  not integration-specific — other callers would want it too), then revisit.
+- MCP: `dtt_pan_battlemap`, `dtt_scale_battlemap_to_physical`,
+  `dtt_get_status`.
+- `module.json`: one `relationships.recommends` entry (`type: "module"`) and
+  one matching `flags["foundry-local-api"].optionalIntegrations` entry,
+  `"implemented": false` until this phase actually lands (Phase 33
+  convention) — then flip to `true`/remove the key.
+- Test: `server/src/integrations/digital-tabletops/endpoints.test.ts`
+  following the dnd5e harness (bare Express app + fake `FoundryClient`, one
+  happy-path test per route).
+- **Not live-verified**: no live Foundry + digital-tabletops session with a
+  real or simulated "TV" client was available — flag for a live smoke-test
+  pass alongside the other not-yet-verified phases.
+- **Deviation**: `dtt_pan_battlemap`/`dtt_scale_battlemap_to_physical` return
+  a small `DttAckResult { acknowledged: true }` rather than `void` — no
+  `EndpointDescriptor<..., void>` precedent exists anywhere in this codebase,
+  and the REST path's `res.json(result)` call is untested against
+  `undefined`. Same "small ack object for a broadcast action" shape Phase
+  42's `NotifyResult` already established for its own fire-and-forget
+  `game.socket.emit()` action.
+- `module.json`'s `optionalIntegrations` entry landed with `"implemented":
+  true` directly (not `false` then flipped) since the code was registered in
+  the same session/commit.
 
 ---
 

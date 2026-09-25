@@ -38,6 +38,7 @@ Total tools: **195**.
 - [world](#world)
 - [world-time](#world-time)
 - [Integration: dnd5e](#integration-dnd5e-system)
+- [Integration: digital-tabletops](#integration-digital-tabletops-module)
 
 ## actors
 
@@ -2241,4 +2242,37 @@ REST: `POST /api/integrations/dnd5e/items/:id/use`
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `id` | string | yes |  |
+
+## Integration: digital-tabletops (module)
+
+_These tools only appear when module `digital-tabletops` is active in the connected Foundry world — see PLAN.md's Phase 32._
+
+### `dtt_get_status`
+
+Convenience composite read for the digital-tabletops integration: whether the module is active, whether a Foundry user named "TV" (case-insensitive, matching dtt.js's own check) exists and is currently online, and the module's four current world settings (namespace "digital-tabletops": hideUI, lockPan, display-width, port-number — also individually reachable via the generic GET/PUT /api/settings/digital-tabletops/:key endpoints). Call this before dtt_pan_battlemap/dtt_scale_battlemap_to_physical to confirm a display is actually connected.
+
+REST: `GET /api/integrations/digital-tabletops/status`
+
+_No input._
+
+### `dtt_pan_battlemap`
+
+Pans (and, when both targetWidth and targetHeight are given, scales to fit that region) the digital-tabletops battlemap display's view — the connected Foundry user literally named "TV". Advisory only: this broadcasts over Foundry's own multiplayer socket (module.digital-tabletops) and does not read back whether the TV client actually applied it, or whether a TV client is even connected — call dtt_get_status first to check.
+
+REST: `POST /api/integrations/digital-tabletops/pan`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `x` | number | yes |  |
+| `y` | number | yes |  |
+| `targetWidth` | number | no |  |
+| `targetHeight` | number | no |  |
+
+### `dtt_scale_battlemap_to_physical`
+
+Scales the digital-tabletops battlemap display (the "TV" Foundry user) so 1 grid unit = 1 real-world inch/mm, per the module's configured display-width setting. Advisory only, same caveat as dtt_pan_battlemap — call dtt_get_status first to confirm a TV display is actually connected.
+
+REST: `POST /api/integrations/digital-tabletops/scale-to-physical`
+
+_No input._
 

@@ -5,6 +5,7 @@
 // list ... so the active set is easy to audit." Later phases (33+, starting
 // with Phase 34's dnd5e integration) append entries here.
 import { dnd5eIntegration } from "./dnd5e/index.js";
+import { dttIntegration } from "./digital-tabletops/index.js";
 import type { Integration } from "./types.js";
 
-export const integrations: Integration[] = [dnd5eIntegration];
+export const integrations: Integration[] = [dnd5eIntegration, dttIntegration];

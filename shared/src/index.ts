@@ -215,3 +215,6 @@ export type {
   Dnd5eSpellSlotResult,
   Dnd5eItemUseResult,
 } from "./dnd5e.js";
+
+export { DTT_COMMANDS } from "./digital-tabletops.js";
+export type { DttPanInput, DttAckResult, DttStatusResult } from "./digital-tabletops.js";

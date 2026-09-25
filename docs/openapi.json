@@ -33,6 +33,9 @@
       "name": "combats"
     },
     {
+      "name": "digital-tabletops"
+    },
+    {
       "name": "dnd5e"
     },
     {
@@ -11039,6 +11042,148 @@
         "x-integration": {
           "id": "dnd5e",
           "kind": "system"
+        }
+      }
+    },
+    "/api/integrations/digital-tabletops/pan": {
+      "post": {
+        "operationId": "dtt_pan_battlemap",
+        "summary": "Pans (and, when both targetWidth and targetHeight are given, scales to fit that region) the digital-tabletops battlemap display's view — the connected Foundry user literally named \"TV\".",
+        "description": "Pans (and, when both targetWidth and targetHeight are given, scales to fit that region) the digital-tabletops battlemap display's view — the connected Foundry user literally named \"TV\". Advisory only: this broadcasts over Foundry's own multiplayer socket (module.digital-tabletops) and does not read back whether the TV client actually applied it, or whether a TV client is even connected — call dtt_get_status first to check.",
+        "tags": ["digital-tabletops"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "targetWidth": {
+                    "type": "number"
+                  },
+                  "targetHeight": {
+                    "type": "number"
+                  }
+                },
+                "required": ["x", "y"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "digital-tabletops",
+          "kind": "module"
+        }
+      }
+    },
+    "/api/integrations/digital-tabletops/scale-to-physical": {
+      "post": {
+        "operationId": "dtt_scale_battlemap_to_physical",
+        "summary": "Scales the digital-tabletops battlemap display (the \"TV\" Foundry user) so 1 grid unit = 1 real-world inch/mm, per the module's configured display-width setting.",
+        "description": "Scales the digital-tabletops battlemap display (the \"TV\" Foundry user) so 1 grid unit = 1 real-world inch/mm, per the module's configured display-width setting. Advisory only, same caveat as dtt_pan_battlemap — call dtt_get_status first to confirm a TV display is actually connected.",
+        "tags": ["digital-tabletops"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "digital-tabletops",
+          "kind": "module"
+        }
+      }
+    },
+    "/api/integrations/digital-tabletops/status": {
+      "get": {
+        "operationId": "dtt_get_status",
+        "summary": "Convenience composite read for the digital-tabletops integration: whether the module is active, whether a Foundry user named \"TV\" (case-insensitive, matching dtt.js's own check) exists and is currently online, and the module's four current world settings (namespace \"digital-tabletops\": hideUI, lockPan, display-width, port-number — also individually reachable via the generic GET/PUT /api/settings/digital-tabletops/:key endpoints).",
+        "description": "Convenience composite read for the digital-tabletops integration: whether the module is active, whether a Foundry user named \"TV\" (case-insensitive, matching dtt.js's own check) exists and is currently online, and the module's four current world settings (namespace \"digital-tabletops\": hideUI, lockPan, display-width, port-number — also individually reachable via the generic GET/PUT /api/settings/digital-tabletops/:key endpoints). Call this before dtt_pan_battlemap/dtt_scale_battlemap_to_physical to confirm a display is actually connected.",
+        "tags": ["digital-tabletops"],
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "x-integration": {
+          "id": "digital-tabletops",
+          "kind": "module"
         }
       }
     },
