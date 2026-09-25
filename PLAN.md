@@ -91,7 +91,7 @@ its own before moving to the next.
 | 51 — Compendium Pack Lifecycle | ✅ Done | `9382d08` |
 | 52 — Digital TableTops Integration (Battlemap Control) | ✅ Done | `707eb37` |
 | 53 — Adventure Document Import/Export | ✅ Done | `536bd3e` |
-| 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity | ✅ Done | (pending) |
+| 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity | ✅ Done | `51a93a7` |
 
 ---
 
