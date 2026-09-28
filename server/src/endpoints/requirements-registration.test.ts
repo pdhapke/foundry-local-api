@@ -34,6 +34,24 @@ const REQUIRED_TOOLS = [
   "foundry_get_movement_events",
 ] as const;
 
+const REQUIRED_CONCRETE_OUTPUTS = [
+  "foundry_issue_bridge_enrollment",
+  "foundry_get_bridge_enrollment_diagnostics",
+  "foundry_render_scene_snapshot",
+  "foundry_get_token_visibility",
+  "foundry_list_embedded_child",
+  "foundry_get_embedded_child",
+  "foundry_create_embedded_child",
+  "foundry_update_embedded_child",
+  "foundry_delete_embedded_child",
+  "foundry_validate_token_path",
+  "foundry_validate_wall_topology",
+  "foundry_record_movement_event",
+  "foundry_get_movement_events",
+  "foundry_list_ai_gm_deliveries",
+  "foundry_get_ai_gm_delivery",
+] as const;
+
 void describe("MCP requirement root registration", () => {
   void it("registers every requirement tool exactly once with REST wiring", () => {
     const names = allEndpointDescriptors.map(({ name }) => name);
@@ -44,5 +62,18 @@ void describe("MCP requirement root registration", () => {
       assert.ok(descriptor?.path, `${required} path`);
     }
     assert.equal(new Set(names).size, names.length, "global descriptor names must be unique");
+  });
+
+  void it("publishes concrete success contracts for the Gate 1 tool families", () => {
+    for (const required of REQUIRED_CONCRETE_OUTPUTS) {
+      const descriptor = allEndpointDescriptors.find(({ name }) => name === required);
+      assert.ok(descriptor?.outputSchema, `${required} outputSchema`);
+      const jsonSchema = descriptor.outputSchema.toJSONSchema();
+      assert.equal(jsonSchema.type, "object", `${required} top-level output type`);
+      assert.ok(
+        jsonSchema.properties && Object.keys(jsonSchema.properties).length > 0,
+        `${required} concrete output properties`,
+      );
+    }
   });
 });

@@ -48,7 +48,7 @@ function registerRestRoute<TInput, TResult>(
   path: string,
   router: Router,
 ): void {
-  const { inputSchema, handler } = descriptor;
+  const { inputSchema, outputSchema, handler } = descriptor;
   const middlewares: RequestHandler[] = [];
   if (inputSchema) {
     middlewares.push(method === "get" ? validateQuery(inputSchema) : validateBody(inputSchema));
@@ -77,7 +77,7 @@ function registerRestRoute<TInput, TResult>(
     const ctx: EndpointContext = { foundryClient, eventBus, foundations };
 
     Promise.resolve(handler(input, ctx))
-      .then((result) => res.json(result))
+      .then((result) => res.json(outputSchema ? outputSchema.parse(result) : result))
       .catch((err: unknown) => {
         if (err instanceof ProtocolError) {
           next(foundryBridgeErrorToHttpError(protocolToBridgeError(err)));
@@ -136,7 +136,15 @@ function registerMcpTool<TInput, TResult>(
   mcpServer: McpServer,
   ctx: EndpointContext,
 ): RegisteredTool {
-  const { name, description, inputSchema, handler, annotations } = descriptor;
+  const { name, description, inputSchema, outputSchema, handler, annotations } = descriptor;
+
+  const outputShape =
+    outputSchema instanceof ZodObject ? (outputSchema.shape as ZodRawShape) : undefined;
+  if (outputSchema && !outputShape) {
+    throw new Error(
+      `MCP tool "${name}": outputSchema must be a ZodObject to be exposed as a tool.`,
+    );
+  }
 
   if (inputSchema) {
     // The MCP SDK's registerTool() wants the raw shape object (a plain
@@ -151,11 +159,24 @@ function registerMcpTool<TInput, TResult>(
     const shape = inputSchema.shape as ZodRawShape;
     return mcpServer.registerTool(
       name,
-      { description, inputSchema: shape, ...(annotations ? { annotations } : {}) },
+      {
+        description,
+        inputSchema: shape,
+        ...(outputShape ? { outputSchema: outputShape } : {}),
+        ...(annotations ? { annotations } : {}),
+      },
       async (args) => {
         try {
-          const result = await handler(args as TInput, ctx);
-          return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+          // The SDK rebuilds a plain object from the raw shape above. Parse
+          // again with the descriptor's complete schema so superRefine,
+          // refine, transforms, and strictness are enforced for MCP calls too.
+          const parsed = inputSchema.parse(args);
+          const result = await handler(parsed as TInput, ctx);
+          if (outputSchema) outputSchema.parse(result);
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result) }],
+            ...(outputShape ? { structuredContent: result as Record<string, unknown> } : {}),
+          };
         } catch (err) {
           if (err instanceof FoundryBridgeError) {
             return {
@@ -179,11 +200,19 @@ function registerMcpTool<TInput, TResult>(
 
   return mcpServer.registerTool(
     name,
-    { description, ...(annotations ? { annotations } : {}) },
+    {
+      description,
+      ...(outputShape ? { outputSchema: outputShape } : {}),
+      ...(annotations ? { annotations } : {}),
+    },
     async () => {
       try {
         const result = await handler(undefined as TInput, ctx);
-        return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+        if (outputSchema) outputSchema.parse(result);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+          ...(outputShape ? { structuredContent: result as Record<string, unknown> } : {}),
+        };
       } catch (err) {
         if (err instanceof FoundryBridgeError) {
           return {

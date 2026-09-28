@@ -271,6 +271,45 @@ void describe("collision and topology geometry", () => {
       "bad-height",
     ]);
   });
+  void it("keeps malformed geometry signatures bounded and type-sensitive", () => {
+    const input = {
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 10, y: 0 }],
+      movementMode: "walk" as const,
+    };
+    const token = { x: 0, y: 0, revision: "token-r1", sceneRevision: "scene-r1" };
+    const signatureFor = (coordinates: unknown) => {
+      const result = validatePathGeometry(
+        input,
+        token,
+        [{ id: "bad", c: coordinates, revision: "wall-r1" }] as unknown as Parameters<
+          typeof validatePathGeometry
+        >[2],
+        { type: 1, size: 5 },
+      );
+      return {
+        shape: result.evidence.before.malformedWalls["bad"]!.shapeSignature,
+        topology: result.evidence.before.topologySignature,
+      };
+    };
+    const variants = [
+      signatureFor([0, Number.NaN, 1, 1]),
+      signatureFor([0, Infinity, 1, 1]),
+      signatureFor([0, -Infinity, 1, 1]),
+      signatureFor(null),
+      signatureFor("invalid"),
+      signatureFor([0, 1, 1]),
+    ];
+    assert.equal(new Set(variants.map(({ shape }) => shape)).size, variants.length);
+    assert.equal(new Set(variants.map(({ topology }) => topology)).size, variants.length);
+    assert.ok(variants.every(({ shape }) => /^[0-9a-f]{8}$/.test(shape)));
+
+    const huge = signatureFor(Array.from({ length: 20_000 }, (_, index) => index));
+    assert.equal(huge.shape.length, 8);
+    assert.ok(huge.topology.length < 200);
+    assert.ok(!huge.topology.includes("19999"));
+  });
   void it("returns revision-backed unchanged-state evidence for repeatable live reads", () => {
     const input = {
       sceneId: "s",

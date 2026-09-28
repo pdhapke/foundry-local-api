@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -124,6 +124,21 @@ void describe("Track 0 durable foundations", () => {
       path: "worlds/izzy-campaign/assets/mcp-test/test-track0-fixture-0001/b.png",
     });
     assert.deepEqual(registry.cleanupPlan("test-track0-fixture-0001").files, []);
+  });
+
+  void it("recovers a complete fixture manifest left by an interrupted atomic replacement", () => {
+    const path = tempFile("fixtures.json");
+    const run = {
+      testRunId: "test-track0-recovery-0001",
+      namespace: "foundry-local-api",
+      createdAt: new Date(0).toISOString(),
+      documents: [],
+      files: [{ root: "data", path: "fixtures/recovered/a.png", sha256: "a".repeat(64) }],
+    };
+    writeFileSync(`${path}.tmp`, JSON.stringify([run]), "utf8");
+    const registry = new FixtureRegistry(path);
+    assert.deepEqual(registry.get(run.testRunId).files, run.files);
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), [run]);
   });
 
   void it("redacts secret-bearing payload fields in the durable JSONL audit", () => {

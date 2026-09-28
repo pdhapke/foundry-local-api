@@ -54,6 +54,17 @@ void describe("simulation endpoint", () => {
       schema.safeParse({ ...base, actions: [{ kind: "rest", restType: "long" }] }).success,
       true,
     );
+    assert.equal(
+      schema.safeParse({
+        ...base,
+        action: { kind: "attack", itemId: "item", activityId: "activity" },
+      }).success,
+      true,
+    );
+    assert.equal(
+      schema.safeParse({ ...base, action: { kind: "attack", activityId: "activity" } }).success,
+      false,
+    );
     assert.equal(schema.safeParse({ ...base }).success, false);
     assert.equal(
       schema.safeParse({

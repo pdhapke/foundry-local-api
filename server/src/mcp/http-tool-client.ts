@@ -171,7 +171,15 @@ function registerHttpMcpTool(
   options: HttpMcpClientOptions,
   routeBase: HttpRouteBase,
 ): RegisteredTool {
-  const { name, description, inputSchema, annotations, method, path } = descriptor;
+  const { name, description, inputSchema, outputSchema, annotations, method, path } = descriptor;
+
+  const outputShape =
+    outputSchema instanceof ZodObject ? (outputSchema.shape as ZodRawShape) : undefined;
+  if (outputSchema && !outputShape) {
+    throw new Error(
+      `MCP tool "${name}": outputSchema must be a ZodObject to be exposed as a tool.`,
+    );
+  }
 
   const invoke = async (args: Record<string, unknown>) => {
     try {
@@ -179,7 +187,11 @@ function registerHttpMcpTool(
         method && path
           ? await callRestEndpoint(descriptor, args, options, routeBase)
           : await callHealthEndpoint(options);
-      return { content: [{ type: "text" as const, text: JSON.stringify(result ?? null) }] };
+      if (outputSchema) outputSchema.parse(result);
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result ?? null) }],
+        ...(outputShape ? { structuredContent: result as Record<string, unknown> } : {}),
+      };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -198,14 +210,23 @@ function registerHttpMcpTool(
     const shape = inputSchema.shape as ZodRawShape;
     return mcpServer.registerTool(
       name,
-      { description, inputSchema: shape, ...(annotations ? { annotations } : {}) },
-      async (args) => invoke(args as Record<string, unknown>),
+      {
+        description,
+        inputSchema: shape,
+        ...(outputShape ? { outputSchema: outputShape } : {}),
+        ...(annotations ? { annotations } : {}),
+      },
+      async (args) => invoke(inputSchema.parse(args) as Record<string, unknown>),
     );
   }
 
   return mcpServer.registerTool(
     name,
-    { description, ...(annotations ? { annotations } : {}) },
+    {
+      description,
+      ...(outputShape ? { outputSchema: outputShape } : {}),
+      ...(annotations ? { annotations } : {}),
+    },
     async () => invoke({}),
   );
 }

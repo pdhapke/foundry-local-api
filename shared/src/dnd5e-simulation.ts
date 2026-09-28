@@ -1,8 +1,22 @@
 export const DND5E_SIMULATION_COMMANDS = { SIMULATE: "dnd5eSimulateAction" } as const;
 export type Dnd5eSimulationAction =
-  | { kind: "attack"; itemId?: string; modifier?: number; targetAC?: number; damage?: string }
+  | {
+      kind: "attack";
+      itemId?: string;
+      activityId?: string;
+      modifier?: number;
+      targetAC?: number;
+      damage?: string;
+    }
   | { kind: "save"; ability?: string; skill?: string; modifier?: number; dc: number }
-  | { kind: "damage"; itemId?: string; amount?: number; formula?: string; damageType?: string }
+  | {
+      kind: "damage";
+      itemId?: string;
+      activityId?: string;
+      amount?: number;
+      formula?: string;
+      damageType?: string;
+    }
   | { kind: "effect"; effectId: string; active: boolean; targetActorId?: string }
   | { kind: "resource"; path: string; delta: number; min?: number; max?: number }
   | { kind: "rest"; restType: "short" | "long" }
@@ -33,6 +47,7 @@ export interface ProjectedDiff {
   after: unknown;
 }
 export interface Dnd5eSimulationResult {
+  effectiveUserId: string;
   actorId: string;
   actionKind: string;
   seed: number;
@@ -44,6 +59,7 @@ export interface Dnd5eSimulationResult {
   warnings: string[];
   resolvedContext: {
     itemId?: string;
+    activityId?: string;
     targetActorId?: string;
     modifier?: number;
     targetAC?: number;
@@ -58,14 +74,23 @@ export interface Dnd5eSimulationResult {
   }>;
   beforeRevision: string;
   afterRevision: string;
+  persistenceProofs: Array<{
+    family: "Actor" | "Item" | "ActiveEffect" | "Token" | "Combat" | "ChatMessage" | "Resource";
+    before: string;
+    after: string;
+    unchanged: boolean;
+  }>;
   beforeCounts: { chat: number; combat: number; effects: number };
   afterCounts: { chat: number; combat: number; effects: number };
   persisted: false;
   deterministic: true;
+  canonical: false;
+  simulationOnly: true;
   steps: Array<{
     index: number;
     actionKind: Dnd5eSimulationAction["kind"];
     status: "projected" | "failed";
+    completeness: "partial" | "unsupported";
     rolls: number[];
     total?: number;
     success?: boolean;

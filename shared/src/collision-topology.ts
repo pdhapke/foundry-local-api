@@ -401,28 +401,111 @@ function topologySignature(sceneRevision: string, walls: CollisionWall[]): strin
     sceneRevision,
     walls: [...walls]
       .sort((a, b) => a.id.localeCompare(b.id))
-      .map((w) => [
-        w.id,
-        w.revision ?? "unavailable",
-        w.c,
-        w.door ?? 0,
-        w.ds ?? 0,
-        w.move ?? 1,
-        w.dir ?? 0,
-        w.bottom ?? null,
-        w.top ?? null,
-      ]),
+      .map((w) =>
+        isMalformedWall(w)
+          ? [w.id, w.revision ?? "unavailable", "malformed", wallShapeSignature(w)]
+          : [
+              w.id,
+              w.revision ?? "unavailable",
+              w.c,
+              w.door ?? 0,
+              w.ds ?? 0,
+              w.move ?? 1,
+              w.dir ?? 0,
+              w.bottom ?? null,
+              w.top ?? null,
+            ],
+      ),
   });
 }
 
 function boundedShapeSignature(value: unknown): string {
-  const text = JSON.stringify(value) ?? "undefined";
   let hash = 0x811c9dc5;
-  for (let index = 0; index < text.length; index++) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
+  const seen = new WeakSet<object>();
+  const add = (text: string) => {
+    for (let index = 0; index < text.length; index++) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193);
+    }
+  };
+  const visit = (current: unknown, depth: number): void => {
+    if (current === null) {
+      add("null;");
+      return;
+    }
+    switch (typeof current) {
+      case "undefined":
+        add("undefined;");
+        return;
+      case "number":
+        add(
+          Number.isNaN(current)
+            ? "number:NaN;"
+            : current === Infinity
+              ? "number:+Infinity;"
+              : current === -Infinity
+                ? "number:-Infinity;"
+                : Object.is(current, -0)
+                  ? "number:-0;"
+                  : `number:${current};`,
+        );
+        return;
+      case "string":
+        add(`string:${current.length}:`);
+        add(current);
+        add(";");
+        return;
+      case "boolean":
+        add(`boolean:${current};`);
+        return;
+      case "bigint":
+        add(`bigint:${current};`);
+        return;
+      case "symbol":
+        add(`symbol:${String(current.description)};`);
+        return;
+      case "function":
+        add(`function:${current.name};`);
+        return;
+    }
+    if (seen.has(current)) {
+      add("circular;");
+      return;
+    }
+    seen.add(current);
+    if (depth >= 32) {
+      add(`depth-limit:${Object.prototype.toString.call(current)};`);
+      return;
+    }
+    if (Array.isArray(current)) {
+      add(`array:${current.length}:[`);
+      for (let index = 0; index < current.length; index++) {
+        add(`${index}:`);
+        if (index in current) visit(current[index], depth + 1);
+        else add("hole;");
+      }
+      add("];");
+      return;
+    }
+    const record = current as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    add(`object:${Object.prototype.toString.call(current)}:${keys.length}:{`);
+    for (const key of keys) {
+      add(`${key.length}:${key}=`);
+      visit(record[key], depth + 1);
+    }
+    add("};");
+  };
+  visit(value, 0);
   return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function wallShapeSignature(wall: CollisionWall): string {
+  return boundedShapeSignature({
+    coordinates: (wall as { c?: unknown }).c,
+    bottom: (wall as { bottom?: unknown }).bottom,
+    top: (wall as { top?: unknown }).top,
+  });
 }
 
 export function validatePathGeometry(
@@ -593,7 +676,7 @@ export function validatePathGeometry(
           wall.id,
           {
             revision: wall.revision ?? "unavailable",
-            shapeSignature: boundedShapeSignature(wall.c),
+            shapeSignature: wallShapeSignature(wall),
           },
         ]),
     ),

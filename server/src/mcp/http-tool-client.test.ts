@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+
 import type { AnyEndpointDescriptor } from "../endpoints/types.js";
-import { callRestEndpoint } from "./http-tool-client.js";
+import { callRestEndpoint, registerHttpMcpTools } from "./http-tool-client.js";
 
 const originalFetch = globalThis.fetch;
 
@@ -63,5 +66,43 @@ void describe("callRestEndpoint", () => {
     );
 
     assert.equal(requestUrl, "http://127.0.0.1:3939/api/system");
+  });
+});
+
+void describe("registerHttpMcpTools", () => {
+  void it("enforces descriptor refinements before issuing an HTTP request", async () => {
+    let fetchCalls = 0;
+    globalThis.fetch = (() => {
+      fetchCalls += 1;
+      return Promise.resolve(Response.json({ ok: true }));
+    }) as typeof fetch;
+    let callback: ((args: unknown) => Promise<unknown>) | undefined;
+    const server = {
+      registerTool: (_name: string, _config: unknown, toolCallback: typeof callback) => {
+        callback = toolCallback;
+        return {};
+      },
+    } as unknown as McpServer;
+    const descriptor: AnyEndpointDescriptor = {
+      name: "foundry_refined_remote",
+      description: "test",
+      method: "post",
+      path: "/refined",
+      inputSchema: z
+        .object({ family: z.enum(["Tile", "RegionBehavior"]), sceneId: z.string().optional() })
+        .superRefine((input, context) => {
+          if (input.family === "RegionBehavior" && !input.sceneId) {
+            context.addIssue({ code: "custom", path: ["sceneId"], message: "required" });
+          }
+        }),
+      handler: () => ({ ok: true }),
+    };
+
+    registerHttpMcpTools(server, [descriptor], {
+      baseUrl: "http://127.0.0.1:3939",
+      apiKey: "secret",
+    });
+    await assert.rejects(() => callback!({ family: "RegionBehavior" }), /required/);
+    assert.equal(fetchCalls, 0);
   });
 });

@@ -14,6 +14,7 @@ export interface MovementRegion {
   category?: MovementRegionCategory;
   bottom?: number;
   top?: number;
+  topInclusive?: boolean;
   stopOnEnter?: boolean;
 }
 export interface MovementEventInput {
@@ -27,6 +28,7 @@ export interface MovementEventInput {
   eventType?: MovementEventType;
   movementFields?: MovementField[];
   footprint?: { width: number; height: number };
+  incompleteReasons?: string[];
 }
 export interface MovementSegment {
   index: number;
@@ -213,7 +215,8 @@ function contains(
   const z = p.elevation ?? 0;
   if (
     (region.bottom !== undefined && z < region.bottom - EPS) ||
-    (region.top !== undefined && z > region.top + EPS)
+    (region.top !== undefined &&
+      (region.topInclusive === false ? z >= region.top - EPS : z > region.top + EPS))
   )
     return false;
   const touchesOuter = region.polygons.some(
@@ -319,11 +322,13 @@ export function buildMovementEvent(input: MovementEventInput): CompactMovementEv
       delevation: (to.elevation ?? 0) - (from.elevation ?? 0),
     };
   });
-  const transitions = segments.flatMap((s) =>
-    input.regions.flatMap((r) =>
-      r.incompleteReasons?.length ? [] : transitionsFor(s.from, s.to, r, footprint, s.index),
-    ),
-  );
+  const transitions = input.incompleteReasons?.length
+    ? []
+    : segments.flatMap((s) =>
+        input.regions.flatMap((r) =>
+          r.incompleteReasons?.length ? [] : transitionsFor(s.from, s.to, r, footprint, s.index),
+        ),
+      );
   transitions.sort(
     (l, r) =>
       l.segmentIndex - r.segmentIndex ||
@@ -363,9 +368,12 @@ export function buildMovementEvent(input: MovementEventInput): CompactMovementEv
         ]),
     ),
   ];
-  const incompleteReasons = input.regions.flatMap((region) =>
-    (region.incompleteReasons ?? []).map((reason) => `Region ${region.id}: ${reason}`),
-  );
+  const incompleteReasons = [
+    ...(input.incompleteReasons ?? []),
+    ...input.regions.flatMap((region) =>
+      (region.incompleteReasons ?? []).map((reason) => `Region ${region.id}: ${reason}`),
+    ),
+  ];
   return {
     eventId: input.eventId,
     eventType: input.eventType ?? "token_movement",

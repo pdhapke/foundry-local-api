@@ -93,7 +93,27 @@ function embeddedSnapshot(
 }
 
 /** Captures all mutable families whose dnd5e workflows can touch as side effects. */
-function persistenceSnapshot(): unknown {
+interface PersistenceSnapshot {
+  Actor: unknown;
+  Item: unknown;
+  ActiveEffect: unknown;
+  Token: unknown;
+  Combat: unknown;
+  ChatMessage: unknown;
+  Resource: unknown;
+}
+
+function resourceSnapshot(actors: Array<{ id: string; source: Record<string, unknown> }>): unknown {
+  return actors.map(({ id, source }) => ({
+    id,
+    hp: get(source, "system.attributes.hp"),
+    hd: get(source, "system.attributes.hd"),
+    resources: get(source, "system.resources"),
+    spells: get(source, "system.spells"),
+  }));
+}
+
+function persistenceSnapshot(): PersistenceSnapshot {
   const actors = [
     ...((game.collections.get("Actor") as Map<string, FoundryActor> | undefined)?.values() ?? []),
   ]
@@ -117,14 +137,21 @@ function persistenceSnapshot(): unknown {
     }
   }
   sceneTokens.sort((left, right) => left.sceneId.localeCompare(right.sceneId));
+  const actorSources = actors.map(({ id, source }) => ({ id, source }));
   return {
-    actors,
-    worldItems: documentCollectionSnapshot("Item"),
-    worldEffects: documentCollectionSnapshot("ActiveEffect"),
-    tokens: documentCollectionSnapshot("Token"),
-    sceneTokens,
-    combats: documentCollectionSnapshot("Combat"),
-    chatMessages: documentCollectionSnapshot("ChatMessage"),
+    Actor: actorSources,
+    Item: {
+      embedded: actors.map(({ id, items }) => ({ actorId: id, items })),
+      world: documentCollectionSnapshot("Item"),
+    },
+    ActiveEffect: {
+      embedded: actors.map(({ id, effects }) => ({ actorId: id, effects })),
+      world: documentCollectionSnapshot("ActiveEffect"),
+    },
+    Token: { world: documentCollectionSnapshot("Token"), scenes: sceneTokens },
+    Combat: documentCollectionSnapshot("Combat"),
+    ChatMessage: documentCollectionSnapshot("ChatMessage"),
+    Resource: resourceSnapshot(actorSources),
   };
 }
 
@@ -163,21 +190,32 @@ function itemById(actor: FoundryActor, id: string | undefined): FoundryDocument 
   return item;
 }
 
-function itemActivities(system: Record<string, unknown>): Record<string, unknown>[] {
+interface ItemActivity {
+  id: string;
+  source: Record<string, unknown>;
+}
+
+function itemActivities(system: Record<string, unknown>): ItemActivity[] {
   const activities = system["activities"];
   if (!activities || typeof activities !== "object") return [];
-  return Object.values(activities as Record<string, unknown>).filter(
-    (value): value is Record<string, unknown> => Boolean(value && typeof value === "object"),
-  );
+  return Object.entries(activities as Record<string, unknown>)
+    .filter((entry): entry is [string, Record<string, unknown>] =>
+      Boolean(entry[1] && typeof entry[1] === "object"),
+    )
+    .map(([key, source]) => ({
+      id: typeof source["_id"] === "string" ? source["_id"] : key,
+      source,
+    }));
 }
 
 function compatibleActivity(
   system: Record<string, unknown>,
   purpose: "attack" | "damage",
-): Record<string, unknown> | undefined {
+  activityId?: string,
+): ItemActivity | undefined {
   const activities = itemActivities(system);
   if (activities.length === 0) return undefined;
-  const compatible = activities.filter((activity) => {
+  const compatible = activities.filter(({ source: activity }) => {
     const type = activity["type"];
     if (purpose === "attack")
       return type === "attack" || (type === undefined && typeof activity["attack"] === "object");
@@ -186,36 +224,51 @@ function compatibleActivity(
       typeof activity["damage"] === "object"
     );
   });
+  if (activityId) {
+    const selected = compatible.find((activity) => activity.id === activityId);
+    if (!selected)
+      throw new ProtocolError({
+        code: "NOT_FOUND",
+        message: `The Item has no supported ${purpose} activity "${activityId}".`,
+        retryable: false,
+        fieldPath: "action.activityId",
+      });
+    return selected;
+  }
   if (compatible.length !== 1)
     throw new ProtocolError({
       code: "UNSUPPORTED_TYPE",
       message:
         compatible.length === 0
           ? `The Item has no supported ${purpose} activity.`
-          : `The Item has multiple ${purpose} activities, but the bounded contract has no activity selector.`,
+          : `The Item has multiple ${purpose} activities; activityId is required.`,
       retryable: false,
       fieldPath: "action.itemId",
     });
   return compatible[0];
 }
 
-function itemAttackBonus(item: FoundryDocument | undefined): number | undefined {
-  if (!item) return undefined;
+function itemAttackBonus(
+  item: FoundryDocument | undefined,
+  activityId?: string,
+): { value?: number; activityId?: string } {
+  if (!item) return {};
   const source = item.toObject();
   const system = (source["system"] ?? {}) as Record<string, unknown>;
-  const activity = compatibleActivity(system, "attack");
+  const activity = compatibleActivity(system, "attack", activityId);
   const candidates = [
     system["attackBonus"],
-    activity?.["attackBonus"],
-    activity && typeof activity["attack"] === "object"
-      ? (activity["attack"] as Record<string, unknown>)["bonus"]
+    activity?.source["attackBonus"],
+    activity && typeof activity.source["attack"] === "object"
+      ? (activity.source["attack"] as Record<string, unknown>)["bonus"]
       : undefined,
   ];
   for (const candidate of candidates) {
     const value = Number(candidate);
-    if (candidate !== undefined && Number.isFinite(value)) return value;
+    if (candidate !== undefined && Number.isFinite(value))
+      return { value, ...(activity ? { activityId: activity.id } : {}) };
   }
-  return undefined;
+  return { ...(activity ? { activityId: activity.id } : {}) };
 }
 
 function damagePart(value: unknown): { formula: string; damageType?: string } | undefined {
@@ -286,17 +339,20 @@ function damagePart(value: unknown): { formula: string; damageType?: string } | 
 
 function itemDamage(
   item: FoundryDocument | undefined,
-): { formula: string; damageType?: string } | undefined {
+  activityId?: string,
+): { formula: string; damageType?: string; activityId?: string } | undefined {
   if (!item) return undefined;
   const source = item.toObject();
   const system = (source["system"] ?? {}) as Record<string, unknown>;
   const activities = itemActivities(system);
   if (activities.length > 0) {
-    const activity = compatibleActivity(system, "damage")!;
-    const damage = activity["damage"];
-    return damage && typeof damage === "object"
-      ? damagePart((damage as Record<string, unknown>)["parts"])
-      : undefined;
+    const activity = compatibleActivity(system, "damage", activityId)!;
+    const damage = activity.source["damage"];
+    const part =
+      damage && typeof damage === "object"
+        ? damagePart((damage as Record<string, unknown>)["parts"])
+        : undefined;
+    return part ? { ...part, activityId: activity.id } : undefined;
   }
   const direct = system["damage"];
   const directParts =
@@ -439,7 +495,7 @@ interface ReferencedDocument {
 
 interface VirtualState {
   actors: Map<string, Record<string, unknown>>;
-  effects: Map<string, boolean>;
+  effects: Map<string, { disabled: boolean }>;
   combat: Record<string, unknown> | null;
 }
 
@@ -659,6 +715,17 @@ export async function simulateDnd5eAction(
       : []),
   ];
   for (const document of referenced) requiredExpectedRevision(input, document);
+  const referencedKeys = new Set(referenced.map((entry) => `${entry.kind}:${entry.id}`));
+  const unexpectedRevision = input.expectedRevisions.find(
+    (entry) => !referencedKeys.has(`${entry.kind}:${entry.id}`),
+  );
+  if (unexpectedRevision)
+    throw new ProtocolError({
+      code: "INVALID_PAYLOAD",
+      message: `Expected revision ${unexpectedRevision.kind} "${unexpectedRevision.id}" is not referenced by this simulation.`,
+      retryable: false,
+      fieldPath: "expectedRevisions",
+    });
 
   const persistenceBefore = persistenceSnapshot();
   const beforeCounts = {
@@ -676,13 +743,15 @@ export async function simulateDnd5eAction(
     state.actors.set(target.id, structuredClone(target.toObject()));
   for (const owner of [actor, ...targets.values()])
     for (const effect of owner.effects.values())
-      state.effects.set(`${owner.id}:${effect.id}`, effect.toObject()["disabled"] !== true);
+      state.effects.set(`${owner.id}:${effect.id}`, {
+        disabled: effect.toObject()["disabled"] === true,
+      });
 
   const projectStep = (
     action: Dnd5eSimulationAction,
     index: number,
     draft: VirtualState,
-    rollCursor: { offset: number },
+    rollCursor: { offset: number; consumed: number[] },
   ): StepProjection => {
     const stepSeed = (seed + index * 1_000) >>> 0;
     const warnings: string[] = [];
@@ -694,6 +763,7 @@ export async function simulateDnd5eAction(
     const roll = (formula: string, rollSeed: number) => {
       const result = simulateRoll(formula, rollSeed, input.suppliedRolls?.slice(rollCursor.offset));
       rollCursor.offset += result.rolls.length;
+      rollCursor.consumed.push(...result.rolls);
       return result;
     };
     const actorSource = draft.actors.get(actor.id)!;
@@ -722,7 +792,9 @@ export async function simulateDnd5eAction(
     };
 
     if (action.kind === "attack") {
-      const modifier = itemAttackBonus(item) ?? action.modifier;
+      const attack = itemAttackBonus(item, action.activityId);
+      const modifier = attack.value ?? action.modifier;
+      if (attack.activityId) context.activityId = attack.activityId;
       const targetAC = targetSource
         ? Number(get(targetSource, "system.attributes.ac.value"))
         : action.targetAC;
@@ -745,7 +817,7 @@ export async function simulateDnd5eAction(
       total = d20() + modifier!;
       const natural = rolls[0]!;
       success = natural === 20 || (natural !== 1 && total >= targetAC!);
-      const resolvedDamage = itemDamage(item);
+      const resolvedDamage = itemDamage(item, action.activityId);
       const rawDamage = resolvedDamage?.formula ?? action.damage;
       if (rawDamage) {
         const formula = resolveFormula(rawDamage, actorSource, itemSource);
@@ -786,10 +858,14 @@ export async function simulateDnd5eAction(
       context.modifier = modifier!;
       total = d20() + modifier!;
       success = total >= action.dc;
+      warnings.push(
+        "Save/check projection omits advantage, disadvantage, situational bonuses, roll modes, effects, and dnd5e workflow hooks.",
+      );
     } else if (action.kind === "damage") {
       const recipient = target ?? actor;
       const recipientSource = draft.actors.get(recipient.id)!;
-      const resolved = itemDamage(item);
+      const resolved = itemDamage(item, action.activityId);
+      if (resolved?.activityId) context.activityId = resolved.activityId;
       const raw = resolved?.formula ?? action.formula;
       const formula = raw ? resolveFormula(raw, actorSource, itemSource) : undefined;
       let amount = action.amount;
@@ -813,18 +889,26 @@ export async function simulateDnd5eAction(
       const applied = applyDamageRules(amount, damageType, recipientSource);
       const hp = Number(actorValue(recipient, "system.attributes.hp.value") ?? 0);
       changeActor(recipient, "system.attributes.hp.value", Math.max(0, hp - applied));
+      warnings.push(
+        "Damage projection omits temporary HP, healing, rounding variants, effects, and dnd5e workflow hooks.",
+      );
     } else if (action.kind === "effect") {
       const recipient = target ?? actor;
       const key = `${recipient.id}:${action.effectId}`;
-      const before = draft.effects.get(key) ?? false;
-      if (!draft.effects.has(key))
-        warnings.push("Effect is absent; activation is projected as intent.");
+      const effect = draft.effects.get(key);
+      if (!effect)
+        throw new ProtocolError({
+          code: "NOT_FOUND",
+          message: `ActiveEffect "${action.effectId}" was not found on Actor "${recipient.id}".`,
+          retryable: false,
+          fieldPath: `actions.${index}.effectId`,
+        });
       diffs.push({
-        path: `actors.${recipient.id}.effects.${action.effectId}.active`,
-        before,
-        after: action.active,
+        path: `actors.${recipient.id}.effects.${action.effectId}.disabled`,
+        before: effect.disabled,
+        after: !action.active,
       });
-      draft.effects.set(key, action.active);
+      draft.effects.set(key, { disabled: !action.active });
       warnings.push(
         "Effect changes, durations, statuses, and system automation are represented only as activation intent.",
       );
@@ -849,6 +933,9 @@ export async function simulateDnd5eAction(
         Math.max(action.min ?? -Infinity, current + action.delta),
       );
       changeActor(actor, action.path, next);
+      warnings.push(
+        "Resource projection updates one numeric path only; item uses, ammunition, spell preparation, and linked consumption remain unmodeled.",
+      );
     } else if (action.kind === "rest") {
       const hp = Number(get(actorSource, "system.attributes.hp.value") ?? 0);
       const max = Number(get(actorSource, "system.attributes.hp.max") ?? hp);
@@ -935,7 +1022,7 @@ export async function simulateDnd5eAction(
   let suppliedRollOffset = 0;
   for (const [index, action] of actions.entries()) {
     const draft = structuredClone(state);
-    const rollCursor = { offset: suppliedRollOffset };
+    const rollCursor = { offset: suppliedRollOffset, consumed: [] as number[] };
     try {
       const projected = projectStep(action, index, draft, rollCursor);
       state = draft;
@@ -948,6 +1035,7 @@ export async function simulateDnd5eAction(
         index,
         actionKind: action.kind,
         status: "projected",
+        completeness: "partial",
         rolls: projected.rolls,
         ...(projected.total === undefined ? {} : { total: projected.total }),
         ...(projected.success === undefined ? {} : { success: projected.success }),
@@ -959,11 +1047,14 @@ export async function simulateDnd5eAction(
         index,
         actionKind: action.kind,
         status: "failed",
-        rolls: [],
+        completeness: "unsupported",
+        rolls: rollCursor.consumed,
         projectedDiffs: [],
         warnings: [],
         errorCode: errorCode(error),
       });
+      allRolls.push(...rollCursor.consumed);
+      suppliedRollOffset = rollCursor.offset;
       if (!input.continueOnError) {
         stoppedAtStep = index;
         break;
@@ -985,8 +1076,17 @@ export async function simulateDnd5eAction(
   }));
   const beforeRevision = await digest(persistenceBefore);
   const afterRevision = await digest(persistenceAfter);
+  const proofFamilies = Object.keys(persistenceBefore) as Array<keyof PersistenceSnapshot>;
+  const persistenceProofs = await Promise.all(
+    proofFamilies.map(async (family) => {
+      const before = await digest(persistenceBefore[family]);
+      const after = await digest(persistenceAfter[family]);
+      return { family, before, after, unchanged: before === after };
+    }),
+  );
   if (
     beforeRevision !== afterRevision ||
+    persistenceProofs.some((proof) => !proof.unchanged) ||
     documentRevisions.some((entry) => entry.before !== entry.after) ||
     stable(beforeCounts) !== stable(afterCounts)
   )
@@ -996,6 +1096,7 @@ export async function simulateDnd5eAction(
       retryable: false,
     });
   return {
+    effectiveUserId: input.effectiveUserId,
     actorId: input.actorId,
     actionKind: actions.length === 1 ? actions[0]!.kind : "sequence",
     seed,
@@ -1003,19 +1104,19 @@ export async function simulateDnd5eAction(
     ...(lastProjection?.total === undefined ? {} : { total: lastProjection.total }),
     ...(lastProjection?.success === undefined ? {} : { success: lastProjection.success }),
     projectedDiffs: allDiffs,
-    completeness:
-      steps.some((step) => step.status === "failed") || allWarnings.length > 0
-        ? "partial"
-        : "complete",
+    completeness: steps.some((step) => step.status === "projected") ? "partial" : "unsupported",
     warnings: allWarnings,
     resolvedContext: lastProjection?.context ?? {},
     documentRevisions,
     beforeRevision,
     afterRevision,
+    persistenceProofs,
     beforeCounts,
     afterCounts,
     persisted: false,
     deterministic: true,
+    canonical: false,
+    simulationOnly: true,
     steps,
     completedSteps: steps.filter((step) => step.status === "projected").length,
     stoppedAtStep,

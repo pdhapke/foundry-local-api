@@ -159,6 +159,7 @@ function buildOperation(
 ): JsonSchemaObject {
   const pathParamNames = extractPathParamNames(path);
   const fullSchema = descriptor.inputSchema ? toInputJsonSchema(descriptor.inputSchema) : undefined;
+  const successSchema = descriptor.outputSchema ? toInputJsonSchema(descriptor.outputSchema) : {};
   const allProperties = fullSchema ? propertiesOf(fullSchema) : {};
   const requiredNames = fullSchema ? requiredOf(fullSchema) : [];
 
@@ -167,6 +168,9 @@ function buildOperation(
     in: "path",
     required: true,
     schema: allProperties[name] ?? { type: "string" },
+    ...((allProperties[name]?.["description"] as string | undefined)
+      ? { description: allProperties[name]?.["description"] as string }
+      : {}),
   }));
 
   const bodyPropertyEntries = Object.entries(allProperties).filter(
@@ -182,6 +186,9 @@ function buildOperation(
         in: "query",
         required: requiredNames.includes(name),
         schema,
+        ...((schema["description"] as string | undefined)
+          ? { description: schema["description"] as string }
+          : {}),
       });
     }
   }
@@ -220,7 +227,7 @@ function buildOperation(
     responses: {
       "200": {
         description: "Success.",
-        content: { "application/json": { schema: {} } },
+        content: { "application/json": { schema: successSchema } },
       },
       "400": { $ref: "#/components/responses/ValidationError" },
       "401": { $ref: "#/components/responses/Unauthorized" },
@@ -381,16 +388,14 @@ function buildOpenApiDocument(): JsonSchemaObject {
   };
 }
 
-function formatJsonSchemaForMarkdown(descriptor: AnyEndpointDescriptor): string {
-  if (!descriptor.inputSchema) {
-    return "_No input._";
-  }
-  const schema = toInputJsonSchema(descriptor.inputSchema);
+function formatJsonSchemaForMarkdown(schemaSource: AnyEndpointDescriptor["inputSchema"]): string {
+  if (!schemaSource) return "_Not declared._";
+  const schema = toInputJsonSchema(schemaSource);
   const props = propertiesOf(schema);
   const required = new Set(requiredOf(schema));
   const names = Object.keys(props);
   if (names.length === 0) {
-    return "_No input._";
+    return "_No fields._";
   }
   const rows = names.map((name) => {
     const propSchema = props[name] ?? {};
@@ -416,7 +421,15 @@ function descriptorMarkdownLines(descriptor: AnyEndpointDescriptor, restPrefix: 
     "",
     `REST: \`${restLine}\``,
     "",
-    formatJsonSchemaForMarkdown(descriptor),
+    "**Input**",
+    "",
+    descriptor.inputSchema ? formatJsonSchemaForMarkdown(descriptor.inputSchema) : "_No input._",
+    "",
+    "**Success output**",
+    "",
+    descriptor.outputSchema
+      ? formatJsonSchemaForMarkdown(descriptor.outputSchema)
+      : "_No concrete success schema declared._",
     "",
   ];
 }

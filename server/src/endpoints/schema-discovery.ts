@@ -28,7 +28,18 @@ const validationSchema = z
     data: z.record(z.string(), z.unknown()).optional(),
     candidates: z.array(z.record(z.string(), z.unknown())).min(1).max(100).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    const hasData = input.data !== undefined;
+    const hasCandidates = input.candidates !== undefined;
+    if (hasData === hasCandidates) {
+      context.addIssue({
+        code: "custom",
+        path: [hasData ? "candidates" : "data"],
+        message: "Provide exactly one of data or a non-empty candidates array.",
+      });
+    }
+  });
 
 /** REST and MCP descriptors for read-only Foundry DataModel introspection. */
 export const schemaDiscoveryEndpointDescriptors: AnyEndpointDescriptor[] = [

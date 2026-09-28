@@ -288,8 +288,20 @@ void describe("scene render commands", () => {
       tiles: ["tile-public"],
     });
     assert.deepEqual(result.queryPoints, [
-      { id: "clear", visible: true, regions: ["region-1"] },
-      { id: "blocked", visible: false, regions: [] },
+      {
+        id: "clear",
+        visible: true,
+        regions: ["region-1"],
+        blockerAttribution: "none",
+        blockerKeys: [],
+      },
+      {
+        id: "blocked",
+        visible: false,
+        regions: [],
+        blockerAttribution: "visible-wall",
+        blockerKeys: ["blocker-1"],
+      },
     ]);
     assert.deepEqual(result.regions, [{ key: "region-1" }]);
     assert.deepEqual(result.visibleBarriers, [
@@ -433,7 +445,13 @@ void describe("scene render commands", () => {
     assert.equal(result.image, null);
     assert.deepEqual(result.visible.tokens, ["token-selected"]);
     assert.deepEqual(result.queryPoints, [
-      { id: "other-source-only", visible: false, regions: [] },
+      {
+        id: "other-source-only",
+        visible: false,
+        regions: [],
+        blockerAttribution: "out-of-range",
+        blockerKeys: [],
+      },
     ]);
     assert.equal(result.isolation.unrelatedVisionSourcesIgnored, 1);
     assert.equal(calls.union, 0);
@@ -619,6 +637,10 @@ void describe("scene render commands", () => {
       ],
     });
     assert.ok(result.visibleBarriers.some(({ key }) => key.startsWith("blocker-")));
+    assert.equal(result.queryPoints[0]?.blockerAttribution, "visible-wall");
+    assert.deepEqual(result.queryPoints[0]?.blockerKeys, ["blocker-1"]);
+    assert.equal(result.queryPoints[1]?.blockerAttribution, "environment-ambiguous");
+    assert.deepEqual(result.queryPoints[1]?.blockerKeys, []);
     assert.equal(
       result.issues.some(
         ({ code, subjectId }) => code === "QUERY_FAILED" && subjectId === "wall-blocked",

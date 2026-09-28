@@ -301,4 +301,38 @@ void describe("movement transitions", () => {
     assert.equal(event.firstStop?.regionId, "room");
     assert.equal(event.firstStop?.stopOnEnter, true);
   });
+
+  void it("honors an exclusive Region elevation top boundary", () => {
+    const event = buildMovementEvent({
+      eventId: "exclusive-top",
+      sceneId: "s",
+      tokenId: "t",
+      userId: "u",
+      waypoints: [
+        { x: 1, y: 1, elevation: 9 },
+        { x: 1, y: 1, elevation: 10 },
+        { x: 1, y: 1, elevation: 11 },
+      ],
+      regions: [
+        {
+          id: "level",
+          polygons: [
+            [
+              { x: 0, y: 0 },
+              { x: 2, y: 0 },
+              { x: 2, y: 2 },
+              { x: 0, y: 2 },
+            ],
+          ],
+          bottom: 0,
+          top: 10,
+          topInclusive: false,
+        },
+      ],
+    });
+    assert.deepEqual(
+      event.transitions.map((transition) => [transition.kind, transition.segmentIndex]),
+      [["exit", 0]],
+    );
+  });
 });

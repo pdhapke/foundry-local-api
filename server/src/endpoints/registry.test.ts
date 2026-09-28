@@ -258,10 +258,16 @@ void describe("mountRestEndpoints", () => {
 // --- MCP-side test harness --------------------------------------------------
 
 interface CapturedTool {
-  config: { description: string; inputSchema?: unknown; annotations?: unknown };
+  config: {
+    description: string;
+    inputSchema?: unknown;
+    outputSchema?: unknown;
+    annotations?: unknown;
+  };
   callback: (args?: unknown) => Promise<{
     content: { type: "text"; text: string }[];
     isError?: boolean;
+    structuredContent?: Record<string, unknown>;
   }>;
 }
 
@@ -329,6 +335,49 @@ void describe("registerMcpTools", () => {
     assert.ok(tool.config.inputSchema, "inputSchema should be present");
     assert.deepEqual(Object.keys(tool.config.inputSchema as object).sort(), ["count", "id"]);
     assert.equal(tool.config.inputSchema instanceof z.ZodObject, false);
+  });
+
+  void it("re-applies the complete input schema so MCP calls enforce refinements", async () => {
+    let calls = 0;
+    const descriptor: AnyEndpointDescriptor = {
+      name: "foundry_refined",
+      description: "test",
+      inputSchema: z
+        .object({ family: z.enum(["Tile", "RegionBehavior"]), sceneId: z.string().optional() })
+        .superRefine((input, context) => {
+          if (input.family === "RegionBehavior" && !input.sceneId) {
+            context.addIssue({ code: "custom", path: ["sceneId"], message: "required" });
+          }
+        }),
+      handler: () => {
+        calls += 1;
+        return { ok: true };
+      },
+    };
+    const { mcpServer, tools } = makeFakeMcpServer();
+    registerMcpTools(mcpServer, [descriptor], FAKE_CLIENT);
+
+    await assert.rejects(
+      () => tools.get("foundry_refined")!.callback({ family: "RegionBehavior" }),
+      /required/,
+    );
+    assert.equal(calls, 0);
+  });
+
+  void it("registers, validates, and returns a concrete structured output", async () => {
+    const descriptor: AnyEndpointDescriptor = {
+      name: "foundry_structured",
+      description: "test",
+      outputSchema: z.object({ ok: z.literal(true), count: z.number().int() }).strict(),
+      handler: () => ({ ok: true, count: 2 }),
+    };
+    const { mcpServer, tools } = makeFakeMcpServer();
+    registerMcpTools(mcpServer, [descriptor], FAKE_CLIENT);
+
+    const tool = tools.get("foundry_structured");
+    assert.deepEqual(Object.keys(tool?.config.outputSchema as object).sort(), ["count", "ok"]);
+    const result = await tool?.callback();
+    assert.deepEqual(result?.structuredContent, { ok: true, count: 2 });
   });
 
   void it("throws when a descriptor's inputSchema is not a flat ZodObject", () => {

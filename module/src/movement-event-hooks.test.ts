@@ -265,6 +265,137 @@ void describe("automatic movement hook capture", () => {
     assert.deepEqual(event.transitions, []);
   });
 
+  void it("uses v14 token-keyed and prepared passed waypoints without losing path segments", () => {
+    const player = { id: "player", isGM: false };
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: { users: new Map([[player.id, player]]) },
+    });
+    const scene = {
+      id: "scene-keyed",
+      getEmbeddedCollection: () => new Map(),
+    } as unknown as FoundryScene;
+    const token = {
+      id: "token-keyed",
+      parent: scene,
+      toObject: () => ({ x: 0, y: 0, elevation: 4 }),
+      testUserPermission: () => true,
+    } as unknown as Parameters<typeof captureTokenMovement>[0];
+    captureTokenMovement(
+      token,
+      { x: 12 },
+      {
+        movement: {
+          "token-keyed": { waypoints: [{ x: 99, y: 99 }] },
+          other: { waypoints: [{ x: 88, y: 88 }] },
+        },
+        _movement: {
+          "token-keyed": {
+            passed: {
+              waypoints: [
+                { x: 0, y: 0, elevation: 4 },
+                { x: 3, y: 1 },
+                { x: 3, y: 1 },
+                { x: 8, y: 2, elevation: 7 },
+              ],
+            },
+          },
+        },
+      },
+      player.id,
+    );
+    const event = completeTokenMovement(token, player.id)!;
+    assert.deepEqual(event.waypoints, [
+      { x: 0, y: 0, elevation: 4 },
+      { x: 3, y: 1, elevation: 4 },
+      { x: 3, y: 1, elevation: 4 },
+      { x: 8, y: 2, elevation: 7 },
+      { x: 12, y: 0, elevation: 4 },
+    ]);
+    assert.equal(event.segments.length, 4);
+  });
+
+  void it("marks keyed movement metadata incomplete instead of guessing an unreadable path", () => {
+    const player = { id: "player", isGM: false };
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: { users: new Map([[player.id, player]]) },
+    });
+    const scene = {
+      id: "scene-malformed",
+      getEmbeddedCollection: () =>
+        new Map([
+          [
+            "crossed",
+            {
+              id: "crossed",
+              toObject: () => ({
+                shapes: [{ type: "rectangle", x: 4, y: -1, width: 2, height: 2 }],
+              }),
+            },
+          ],
+        ]),
+    } as unknown as FoundryScene;
+    const token = {
+      id: "token-malformed",
+      parent: scene,
+      toObject: () => ({ x: 0, y: 0 }),
+      testUserPermission: () => true,
+    } as unknown as Parameters<typeof captureTokenMovement>[0];
+    captureTokenMovement(
+      token,
+      { x: 10 },
+      { movement: { "token-malformed": { waypoints: [{ x: "bad", y: 2 }] } } },
+      player.id,
+    );
+    const event = completeTokenMovement(token, player.id)!;
+    assert.equal(event.geometryStatus, "incomplete");
+    assert.match(event.incompleteReasons.join(" "), /non-finite coordinates/);
+    assert.deepEqual(event.transitions, []);
+    assert.deepEqual(event.waypoints, [
+      { x: 0, y: 0, elevation: 0 },
+      { x: 10, y: 0, elevation: 0 },
+    ]);
+  });
+
+  void it("uses actual constrained Region polygons and fails closed when they are unavailable", () => {
+    const restricted = {
+      id: "restricted",
+      polygons: [{ points: [4, 0, 6, 0, 6, 2, 4, 2] }],
+      toObject: () => ({
+        restriction: { enabled: true, type: "move", priority: 0 },
+        _shapeConstraints: [[4, 0, 6, 0, 6, 2, 4, 2]],
+        shapes: [{ type: "rectangle", x: 0, y: 0, width: 10, height: 2 }],
+      }),
+    };
+    const missing = {
+      id: "missing",
+      toObject: () => ({
+        restriction: { enabled: true, type: "move", priority: 0 },
+        _shapeConstraints: [[1, 0, 2, 0, 2, 2, 1, 2]],
+        shapes: [{ type: "rectangle", x: 0, y: 0, width: 10, height: 2 }],
+      }),
+    };
+    const scene = {
+      getEmbeddedCollection: () =>
+        new Map([
+          [restricted.id, restricted],
+          [missing.id, missing],
+        ]),
+    } as unknown as FoundryScene;
+    const [supported, unsupported] = sceneMovementRegions(scene);
+    assert.deepEqual(supported!.polygons, [
+      [
+        { x: 4, y: 0 },
+        { x: 6, y: 0 },
+        { x: 6, y: 2 },
+        { x: 4, y: 2 },
+      ],
+    ]);
+    assert.equal(supported!.incompleteReasons, undefined);
+    assert.match(unsupported!.incompleteReasons!.join(" "), /constrained Region polygons/);
+  });
+
   void it("throws explicitly when the Region collection cannot be read", () => {
     const scene = {
       getEmbeddedCollection: () => {
@@ -361,5 +492,43 @@ void describe("automatic movement hook capture", () => {
       ["x"],
     );
     assert.equal((sent[0] as { footprint: { width: number } }).footprint.width, 100);
+  });
+
+  void it("suppresses a GM initiator observed by a different GM unless explicitly authorized", () => {
+    const reportingGm = { id: "gm-reporter", isGM: true };
+    const initiatingGm = { id: "gm-initiator", isGM: true };
+    const player = { id: "izzy", isGM: false };
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: reportingGm,
+        users: new Map([
+          [reportingGm.id, reportingGm],
+          [initiatingGm.id, initiatingGm],
+          [player.id, player],
+        ]),
+      },
+    });
+    const scene = {
+      id: "scene-multiple-gms",
+      getEmbeddedCollection: () => new Map(),
+    } as unknown as FoundryScene;
+    const token = {
+      id: "token",
+      parent: scene,
+      toObject: () => ({ x: 0, y: 0 }),
+      testUserPermission: () => true,
+    } as unknown as Parameters<typeof captureTokenMovement>[0];
+    captureTokenMovement(token, { x: 1 }, { correlationId: "blocked" }, initiatingGm.id);
+    assert.equal(completeTokenMovement(token, initiatingGm.id), undefined);
+    captureTokenMovement(
+      token,
+      { x: 1 },
+      { correlationId: "gm-allowed", foundryLocalApi: { authorizedGmMovement: true } },
+      initiatingGm.id,
+    );
+    assert.equal(completeTokenMovement(token, initiatingGm.id)?.eventId, "gm-allowed");
+    captureTokenMovement(token, { x: 1 }, { correlationId: "izzy" }, player.id);
+    assert.equal(completeTokenMovement(token, player.id)?.eventId, "izzy");
   });
 });

@@ -150,7 +150,10 @@ export interface TransactionResult {
   correlationId: string;
   idempotencyKey: string;
   committed: true;
-  atomic: true;
+  /** False because Foundry exposes no database-isolated multi-document transaction. */
+  atomic: false;
+  transactionSemantics: "strict-verified-compensation";
+  limitations: string[];
   replayed: boolean;
   executionOrder: string[];
   operations: TransactionOperationResult[];
@@ -171,7 +174,10 @@ export interface TransactionExecutionResult extends TransactionResult {
 export interface TransactionPreflightResult {
   transactionId: string;
   correlationId: string;
-  atomic: true;
+  /** False because a successful preflight proves compensability, not database isolation. */
+  atomic: false;
+  transactionSemantics: "strict-verified-compensation";
+  limitations: string[];
   valid: true;
   executionOrder: string[];
   checkedRevisions: Array<{ operationId: string; revision: string }>;

@@ -6,6 +6,10 @@ import {
   type MovementEventPage,
 } from "@foundry-local-api/shared";
 import type { MovementEventStore } from "../events/movement-event-store.js";
+import {
+  movementEventOutputSchema,
+  movementPageOutputSchema,
+} from "./requirement-output-schemas.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 let store: MovementEventStore | undefined;
 export function configureMovementEventStore(value: MovementEventStore | undefined) {
@@ -87,6 +91,7 @@ export const movementEventEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "post",
     path: "/movement-events",
     inputSchema: ingest,
+    outputSchema: movementEventOutputSchema,
     handler: async (_input: MovementEventInput) => {
       throw new ProtocolError({
         code: "PERMISSION_DENIED",
@@ -103,6 +108,7 @@ export const movementEventEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "get",
     path: "/movement-events",
     inputSchema: query,
+    outputSchema: movementPageOutputSchema,
     handler: (input: MovementCursorQuery): MovementEventPage => requireStore().query(input),
     annotations: { readOnlyHint: true },
   },

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -30,6 +30,24 @@ function movement(eventId = "move-1", sequence = 1): SequencedMovementEvent {
       regions: [],
     }),
     sequence,
+  };
+}
+
+function preparationMovement(eventId = "preparation-rollback"): SequencedMovementEvent {
+  return {
+    ...buildMovementEvent({
+      eventId,
+      sceneId: "Nbj38PEdvw1zX1J9",
+      tokenId: "mRgn9lP9y9fY3jcw",
+      userId: "X7X4KK7zca5U2Ics",
+      timestamp: 100,
+      waypoints: [
+        { x: 450, y: 650, elevation: 0 },
+        { x: 500, y: 500, elevation: 0 },
+      ],
+      regions: [],
+    }),
+    sequence: 1,
   };
 }
 
@@ -88,7 +106,7 @@ void describe("durable AI-GM delivery", () => {
 
   void it("initializes after preparation sequence 1 and never enqueues the excluded event", () => {
     const movementStore = new MovementEventStore(fixturePath());
-    movementStore.append(movement("preparation-rollback"));
+    movementStore.append(preparationMovement());
     movementStore.append(movement("live-movement"));
     const path = fixturePath();
     const service = new AiGmDeliveryService(path, "ai-gm-primary", { now: () => 1_000 });
@@ -113,9 +131,58 @@ void describe("durable AI-GM delivery", () => {
     assert.equal(secondInitialization.watermark.sequence, 2);
   });
 
+  void it("starts before sequence 1 unless the exact guarded preparation evidence matches", () => {
+    const emptyStore = new MovementEventStore(fixturePath());
+    const emptyService = new AiGmDeliveryService(fixturePath(), "ai-gm-primary");
+    assert.equal(
+      emptyService.initializeReconciliationWatermark(emptyStore, 1).watermark.sequence,
+      0,
+    );
+
+    const movementStore = new MovementEventStore(fixturePath());
+    movementStore.append(movement("first-real-movement"));
+    const service = new AiGmDeliveryService(fixturePath(), "ai-gm-primary");
+    const initialized = service.initializeReconciliationWatermark(movementStore, 1);
+    const reconciled = service.reconcileMovementStore(movementStore);
+
+    assert.equal(initialized.watermark.sequence, 0);
+    assert.deepEqual(
+      reconciled.created.map((item) => item.eventId),
+      ["first-real-movement"],
+    );
+    assert.throws(
+      () =>
+        new AiGmDeliveryService(fixturePath(), "ai-gm-primary").initializeReconciliationWatermark(
+          movementStore,
+          2,
+        ),
+      /only the guarded preparation event/,
+    );
+
+    for (const nearMatch of [
+      { ...preparationMovement(), userId: "different-user" },
+      {
+        ...preparationMovement(),
+        waypoints: [
+          { x: 450, y: 650, elevation: 0 },
+          { x: 501, y: 500, elevation: 0 },
+        ],
+      },
+    ]) {
+      const nearMatchStore = new MovementEventStore(fixturePath());
+      nearMatchStore.append(nearMatch);
+      const nearMatchService = new AiGmDeliveryService(fixturePath(), "ai-gm-primary");
+      assert.equal(
+        nearMatchService.initializeReconciliationWatermark(nearMatchStore, 1).watermark.sequence,
+        0,
+      );
+      assert.equal(nearMatchService.reconcileMovementStore(nearMatchStore).created.length, 1);
+    }
+  });
+
   void it("reconciles an append-enqueue crash gap after delivery-service restart", () => {
     const movementStore = new MovementEventStore(fixturePath());
-    movementStore.append(movement("preparation-rollback"));
+    movementStore.append(preparationMovement());
     const path = fixturePath();
     const first = new AiGmDeliveryService(path, "ai-gm-primary");
     first.initializeReconciliationWatermark(movementStore, 1);
@@ -134,7 +201,7 @@ void describe("durable AI-GM delivery", () => {
 
   void it("advances a stale watermark through duplicate replay without duplicating work", () => {
     const movementStore = new MovementEventStore(fixturePath());
-    movementStore.append(movement("preparation-rollback"));
+    movementStore.append(preparationMovement());
     const path = fixturePath();
     const service = new AiGmDeliveryService(path, "ai-gm-primary");
     service.initializeReconciliationWatermark(movementStore, 1);
@@ -157,7 +224,7 @@ void describe("durable AI-GM delivery", () => {
 
   void it("persists reconciliation watermark across restart and fails closed on generation change", () => {
     const movementStore = new MovementEventStore(fixturePath());
-    movementStore.append(movement("preparation-rollback"));
+    movementStore.append(preparationMovement());
     const path = fixturePath();
     const service = new AiGmDeliveryService(path, "ai-gm-primary", { now: () => 1_000 });
     const initialized = service.initializeReconciliationWatermark(movementStore, 1).watermark;
@@ -171,8 +238,54 @@ void describe("durable AI-GM delivery", () => {
           cursor: (sequence) => `different-generation:${sequence}`,
           query: (input) => movementStore.query(input),
         }),
-      /generation changed/,
+      /generation changed.*missing range is unknown/,
     );
+  });
+
+  void it("reports an exact same-generation retention gap", () => {
+    const movementStore = new MovementEventStore(fixturePath(), 1);
+    movementStore.append(preparationMovement());
+    const service = new AiGmDeliveryService(fixturePath(), "ai-gm-primary");
+    service.initializeReconciliationWatermark(movementStore, 1);
+    movementStore.append(movement("expired-movement"));
+    movementStore.append(movement("retained-movement"));
+
+    assert.throws(() => service.reconcileMovementStore(movementStore), /exact expired gap 2-2/);
+  });
+
+  void it("rolls back an enqueue when its durable save fails", () => {
+    const path = fixturePath();
+    const service = new AiGmDeliveryService(path, "ai-gm-primary");
+    mkdirSync(path);
+
+    assert.throws(() => service.enqueue(movement(), "session:1"));
+    assert.deepEqual(service.list(), []);
+  });
+
+  void it("does not acknowledge an event when the acknowledgement save fails", async () => {
+    const path = fixturePath();
+    const backup = `${path}.backup`;
+    const service = new AiGmDeliveryService(path, "ai-gm-primary", { now: () => 1_000 });
+    const queued = service.enqueue(movement(), "session:1").item;
+    const adapter: HostWakeAdapter = {
+      capability: "invoke",
+      deliver: async () => {
+        renameSync(path, backup);
+        mkdirSync(path);
+        return { status: "acknowledged", acknowledgementId: "unpersisted-ack" };
+      },
+    };
+
+    await assert.rejects(() => service.dispatchDue(adapter));
+    assert.equal(service.get(queued.id)?.state, "in_flight");
+    assert.equal(service.get(queued.id)?.acknowledgementId, undefined);
+
+    rmSync(path, { recursive: true });
+    renameSync(backup, path);
+    const restarted = new AiGmDeliveryService(path, "ai-gm-primary", { now: () => 2_000 });
+    assert.equal(restarted.get(queued.id)?.state, "retry_wait");
+    assert.equal(restarted.get(queued.id)?.acknowledgementId, undefined);
+    assert.equal(restarted.get(queued.id)?.attemptHistory[0]?.outcome, "interrupted");
   });
 
   void it("persists acknowledgement and treats the same acknowledgement as idempotent", async () => {

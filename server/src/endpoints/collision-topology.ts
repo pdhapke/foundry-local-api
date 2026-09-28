@@ -6,6 +6,10 @@ import {
   type ValidateWallTopologyInput,
   type WallTopologyResult,
 } from "@foundry-local-api/shared";
+import {
+  collisionPathOutputSchema,
+  wallTopologyOutputSchema,
+} from "./requirement-output-schemas.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 const point = z
   .object({
@@ -32,6 +36,7 @@ export const collisionTopologyEndpointDescriptors: AnyEndpointDescriptor[] = [
           .optional(),
       })
       .strict(),
+    outputSchema: collisionPathOutputSchema,
     handler: (input: ValidateTokenPathInput, { foundryClient }) =>
       foundryClient.call<ValidateTokenPathInput, ValidateTokenPathResult>(
         COLLISION_COMMANDS.VALIDATE_PATH,
@@ -46,6 +51,7 @@ export const collisionTopologyEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "get",
     path: "/scenes/wall-topology",
     inputSchema: z.object({ sceneId: z.string().min(1) }).strict(),
+    outputSchema: wallTopologyOutputSchema,
     handler: (input: ValidateWallTopologyInput, { foundryClient }) =>
       foundryClient.call<ValidateWallTopologyInput, WallTopologyResult>(
         COLLISION_COMMANDS.VALIDATE_TOPOLOGY,

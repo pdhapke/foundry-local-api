@@ -168,4 +168,43 @@ void describe("embedded child descriptors", () => {
     );
     assert.equal(calls, 1);
   });
+
+  void it("clears definitely pre-commit failures so corrected retries are not stranded", async () => {
+    const descriptor = embeddedChildrenEndpointDescriptors.find(({ name }) =>
+      name.endsWith("update_embedded_child"),
+    )!;
+    const input = {
+      family: "RegionBehavior",
+      parentId: "region",
+      sceneId: "scene",
+      childId: "behavior",
+      expectedParentRevision: "a".repeat(64),
+      expectedChildRevision: "b".repeat(64),
+      idempotencyKey: "precommit-retry",
+      changes: { system: { threshold: 2 } },
+    };
+    const path = join(mkdtempSync(join(tmpdir(), "embedded-precommit-")), "state.json");
+    let calls = 0;
+    const foundryClient = {
+      call: async () => {
+        calls += 1;
+        if (calls === 1) throw new FoundryBridgeError("STALE_REVISION", "stale before commit");
+        return { childId: "behavior", persisted: true, replayed: false };
+      },
+    } as any;
+    await assert.rejects(
+      descriptor.handler(input, {
+        foundryClient,
+        foundations: { idempotency: new DurableIdempotencyStore(path) } as any,
+      }),
+      (error: unknown) => error instanceof FoundryBridgeError && error.code === "STALE_REVISION",
+    );
+
+    const retried = await descriptor.handler(input, {
+      foundryClient,
+      foundations: { idempotency: new DurableIdempotencyStore(path) } as any,
+    });
+    assert.equal(calls, 2);
+    assert.deepEqual(retried, { childId: "behavior", persisted: true, replayed: false });
+  });
 });

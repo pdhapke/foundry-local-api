@@ -30,6 +30,12 @@ export interface EndpointDescriptor<TInput = void, TResult = unknown> {
   name: string;
   description: string;
   inputSchema?: ZodType<TInput>;
+  /**
+   * Successful response contract shared by REST documentation and MCP tool
+   * registration. Runtime handlers still return TResult; registries validate
+   * and expose this schema without changing the existing text response.
+   */
+  outputSchema?: ZodType<TResult>;
   handler: (input: TInput, ctx: EndpointContext) => Promise<TResult> | TResult;
   /**
    * REST wiring is optional: from Phase 6 onward every descriptor should

@@ -68,7 +68,9 @@ function harness() {
         return {
           transactionId: manifest.correlationId,
           correlationId: manifest.correlationId,
-          atomic: true,
+          atomic: false,
+          transactionSemantics: "strict-verified-compensation",
+          limitations: ["No database isolation."],
           valid: true,
           executionOrder: manifest.operations.map(({ operationId }) => operationId),
           checkedRevisions: [],
@@ -89,7 +91,9 @@ function harness() {
         correlationId: manifest.correlationId,
         idempotencyKey: manifest.idempotencyKey,
         committed: true,
-        atomic: true,
+        atomic: false,
+        transactionSemantics: "strict-verified-compensation",
+        limitations: ["No database isolation."],
         replayed: false,
         executionOrder: manifest.operations.map(({ operationId }) => operationId),
         operations: [],
@@ -115,8 +119,12 @@ void describe("transaction endpoints", () => {
     const value = input();
     const checked = await preflight.handler(value, { foundryClient, foundations });
     assert.equal(checked.valid, true);
+    assert.equal(checked.atomic, false);
+    assert.equal(checked.transactionSemantics, "strict-verified-compensation");
     const committed = await execute.handler(value, { foundryClient, foundations });
     assert.equal(committed.committed, true);
+    assert.equal(committed.atomic, false);
+    assert.equal(committed.transactionSemantics, "strict-verified-compensation");
     assert.deepEqual(
       calls.map(({ command }) => command),
       [TRANSACTION_COMMANDS.PREFLIGHT, TRANSACTION_COMMANDS.EXECUTE],
@@ -222,5 +230,28 @@ void describe("transaction endpoints", () => {
       (error: unknown) => error instanceof FoundryBridgeError && error.code === "TIMEOUT",
     );
     assert.equal(journal.get(value.correlationId).state, "recoveryRequired");
+  });
+
+  void it("rearms a verified rolled-back manifest for a safe same-input retry", async () => {
+    const { foundryClient, foundations, descriptors, journal, calls } = harness();
+    const originalCall = foundryClient.call.bind(foundryClient);
+    let attempts = 0;
+    foundryClient.call = (async (...args: Parameters<FoundryClient["call"]>) => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new FoundryBridgeError("STALE_REVISION", "Precommit revision check failed.");
+      }
+      return originalCall(...args);
+    }) as FoundryClient["call"];
+    const value = input();
+    await assert.rejects(
+      () => descriptors[1]!.handler(value, { foundryClient, foundations }),
+      (error: unknown) => error instanceof FoundryBridgeError && error.code === "STALE_REVISION",
+    );
+    assert.equal(journal.get(value.correlationId).state, "rolledBack");
+    const retried = await descriptors[1]!.handler(value, { foundryClient, foundations });
+    assert.equal(retried.committed, true);
+    assert.equal(journal.get(value.correlationId).state, "committed");
+    assert.equal(calls.filter(({ command }) => command === TRANSACTION_COMMANDS.EXECUTE).length, 1);
   });
 });

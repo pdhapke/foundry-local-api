@@ -76,7 +76,15 @@ export interface SceneVisibilityResult {
     secretDoors: true;
     exitDestinations: true;
   };
-  queryPoints: Array<{ id: string; visible: boolean; regions: string[] }>;
+  queryPoints: Array<{
+    id: string;
+    visible: boolean;
+    regions: string[];
+    blockerAttribution:
+      "none" | "visible-wall" | "out-of-range" | "environment-ambiguous" | "unavailable";
+    /** Response-local opaque barrier keys only; document IDs and coordinates remain redacted. */
+    blockerKeys: string[];
+  }>;
   effectiveSources: { vision: 0 | 1; light: number };
   isolation: {
     status: "complete" | "incomplete" | "unsupported";

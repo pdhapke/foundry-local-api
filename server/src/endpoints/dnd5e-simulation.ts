@@ -11,6 +11,7 @@ const action = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("attack"),
       itemId: z.string().min(1).optional(),
+      activityId: z.string().min(1).optional(),
       modifier: z.number().finite().optional(),
       targetAC: z.number().finite().optional(),
       damage: z.string().max(32).optional(),
@@ -35,6 +36,7 @@ const action = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("damage"),
       itemId: z.string().min(1).optional(),
+      activityId: z.string().min(1).optional(),
       amount: z.number().nonnegative().optional(),
       formula: z.string().max(32).optional(),
       damageType: z.string().min(1).max(32).optional(),
@@ -120,6 +122,19 @@ export const dnd5eSimulationEndpointDescriptors: AnyEndpointDescriptor[] = [
             path: ["expectedRevisions"],
             message: "Expected revision identities must be unique.",
           });
+        }
+        const actions = value.action ? [value.action] : (value.actions ?? []);
+        for (const [index, candidate] of actions.entries()) {
+          if (
+            "activityId" in candidate &&
+            candidate.activityId !== undefined &&
+            candidate.itemId === undefined
+          )
+            context.addIssue({
+              code: "custom",
+              path: value.action ? ["action", "activityId"] : ["actions", index, "activityId"],
+              message: "activityId requires itemId.",
+            });
         }
       }),
     handler: (input: Dnd5eSimulationInput, { foundryClient }) => {

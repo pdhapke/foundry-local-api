@@ -84,7 +84,520 @@
           }
         ],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "consumerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "hostCapability": {
+                      "type": "string",
+                      "enum": ["invoke", "wake", "unavailable"]
+                    },
+                    "hostLimitation": { "type": "string" },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "consumerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "eventSequence": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "eventCursor": { "type": "string" },
+                          "event": {
+                            "type": "object",
+                            "properties": {
+                              "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                              "eventType": { "type": "string", "const": "token_movement" },
+                              "movementFields": {
+                                "type": "array",
+                                "items": { "type": "string", "enum": ["x", "y", "elevation"] }
+                              },
+                              "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                              "tokenId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                              "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                              "timestamp": { "type": "number" },
+                              "from": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              },
+                              "to": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              },
+                              "footprint": {
+                                "type": "object",
+                                "properties": {
+                                  "width": { "type": "number" },
+                                  "height": { "type": "number" }
+                                },
+                                "required": ["width", "height"],
+                                "additionalProperties": false
+                              },
+                              "geometryStatus": {
+                                "type": "string",
+                                "enum": ["complete", "incomplete"]
+                              },
+                              "incompleteReasons": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "deltas": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "dx": { "type": "number" },
+                                    "dy": { "type": "number" },
+                                    "delevation": { "type": "number" }
+                                  },
+                                  "required": ["dx", "dy", "delevation"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "waypoints": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": { "type": "number" },
+                                    "y": { "type": "number" },
+                                    "elevation": { "type": "number" }
+                                  },
+                                  "required": ["x", "y"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "segments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "index": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "from": {
+                                      "type": "object",
+                                      "properties": {
+                                        "x": { "type": "number" },
+                                        "y": { "type": "number" },
+                                        "elevation": { "type": "number" }
+                                      },
+                                      "required": ["x", "y"],
+                                      "additionalProperties": false
+                                    },
+                                    "to": {
+                                      "type": "object",
+                                      "properties": {
+                                        "x": { "type": "number" },
+                                        "y": { "type": "number" },
+                                        "elevation": { "type": "number" }
+                                      },
+                                      "required": ["x", "y"],
+                                      "additionalProperties": false
+                                    },
+                                    "dx": { "type": "number" },
+                                    "dy": { "type": "number" },
+                                    "delevation": { "type": "number" }
+                                  },
+                                  "required": ["index", "from", "to", "dx", "dy", "delevation"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "transitions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "regionId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 256
+                                    },
+                                    "regionName": { "type": "string" },
+                                    "category": {
+                                      "type": "string",
+                                      "enum": [
+                                        "hazard",
+                                        "threshold",
+                                        "exit",
+                                        "room",
+                                        "corridor",
+                                        "other"
+                                      ]
+                                    },
+                                    "stopOnEnter": { "type": "boolean", "const": true },
+                                    "kind": { "type": "string", "enum": ["enter", "exit"] },
+                                    "segmentIndex": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "t": { "type": "number" },
+                                    "point": {
+                                      "type": "object",
+                                      "properties": {
+                                        "x": { "type": "number" },
+                                        "y": { "type": "number" },
+                                        "elevation": { "type": "number" }
+                                      },
+                                      "required": ["x", "y"],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "regionId",
+                                    "category",
+                                    "kind",
+                                    "segmentIndex",
+                                    "t",
+                                    "point"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "firstStop": {
+                                "type": "object",
+                                "properties": {
+                                  "regionId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "regionName": { "type": "string" },
+                                  "category": {
+                                    "type": "string",
+                                    "enum": [
+                                      "hazard",
+                                      "threshold",
+                                      "exit",
+                                      "room",
+                                      "corridor",
+                                      "other"
+                                    ]
+                                  },
+                                  "stopOnEnter": { "type": "boolean", "const": true },
+                                  "kind": { "type": "string", "enum": ["enter", "exit"] },
+                                  "segmentIndex": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "t": { "type": "number" },
+                                  "point": {
+                                    "type": "object",
+                                    "properties": {
+                                      "x": { "type": "number" },
+                                      "y": { "type": "number" },
+                                      "elevation": { "type": "number" }
+                                    },
+                                    "required": ["x", "y"],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "regionId",
+                                  "category",
+                                  "kind",
+                                  "segmentIndex",
+                                  "t",
+                                  "point"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "acceptedPoint": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              },
+                              "remainingPath": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": { "type": "number" },
+                                    "y": { "type": "number" },
+                                    "elevation": { "type": "number" }
+                                  },
+                                  "required": ["x", "y"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "pendingMovement": {
+                                "type": "object",
+                                "properties": {
+                                  "status": { "type": "string", "const": "pending" },
+                                  "stop": {
+                                    "type": "object",
+                                    "properties": {
+                                      "regionId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 256
+                                      },
+                                      "regionName": { "type": "string" },
+                                      "category": {
+                                        "type": "string",
+                                        "enum": [
+                                          "hazard",
+                                          "threshold",
+                                          "exit",
+                                          "room",
+                                          "corridor",
+                                          "other"
+                                        ]
+                                      },
+                                      "stopOnEnter": { "type": "boolean", "const": true },
+                                      "kind": { "type": "string", "enum": ["enter", "exit"] },
+                                      "segmentIndex": {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      "t": { "type": "number" },
+                                      "point": {
+                                        "type": "object",
+                                        "properties": {
+                                          "x": { "type": "number" },
+                                          "y": { "type": "number" },
+                                          "elevation": { "type": "number" }
+                                        },
+                                        "required": ["x", "y"],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "regionId",
+                                      "category",
+                                      "kind",
+                                      "segmentIndex",
+                                      "t",
+                                      "point"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "acceptedPoint": {
+                                    "type": "object",
+                                    "properties": {
+                                      "x": { "type": "number" },
+                                      "y": { "type": "number" },
+                                      "elevation": { "type": "number" }
+                                    },
+                                    "required": ["x", "y"],
+                                    "additionalProperties": false
+                                  },
+                                  "remainingPath": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "x": { "type": "number" },
+                                        "y": { "type": "number" },
+                                        "elevation": { "type": "number" }
+                                      },
+                                      "required": ["x", "y"],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": ["status", "stop", "acceptedPoint", "remainingPath"],
+                                "additionalProperties": false
+                              },
+                              "provenance": {
+                                "type": "object",
+                                "properties": {
+                                  "reporterClientId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "reporterUserId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "reporterLane": {
+                                    "type": "string",
+                                    "enum": ["gm", "player", "tv"]
+                                  }
+                                },
+                                "required": ["reporterClientId", "reporterUserId", "reporterLane"],
+                                "additionalProperties": false
+                              },
+                              "sequence": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "eventId",
+                              "eventType",
+                              "movementFields",
+                              "sceneId",
+                              "tokenId",
+                              "userId",
+                              "timestamp",
+                              "from",
+                              "to",
+                              "footprint",
+                              "geometryStatus",
+                              "incompleteReasons",
+                              "deltas",
+                              "waypoints",
+                              "segments",
+                              "transitions",
+                              "acceptedPoint",
+                              "remainingPath",
+                              "sequence"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "queued",
+                              "in_flight",
+                              "retry_wait",
+                              "acknowledged",
+                              "dead_letter"
+                            ]
+                          },
+                          "adjudication": {
+                            "type": "object",
+                            "properties": {
+                              "status": { "type": "string", "const": "pending_adjudication" },
+                              "firstStop": {
+                                "type": "object",
+                                "properties": {
+                                  "reason": { "type": "string" },
+                                  "acceptedPoint": {
+                                    "type": "object",
+                                    "properties": {
+                                      "x": { "type": "number" },
+                                      "y": { "type": "number" },
+                                      "elevation": { "type": "number" }
+                                    },
+                                    "required": ["x", "y"],
+                                    "additionalProperties": false
+                                  },
+                                  "remainingPath": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "x": { "type": "number" },
+                                        "y": { "type": "number" },
+                                        "elevation": { "type": "number" }
+                                      },
+                                      "required": ["x", "y"],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": ["reason", "acceptedPoint", "remainingPath"],
+                                "additionalProperties": false
+                              },
+                              "automaticConsequencesApplied": { "type": "boolean", "const": false }
+                            },
+                            "required": ["status", "automaticConsequencesApplied"],
+                            "additionalProperties": false
+                          },
+                          "attemptHistory": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "startedAt": { "type": "number" },
+                                "finishedAt": { "type": "number" },
+                                "outcome": {
+                                  "type": "string",
+                                  "enum": [
+                                    "acknowledged",
+                                    "retry_scheduled",
+                                    "dead_letter",
+                                    "interrupted"
+                                  ]
+                                },
+                                "errorCode": { "type": "string" },
+                                "message": { "type": "string" }
+                              },
+                              "required": ["attempt", "startedAt"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "createdAt": { "type": "number" },
+                          "updatedAt": { "type": "number" },
+                          "nextAttemptAt": { "type": "number" },
+                          "acknowledgementId": { "type": "string" },
+                          "acknowledgedAt": { "type": "number" },
+                          "deadLetteredAt": { "type": "number" },
+                          "lastFailure": {
+                            "type": "object",
+                            "properties": {
+                              "code": { "type": "string" },
+                              "message": { "type": "string" },
+                              "retryable": { "type": "boolean" }
+                            },
+                            "required": ["code", "message", "retryable"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "consumerId",
+                          "eventId",
+                          "eventSequence",
+                          "eventCursor",
+                          "event",
+                          "state",
+                          "adjudication",
+                          "attemptHistory",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["consumerId", "hostCapability", "items"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -108,7 +621,463 @@
           }
         ],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "consumerId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "eventSequence": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "eventCursor": { "type": "string" },
+                    "event": {
+                      "type": "object",
+                      "properties": {
+                        "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "eventType": { "type": "string", "const": "token_movement" },
+                        "movementFields": {
+                          "type": "array",
+                          "items": { "type": "string", "enum": ["x", "y", "elevation"] }
+                        },
+                        "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "tokenId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "timestamp": { "type": "number" },
+                        "from": {
+                          "type": "object",
+                          "properties": {
+                            "x": { "type": "number" },
+                            "y": { "type": "number" },
+                            "elevation": { "type": "number" }
+                          },
+                          "required": ["x", "y"],
+                          "additionalProperties": false
+                        },
+                        "to": {
+                          "type": "object",
+                          "properties": {
+                            "x": { "type": "number" },
+                            "y": { "type": "number" },
+                            "elevation": { "type": "number" }
+                          },
+                          "required": ["x", "y"],
+                          "additionalProperties": false
+                        },
+                        "footprint": {
+                          "type": "object",
+                          "properties": {
+                            "width": { "type": "number" },
+                            "height": { "type": "number" }
+                          },
+                          "required": ["width", "height"],
+                          "additionalProperties": false
+                        },
+                        "geometryStatus": { "type": "string", "enum": ["complete", "incomplete"] },
+                        "incompleteReasons": { "type": "array", "items": { "type": "string" } },
+                        "deltas": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "dx": { "type": "number" },
+                              "dy": { "type": "number" },
+                              "delevation": { "type": "number" }
+                            },
+                            "required": ["dx", "dy", "delevation"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "waypoints": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "segments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "index": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "from": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              },
+                              "to": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              },
+                              "dx": { "type": "number" },
+                              "dy": { "type": "number" },
+                              "delevation": { "type": "number" }
+                            },
+                            "required": ["index", "from", "to", "dx", "dy", "delevation"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "transitions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                              "regionName": { "type": "string" },
+                              "category": {
+                                "type": "string",
+                                "enum": ["hazard", "threshold", "exit", "room", "corridor", "other"]
+                              },
+                              "stopOnEnter": { "type": "boolean", "const": true },
+                              "kind": { "type": "string", "enum": ["enter", "exit"] },
+                              "segmentIndex": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "t": { "type": "number" },
+                              "point": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "regionId",
+                              "category",
+                              "kind",
+                              "segmentIndex",
+                              "t",
+                              "point"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "firstStop": {
+                          "type": "object",
+                          "properties": {
+                            "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "regionName": { "type": "string" },
+                            "category": {
+                              "type": "string",
+                              "enum": ["hazard", "threshold", "exit", "room", "corridor", "other"]
+                            },
+                            "stopOnEnter": { "type": "boolean", "const": true },
+                            "kind": { "type": "string", "enum": ["enter", "exit"] },
+                            "segmentIndex": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "t": { "type": "number" },
+                            "point": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "regionId",
+                            "category",
+                            "kind",
+                            "segmentIndex",
+                            "t",
+                            "point"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "acceptedPoint": {
+                          "type": "object",
+                          "properties": {
+                            "x": { "type": "number" },
+                            "y": { "type": "number" },
+                            "elevation": { "type": "number" }
+                          },
+                          "required": ["x", "y"],
+                          "additionalProperties": false
+                        },
+                        "remainingPath": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "pendingMovement": {
+                          "type": "object",
+                          "properties": {
+                            "status": { "type": "string", "const": "pending" },
+                            "stop": {
+                              "type": "object",
+                              "properties": {
+                                "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                                "regionName": { "type": "string" },
+                                "category": {
+                                  "type": "string",
+                                  "enum": [
+                                    "hazard",
+                                    "threshold",
+                                    "exit",
+                                    "room",
+                                    "corridor",
+                                    "other"
+                                  ]
+                                },
+                                "stopOnEnter": { "type": "boolean", "const": true },
+                                "kind": { "type": "string", "enum": ["enter", "exit"] },
+                                "segmentIndex": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                "t": { "type": "number" },
+                                "point": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": { "type": "number" },
+                                    "y": { "type": "number" },
+                                    "elevation": { "type": "number" }
+                                  },
+                                  "required": ["x", "y"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "regionId",
+                                "category",
+                                "kind",
+                                "segmentIndex",
+                                "t",
+                                "point"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "acceptedPoint": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            },
+                            "remainingPath": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": ["status", "stop", "acceptedPoint", "remainingPath"],
+                          "additionalProperties": false
+                        },
+                        "provenance": {
+                          "type": "object",
+                          "properties": {
+                            "reporterClientId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256
+                            },
+                            "reporterUserId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256
+                            },
+                            "reporterLane": { "type": "string", "enum": ["gm", "player", "tv"] }
+                          },
+                          "required": ["reporterClientId", "reporterUserId", "reporterLane"],
+                          "additionalProperties": false
+                        },
+                        "sequence": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "eventId",
+                        "eventType",
+                        "movementFields",
+                        "sceneId",
+                        "tokenId",
+                        "userId",
+                        "timestamp",
+                        "from",
+                        "to",
+                        "footprint",
+                        "geometryStatus",
+                        "incompleteReasons",
+                        "deltas",
+                        "waypoints",
+                        "segments",
+                        "transitions",
+                        "acceptedPoint",
+                        "remainingPath",
+                        "sequence"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["queued", "in_flight", "retry_wait", "acknowledged", "dead_letter"]
+                    },
+                    "adjudication": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "const": "pending_adjudication" },
+                        "firstStop": {
+                          "type": "object",
+                          "properties": {
+                            "reason": { "type": "string" },
+                            "acceptedPoint": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            },
+                            "remainingPath": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": ["reason", "acceptedPoint", "remainingPath"],
+                          "additionalProperties": false
+                        },
+                        "automaticConsequencesApplied": { "type": "boolean", "const": false }
+                      },
+                      "required": ["status", "automaticConsequencesApplied"],
+                      "additionalProperties": false
+                    },
+                    "attemptHistory": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "attempt": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "startedAt": { "type": "number" },
+                          "finishedAt": { "type": "number" },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "acknowledged",
+                              "retry_scheduled",
+                              "dead_letter",
+                              "interrupted"
+                            ]
+                          },
+                          "errorCode": { "type": "string" },
+                          "message": { "type": "string" }
+                        },
+                        "required": ["attempt", "startedAt"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "createdAt": { "type": "number" },
+                    "updatedAt": { "type": "number" },
+                    "nextAttemptAt": { "type": "number" },
+                    "acknowledgementId": { "type": "string" },
+                    "acknowledgedAt": { "type": "number" },
+                    "deadLetteredAt": { "type": "number" },
+                    "lastFailure": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string" },
+                        "message": { "type": "string" },
+                        "retryable": { "type": "boolean" }
+                      },
+                      "required": ["code", "message", "retryable"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "consumerId",
+                    "eventId",
+                    "eventSequence",
+                    "eventCursor",
+                    "event",
+                    "state",
+                    "adjudication",
+                    "attemptHistory",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -140,7 +1109,172 @@
           }
         },
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "enrollmentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "lane": { "type": "string", "enum": ["player", "tv"] },
+                    "clientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "scope": { "type": "string", "const": "/bridge" },
+                    "protocolVersion": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "moduleVersion": { "type": "string" },
+                    "expiresAt": { "type": "string" },
+                    "deliveredAt": { "type": "string" },
+                    "client": {
+                      "type": "object",
+                      "properties": {
+                        "moduleLoaded": { "type": "boolean", "const": true },
+                        "moduleVersion": { "type": "string" },
+                        "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "clientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "enrollmentPublicKey": { "type": "string" },
+                        "intendedLane": { "type": "string", "enum": ["gm", "player", "tv"] },
+                        "consentGranted": { "type": "boolean" },
+                        "protocolVersion": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "foundryVersion": { "type": "string" },
+                        "systemId": { "type": "string" },
+                        "systemVersion": { "type": "string" },
+                        "delivery": {
+                          "type": "string",
+                          "enum": ["not-requested", "accepted", "consent-required", "rejected"]
+                        },
+                        "errorCode": {
+                          "anyOf": [{ "type": "string", "maxLength": 128 }, { "type": "null" }]
+                        },
+                        "diagnostics": {
+                          "type": "object",
+                          "properties": {
+                            "moduleLoaded": { "type": "boolean", "const": true },
+                            "moduleVersion": { "type": "string" },
+                            "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "intendedLane": { "type": "string", "enum": ["gm", "player", "tv"] },
+                            "consentGranted": { "type": "boolean" },
+                            "connectionState": {
+                              "type": "string",
+                              "enum": ["disconnected", "connecting", "connected", "rejected"]
+                            },
+                            "lastConnectionAttemptAt": { "type": ["string", "null"] },
+                            "lastNegotiationResult": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "outcome": {
+                                      "type": "string",
+                                      "enum": ["accepted", "rejected"]
+                                    },
+                                    "at": { "type": "string" },
+                                    "protocolVersion": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "moduleVersion": { "type": "string" },
+                                    "errorCode": {
+                                      "anyOf": [
+                                        { "type": "string", "maxLength": 128 },
+                                        { "type": "null" }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "outcome",
+                                    "at",
+                                    "protocolVersion",
+                                    "moduleVersion",
+                                    "errorCode"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                { "type": "null" }
+                              ]
+                            },
+                            "errorCode": {
+                              "anyOf": [{ "type": "string", "maxLength": 128 }, { "type": "null" }]
+                            },
+                            "reconnect": {
+                              "type": "object",
+                              "properties": {
+                                "state": {
+                                  "type": "string",
+                                  "enum": ["idle", "scheduled", "attempting"]
+                                },
+                                "attempt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "nextAttemptAt": { "type": ["string", "null"] }
+                              },
+                              "required": ["state", "attempt", "nextAttemptAt"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "moduleLoaded",
+                            "moduleVersion",
+                            "userId",
+                            "intendedLane",
+                            "consentGranted",
+                            "connectionState",
+                            "lastConnectionAttemptAt",
+                            "lastNegotiationResult",
+                            "errorCode",
+                            "reconnect"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "moduleLoaded",
+                        "moduleVersion",
+                        "userId",
+                        "clientId",
+                        "enrollmentPublicKey",
+                        "intendedLane",
+                        "consentGranted",
+                        "protocolVersion",
+                        "foundryVersion",
+                        "systemId",
+                        "systemVersion",
+                        "delivery",
+                        "errorCode",
+                        "diagnostics"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "enrollmentId",
+                    "userId",
+                    "lane",
+                    "clientId",
+                    "scope",
+                    "protocolVersion",
+                    "moduleVersion",
+                    "expiresAt",
+                    "deliveredAt",
+                    "client"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -156,7 +1290,289 @@
         "tags": ["bridge"],
         "security": [{ "apiKeyAuth": [] }],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "generatedAt": { "type": "string" },
+                    "pendingCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "pending": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "enrollmentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "expectedUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "expectedClientId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "lane": { "type": "string", "enum": ["player", "tv"] },
+                          "scope": { "type": "string", "const": "/bridge" },
+                          "protocolVersion": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "moduleVersion": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": { "type": "string", "const": "exact" },
+                                  "version": { "type": "string" }
+                                },
+                                "required": ["kind", "version"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": { "type": "string", "const": "range" },
+                                  "minInclusive": { "type": "string" },
+                                  "maxExclusive": { "type": "string" }
+                                },
+                                "required": ["kind", "minInclusive"],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "issuedAt": { "type": "number" },
+                          "expiresAt": { "type": "number" },
+                          "status": {
+                            "type": "string",
+                            "enum": ["pending", "accepted", "rejected", "expired", "invalidated"]
+                          },
+                          "issuerUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "issuerClientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "connectedClientId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "rejectionCode": { "type": "string" }
+                        },
+                        "required": [
+                          "enrollmentId",
+                          "expectedUserId",
+                          "expectedClientId",
+                          "lane",
+                          "scope",
+                          "protocolVersion",
+                          "moduleVersion",
+                          "issuedAt",
+                          "expiresAt",
+                          "status",
+                          "issuerUserId",
+                          "issuerClientId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "active": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "enrollmentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "expectedUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "expectedClientId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "lane": { "type": "string", "enum": ["player", "tv"] },
+                          "scope": { "type": "string", "const": "/bridge" },
+                          "protocolVersion": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "moduleVersion": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": { "type": "string", "const": "exact" },
+                                  "version": { "type": "string" }
+                                },
+                                "required": ["kind", "version"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": { "type": "string", "const": "range" },
+                                  "minInclusive": { "type": "string" },
+                                  "maxExclusive": { "type": "string" }
+                                },
+                                "required": ["kind", "minInclusive"],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "issuedAt": { "type": "number" },
+                          "expiresAt": { "type": "number" },
+                          "status": {
+                            "type": "string",
+                            "enum": ["pending", "accepted", "rejected", "expired", "invalidated"]
+                          },
+                          "issuerUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "issuerClientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "connectedClientId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "rejectionCode": { "type": "string" }
+                        },
+                        "required": [
+                          "enrollmentId",
+                          "expectedUserId",
+                          "expectedClientId",
+                          "lane",
+                          "scope",
+                          "protocolVersion",
+                          "moduleVersion",
+                          "issuedAt",
+                          "expiresAt",
+                          "status",
+                          "issuerUserId",
+                          "issuerClientId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "timestamp": { "type": "number" },
+                          "action": {
+                            "type": "string",
+                            "enum": ["issued", "accepted", "rejected", "invalidated", "expired"]
+                          },
+                          "enrollmentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "expectedUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "expectedClientId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "expectedLane": { "type": "string", "enum": ["player", "tv"] },
+                          "observedUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "observedLane": { "type": "string", "enum": ["gm", "player", "tv"] },
+                          "expectedProtocolVersion": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "observedProtocolVersion": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "expectedModuleVersion": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": { "type": "string", "const": "exact" },
+                                  "version": { "type": "string" }
+                                },
+                                "required": ["kind", "version"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": { "type": "string", "const": "range" },
+                                  "minInclusive": { "type": "string" },
+                                  "maxExclusive": { "type": "string" }
+                                },
+                                "required": ["kind", "minInclusive"],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "observedModuleVersion": { "type": "string" },
+                          "clientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "reason": { "type": "string" }
+                        },
+                        "required": ["eventId", "timestamp", "action"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "connectedClients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "clientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "userName": { "type": "string" },
+                          "isGM": { "type": "boolean" },
+                          "lane": { "type": "string", "enum": ["gm", "player", "tv"] },
+                          "optedIn": { "type": "boolean" },
+                          "protocolVersion": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "foundryVersion": { "type": "string" },
+                          "systemId": { "type": "string" },
+                          "systemVersion": { "type": "string" },
+                          "moduleVersion": { "type": "string" },
+                          "transport": { "type": "string", "const": "websocket" },
+                          "connectedAt": { "type": "number" },
+                          "lastSeenAt": { "type": "number" },
+                          "capabilities": { "type": "array", "items": { "type": "string" } }
+                        },
+                        "required": [
+                          "clientId",
+                          "userId",
+                          "userName",
+                          "isGM",
+                          "lane",
+                          "optedIn",
+                          "protocolVersion",
+                          "foundryVersion",
+                          "systemId",
+                          "systemVersion",
+                          "moduleVersion",
+                          "transport",
+                          "connectedAt",
+                          "lastSeenAt",
+                          "capabilities"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "generatedAt",
+                    "pendingCount",
+                    "pending",
+                    "active",
+                    "events",
+                    "connectedClients"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -595,8 +2011,8 @@
     "/api/transactions/preflight": {
       "post": {
         "operationId": "foundry_preflight_transaction",
-        "summary": "Prevalidates an allowlisted atomic document transaction, dependency order, permissions, and expected revisions without mutating Foundry.",
-        "description": "Prevalidates an allowlisted atomic document transaction, dependency order, permissions, and expected revisions without mutating Foundry. File uploads and file lifecycle operations are outside atomic manifest scope.",
+        "summary": "Prevalidates an allowlisted strict-compensation manifest, dependency order, permissions, and expected revisions without mutating Foundry.",
+        "description": "Prevalidates an allowlisted strict-compensation manifest, dependency order, permissions, and expected revisions without mutating Foundry. This proves compensability, not database isolation. File uploads and file lifecycle operations are outside manifest scope.",
         "tags": ["transactions"],
         "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
@@ -1474,7 +2890,368 @@
           }
         },
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "effectiveUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "tokenId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "status": {
+                      "type": "string",
+                      "enum": ["complete", "incomplete", "asset_error", "unsupported"]
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "message": { "type": "string" },
+                          "retryable": { "type": "boolean" },
+                          "subjectId": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        },
+                        "required": ["code", "message", "retryable"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "context": {
+                      "type": "object",
+                      "properties": {
+                        "selectedUser": { "type": "boolean", "const": true },
+                        "selectedToken": { "type": "boolean", "const": true },
+                        "tokenOwned": { "type": "boolean", "const": true },
+                        "sceneLoaded": { "type": "boolean", "const": true }
+                      },
+                      "required": ["selectedUser", "selectedToken", "tokenOwned", "sceneLoaded"],
+                      "additionalProperties": false
+                    },
+                    "visible": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        },
+                        "notes": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        },
+                        "tiles": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        }
+                      },
+                      "required": ["tokens", "notes", "tiles"],
+                      "additionalProperties": false
+                    },
+                    "redaction": {
+                      "type": "object",
+                      "properties": {
+                        "occludedEntities": { "type": "boolean", "const": true },
+                        "hiddenRegions": { "type": "boolean", "const": true },
+                        "barrierDocumentIds": { "type": "boolean", "const": true },
+                        "barrierCoordinates": { "type": "boolean", "const": true },
+                        "secretDoors": { "type": "boolean", "const": true },
+                        "exitDestinations": { "type": "boolean", "const": true }
+                      },
+                      "required": [
+                        "occludedEntities",
+                        "hiddenRegions",
+                        "barrierDocumentIds",
+                        "barrierCoordinates",
+                        "secretDoors",
+                        "exitDestinations"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "queryPoints": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "visible": { "type": "boolean" },
+                          "regions": { "type": "array", "items": { "type": "string" } },
+                          "blockerAttribution": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "visible-wall",
+                              "out-of-range",
+                              "environment-ambiguous",
+                              "unavailable"
+                            ]
+                          },
+                          "blockerKeys": { "type": "array", "items": { "type": "string" } }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "regions",
+                          "blockerAttribution",
+                          "blockerKeys"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "effectiveSources": {
+                      "type": "object",
+                      "properties": {
+                        "vision": {
+                          "anyOf": [
+                            { "type": "number", "const": 0 },
+                            { "type": "number", "const": 1 }
+                          ]
+                        },
+                        "light": { "type": "number" }
+                      },
+                      "required": ["vision", "light"],
+                      "additionalProperties": false
+                    },
+                    "isolation": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "method": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": ["foundry-v14-detection-modes", "selected-source-polygons"]
+                            },
+                            { "type": "null" }
+                          ]
+                        },
+                        "detectionModes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unrelatedVisionSourcesIgnored": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "visionProvidingLightsIgnored": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "method",
+                        "detectionModes",
+                        "unrelatedVisionSourcesIgnored",
+                        "visionProvidingLightsIgnored"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "environment": {
+                      "type": "object",
+                      "properties": {
+                        "fog": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "lighting": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "darkness": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "vision": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "regions": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "fogExplorationEnabled": { "type": ["boolean", "null"] },
+                        "tokenVisionEnabled": { "type": ["boolean", "null"] },
+                        "globalLight": { "type": ["boolean", "null"] },
+                        "darknessLevel": { "type": ["number", "null"] }
+                      },
+                      "required": [
+                        "fog",
+                        "lighting",
+                        "darkness",
+                        "vision",
+                        "regions",
+                        "fogExplorationEnabled",
+                        "tokenVisionEnabled",
+                        "globalLight",
+                        "darknessLevel"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "regions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": { "key": { "type": "string" } },
+                        "required": ["key"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "visibleBarriers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": { "type": "string" },
+                          "kind": { "type": "string", "enum": ["barrier", "door"] },
+                          "state": {
+                            "type": "string",
+                            "enum": ["open", "closed", "locked", "unknown"]
+                          },
+                          "blocksVision": { "type": "boolean" },
+                          "exit": { "type": "boolean" },
+                          "destination": { "type": "string", "const": "redacted" }
+                        },
+                        "required": ["key", "kind", "state", "blocksVision", "exit", "destination"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "coveragePolygons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": { "type": "string", "const": "selected-token" },
+                          "points": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": ["source", "points"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "fogRevision": { "type": ["string", "null"] },
+                    "persistence": {
+                      "type": "object",
+                      "properties": {
+                        "beforeRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "afterRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "unchanged": { "type": "boolean" }
+                      },
+                      "required": ["beforeRevision", "afterRevision", "unchanged"],
+                      "additionalProperties": false
+                    },
+                    "bounds": {
+                      "type": "object",
+                      "properties": {
+                        "truncated": { "type": "boolean" },
+                        "visiblePerKind": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "regions": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "barriers": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "coverageSources": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "coveragePointsPerSource": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "issues": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "truncated",
+                        "visiblePerKind",
+                        "regions",
+                        "barriers",
+                        "coverageSources",
+                        "coveragePointsPerSource",
+                        "issues"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "capturedAt": { "type": "string" },
+                    "image": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mediaType": { "type": "string", "enum": ["image/png", "image/webp"] },
+                            "dataUrl": { "type": "string" },
+                            "bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["mediaType", "dataUrl", "bytes"],
+                          "additionalProperties": false
+                        },
+                        { "type": "null" }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "sceneId",
+                    "effectiveUserId",
+                    "tokenId",
+                    "status",
+                    "issues",
+                    "context",
+                    "visible",
+                    "redaction",
+                    "queryPoints",
+                    "effectiveSources",
+                    "isolation",
+                    "environment",
+                    "regions",
+                    "visibleBarriers",
+                    "coveragePolygons",
+                    "fogRevision",
+                    "persistence",
+                    "bounds",
+                    "capturedAt",
+                    "image"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1522,7 +3299,346 @@
           }
         },
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "effectiveUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "tokenId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "status": {
+                      "type": "string",
+                      "enum": ["complete", "incomplete", "asset_error", "unsupported"]
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "message": { "type": "string" },
+                          "retryable": { "type": "boolean" },
+                          "subjectId": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        },
+                        "required": ["code", "message", "retryable"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "context": {
+                      "type": "object",
+                      "properties": {
+                        "selectedUser": { "type": "boolean", "const": true },
+                        "selectedToken": { "type": "boolean", "const": true },
+                        "tokenOwned": { "type": "boolean", "const": true },
+                        "sceneLoaded": { "type": "boolean", "const": true }
+                      },
+                      "required": ["selectedUser", "selectedToken", "tokenOwned", "sceneLoaded"],
+                      "additionalProperties": false
+                    },
+                    "visible": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        },
+                        "notes": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        },
+                        "tiles": {
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                        }
+                      },
+                      "required": ["tokens", "notes", "tiles"],
+                      "additionalProperties": false
+                    },
+                    "redaction": {
+                      "type": "object",
+                      "properties": {
+                        "occludedEntities": { "type": "boolean", "const": true },
+                        "hiddenRegions": { "type": "boolean", "const": true },
+                        "barrierDocumentIds": { "type": "boolean", "const": true },
+                        "barrierCoordinates": { "type": "boolean", "const": true },
+                        "secretDoors": { "type": "boolean", "const": true },
+                        "exitDestinations": { "type": "boolean", "const": true }
+                      },
+                      "required": [
+                        "occludedEntities",
+                        "hiddenRegions",
+                        "barrierDocumentIds",
+                        "barrierCoordinates",
+                        "secretDoors",
+                        "exitDestinations"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "queryPoints": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "visible": { "type": "boolean" },
+                          "regions": { "type": "array", "items": { "type": "string" } },
+                          "blockerAttribution": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "visible-wall",
+                              "out-of-range",
+                              "environment-ambiguous",
+                              "unavailable"
+                            ]
+                          },
+                          "blockerKeys": { "type": "array", "items": { "type": "string" } }
+                        },
+                        "required": [
+                          "id",
+                          "visible",
+                          "regions",
+                          "blockerAttribution",
+                          "blockerKeys"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "effectiveSources": {
+                      "type": "object",
+                      "properties": {
+                        "vision": {
+                          "anyOf": [
+                            { "type": "number", "const": 0 },
+                            { "type": "number", "const": 1 }
+                          ]
+                        },
+                        "light": { "type": "number" }
+                      },
+                      "required": ["vision", "light"],
+                      "additionalProperties": false
+                    },
+                    "isolation": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "method": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": ["foundry-v14-detection-modes", "selected-source-polygons"]
+                            },
+                            { "type": "null" }
+                          ]
+                        },
+                        "detectionModes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unrelatedVisionSourcesIgnored": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "visionProvidingLightsIgnored": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "method",
+                        "detectionModes",
+                        "unrelatedVisionSourcesIgnored",
+                        "visionProvidingLightsIgnored"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "environment": {
+                      "type": "object",
+                      "properties": {
+                        "fog": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "lighting": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "darkness": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "vision": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "regions": {
+                          "type": "string",
+                          "enum": ["complete", "incomplete", "unsupported"]
+                        },
+                        "fogExplorationEnabled": { "type": ["boolean", "null"] },
+                        "tokenVisionEnabled": { "type": ["boolean", "null"] },
+                        "globalLight": { "type": ["boolean", "null"] },
+                        "darknessLevel": { "type": ["number", "null"] }
+                      },
+                      "required": [
+                        "fog",
+                        "lighting",
+                        "darkness",
+                        "vision",
+                        "regions",
+                        "fogExplorationEnabled",
+                        "tokenVisionEnabled",
+                        "globalLight",
+                        "darknessLevel"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "regions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": { "key": { "type": "string" } },
+                        "required": ["key"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "visibleBarriers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": { "type": "string" },
+                          "kind": { "type": "string", "enum": ["barrier", "door"] },
+                          "state": {
+                            "type": "string",
+                            "enum": ["open", "closed", "locked", "unknown"]
+                          },
+                          "blocksVision": { "type": "boolean" },
+                          "exit": { "type": "boolean" },
+                          "destination": { "type": "string", "const": "redacted" }
+                        },
+                        "required": ["key", "kind", "state", "blocksVision", "exit", "destination"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "coveragePolygons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": { "type": "string", "const": "selected-token" },
+                          "points": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": ["source", "points"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "fogRevision": { "type": ["string", "null"] },
+                    "persistence": {
+                      "type": "object",
+                      "properties": {
+                        "beforeRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "afterRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "unchanged": { "type": "boolean" }
+                      },
+                      "required": ["beforeRevision", "afterRevision", "unchanged"],
+                      "additionalProperties": false
+                    },
+                    "bounds": {
+                      "type": "object",
+                      "properties": {
+                        "truncated": { "type": "boolean" },
+                        "visiblePerKind": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "regions": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "barriers": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "coverageSources": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "coveragePointsPerSource": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "issues": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "truncated",
+                        "visiblePerKind",
+                        "regions",
+                        "barriers",
+                        "coverageSources",
+                        "coveragePointsPerSource",
+                        "issues"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "sceneId",
+                    "effectiveUserId",
+                    "tokenId",
+                    "status",
+                    "issues",
+                    "context",
+                    "visible",
+                    "redaction",
+                    "queryPoints",
+                    "effectiveSources",
+                    "isolation",
+                    "environment",
+                    "regions",
+                    "visibleBarriers",
+                    "coveragePolygons",
+                    "fogRevision",
+                    "persistence",
+                    "bounds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1690,11 +3806,54 @@
             "name": "sceneId",
             "in": "query",
             "required": false,
-            "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+            "schema": {
+              "description": "Required when family is RegionBehavior; omit for other embedded families.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Required when family is RegionBehavior; omit for other embedded families."
           }
         ],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "family": {
+                      "type": "string",
+                      "enum": ["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]
+                    },
+                    "parentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "parentRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "childId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "revision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "data": {
+                            "type": "object",
+                            "propertyNames": { "type": "string" },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": ["childId", "revision", "data"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["family", "parentId", "parentRevision", "children"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1729,7 +3888,13 @@
             "name": "sceneId",
             "in": "query",
             "required": false,
-            "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+            "schema": {
+              "description": "Required when family is RegionBehavior; omit for other embedded families.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Required when family is RegionBehavior; omit for other embedded families."
           },
           {
             "name": "childId",
@@ -1739,7 +3904,41 @@
           }
         ],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "family": {
+                      "type": "string",
+                      "enum": ["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]
+                    },
+                    "parentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "parentRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "data": {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "family",
+                    "parentId",
+                    "childId",
+                    "parentRevision",
+                    "childRevision",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1766,7 +3965,12 @@
                     "enum": ["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]
                   },
                   "parentId": { "type": "string", "minLength": 1, "maxLength": 128 },
-                  "sceneId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "sceneId": {
+                    "description": "Required when family is RegionBehavior; omit for other embedded families.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
                   "expectedParentRevision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
                   "idempotencyKey": { "type": "string", "minLength": 8, "maxLength": 200 },
                   "dryRun": { "type": "boolean" },
@@ -1799,7 +4003,107 @@
           }
         },
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "family": {
+                      "type": "string",
+                      "enum": ["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]
+                    },
+                    "parentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "parentRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "data": {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": {}
+                    },
+                    "replayed": { "type": "boolean" },
+                    "dryRun": { "type": "boolean" },
+                    "persisted": { "type": "boolean" },
+                    "subtype": { "type": "string" },
+                    "before": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "propertyNames": { "type": "string" },
+                          "additionalProperties": {}
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "after": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "propertyNames": { "type": "string" },
+                          "additionalProperties": {}
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "diff": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": { "type": "string" },
+                          "kind": { "type": "string", "enum": ["added", "changed", "removed"] },
+                          "before": {},
+                          "after": {}
+                        },
+                        "required": ["path", "kind"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "path": { "type": "string" },
+                          "message": { "type": "string" }
+                        },
+                        "required": ["code", "path", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "migrationWarnings": { "type": "array", "items": { "type": "string" } },
+                    "deleted": { "type": "boolean" },
+                    "alreadyAbsent": { "type": "boolean" },
+                    "siblingsVerified": { "type": "boolean", "const": true },
+                    "siblingCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                  },
+                  "required": [
+                    "family",
+                    "parentId",
+                    "childId",
+                    "parentRevision",
+                    "childRevision",
+                    "data",
+                    "replayed",
+                    "dryRun",
+                    "persisted",
+                    "before",
+                    "after",
+                    "diff",
+                    "warnings",
+                    "migrationWarnings",
+                    "siblingsVerified",
+                    "siblingCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1826,7 +4130,12 @@
                     "enum": ["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]
                   },
                   "parentId": { "type": "string", "minLength": 1, "maxLength": 128 },
-                  "sceneId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "sceneId": {
+                    "description": "Required when family is RegionBehavior; omit for other embedded families.",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
                   "childId": { "type": "string", "minLength": 1, "maxLength": 128 },
                   "expectedParentRevision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
                   "expectedChildRevision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
@@ -1852,7 +4161,107 @@
           }
         },
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "family": {
+                      "type": "string",
+                      "enum": ["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]
+                    },
+                    "parentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "parentRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "data": {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": {}
+                    },
+                    "replayed": { "type": "boolean" },
+                    "dryRun": { "type": "boolean" },
+                    "persisted": { "type": "boolean" },
+                    "subtype": { "type": "string" },
+                    "before": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "propertyNames": { "type": "string" },
+                          "additionalProperties": {}
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "after": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "propertyNames": { "type": "string" },
+                          "additionalProperties": {}
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "diff": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": { "type": "string" },
+                          "kind": { "type": "string", "enum": ["added", "changed", "removed"] },
+                          "before": {},
+                          "after": {}
+                        },
+                        "required": ["path", "kind"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "path": { "type": "string" },
+                          "message": { "type": "string" }
+                        },
+                        "required": ["code", "path", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "migrationWarnings": { "type": "array", "items": { "type": "string" } },
+                    "deleted": { "type": "boolean" },
+                    "alreadyAbsent": { "type": "boolean" },
+                    "siblingsVerified": { "type": "boolean", "const": true },
+                    "siblingCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                  },
+                  "required": [
+                    "family",
+                    "parentId",
+                    "childId",
+                    "parentRevision",
+                    "childRevision",
+                    "data",
+                    "replayed",
+                    "dryRun",
+                    "persisted",
+                    "before",
+                    "after",
+                    "diff",
+                    "warnings",
+                    "migrationWarnings",
+                    "siblingsVerified",
+                    "siblingCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1887,7 +4296,13 @@
             "name": "sceneId",
             "in": "query",
             "required": false,
-            "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+            "schema": {
+              "description": "Required when family is RegionBehavior; omit for other embedded families.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Required when family is RegionBehavior; omit for other embedded families."
           },
           {
             "name": "childId",
@@ -1916,7 +4331,107 @@
           { "name": "dryRun", "in": "query", "required": false, "schema": { "type": "boolean" } }
         ],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "family": {
+                      "type": "string",
+                      "enum": ["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]
+                    },
+                    "parentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "parentRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "childRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "data": {
+                      "type": "object",
+                      "propertyNames": { "type": "string" },
+                      "additionalProperties": {}
+                    },
+                    "replayed": { "type": "boolean" },
+                    "dryRun": { "type": "boolean" },
+                    "persisted": { "type": "boolean" },
+                    "subtype": { "type": "string" },
+                    "before": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "propertyNames": { "type": "string" },
+                          "additionalProperties": {}
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "after": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "propertyNames": { "type": "string" },
+                          "additionalProperties": {}
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "diff": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": { "type": "string" },
+                          "kind": { "type": "string", "enum": ["added", "changed", "removed"] },
+                          "before": {},
+                          "after": {}
+                        },
+                        "required": ["path", "kind"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "path": { "type": "string" },
+                          "message": { "type": "string" }
+                        },
+                        "required": ["code", "path", "message"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "migrationWarnings": { "type": "array", "items": { "type": "string" } },
+                    "deleted": { "type": "boolean" },
+                    "alreadyAbsent": { "type": "boolean" },
+                    "siblingsVerified": { "type": "boolean", "const": true },
+                    "siblingCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                  },
+                  "required": [
+                    "family",
+                    "parentId",
+                    "childId",
+                    "parentRevision",
+                    "childRevision",
+                    "data",
+                    "replayed",
+                    "dryRun",
+                    "persisted",
+                    "before",
+                    "after",
+                    "diff",
+                    "warnings",
+                    "migrationWarnings",
+                    "siblingsVerified",
+                    "siblingCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1971,7 +4486,523 @@
           }
         },
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "tokenId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "movementMode": { "type": "string" },
+                    "reachable": { "type": "boolean" },
+                    "status": {
+                      "type": "string",
+                      "enum": ["complete", "incomplete", "unsupported"]
+                    },
+                    "incompleteReasons": { "type": "array", "items": { "type": "string" } },
+                    "segments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "from": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          },
+                          "to": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          },
+                          "distance": { "type": "number" },
+                          "blocked": { "type": "boolean" },
+                          "wallIds": {
+                            "type": "array",
+                            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                          },
+                          "firstCollisionWallIds": {
+                            "type": "array",
+                            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                          },
+                          "firstCollision": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "wallId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "t": { "type": "number" },
+                                  "elevation": { "type": "number" },
+                                  "doorType": {
+                                    "type": "string",
+                                    "enum": ["none", "door", "secret"]
+                                  },
+                                  "doorState": {
+                                    "type": "string",
+                                    "enum": ["none", "open", "closed", "locked", "barred", "sealed"]
+                                  },
+                                  "doorOpen": { "type": "boolean" },
+                                  "blocking": { "type": "boolean" }
+                                },
+                                "required": [
+                                  "wallId",
+                                  "x",
+                                  "y",
+                                  "t",
+                                  "elevation",
+                                  "doorType",
+                                  "doorState",
+                                  "doorOpen",
+                                  "blocking"
+                                ],
+                                "additionalProperties": false
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "intersections": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "wallId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "t": { "type": "number" },
+                                "elevation": { "type": "number" },
+                                "doorType": {
+                                  "type": "string",
+                                  "enum": ["none", "door", "secret"]
+                                },
+                                "doorState": {
+                                  "type": "string",
+                                  "enum": ["none", "open", "closed", "locked", "barred", "sealed"]
+                                },
+                                "doorOpen": { "type": "boolean" },
+                                "blocking": { "type": "boolean" }
+                              },
+                              "required": [
+                                "wallId",
+                                "x",
+                                "y",
+                                "t",
+                                "elevation",
+                                "doorType",
+                                "doorState",
+                                "doorOpen",
+                                "blocking"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "from",
+                          "to",
+                          "distance",
+                          "blocked",
+                          "wallIds",
+                          "firstCollisionWallIds",
+                          "firstCollision",
+                          "intersections"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "firstCollision": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "wallId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "x": { "type": "number" },
+                            "y": { "type": "number" },
+                            "t": { "type": "number" },
+                            "elevation": { "type": "number" },
+                            "doorType": { "type": "string", "enum": ["none", "door", "secret"] },
+                            "doorState": {
+                              "type": "string",
+                              "enum": ["none", "open", "closed", "locked", "barred", "sealed"]
+                            },
+                            "doorOpen": { "type": "boolean" },
+                            "blocking": { "type": "boolean" },
+                            "segmentIndex": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "wallId",
+                            "x",
+                            "y",
+                            "t",
+                            "elevation",
+                            "doorType",
+                            "doorState",
+                            "doorOpen",
+                            "blocking",
+                            "segmentIndex"
+                          ],
+                          "additionalProperties": false
+                        },
+                        { "type": "null" }
+                      ]
+                    },
+                    "malformedWallIds": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                    },
+                    "invalidSimulatedDoorIds": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                    },
+                    "modeSupport": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "enum": ["supported", "unsupported"] },
+                        "warnings": { "type": "array", "items": { "type": "string" } }
+                      },
+                      "required": ["status", "warnings"],
+                      "additionalProperties": false
+                    },
+                    "gridFit": {
+                      "type": "object",
+                      "properties": {
+                        "valid": { "type": "boolean" },
+                        "errors": { "type": "array", "items": { "type": "string" } },
+                        "warnings": { "type": "array", "items": { "type": "string" } }
+                      },
+                      "required": ["valid", "errors", "warnings"],
+                      "additionalProperties": false
+                    },
+                    "gridWarnings": { "type": "array", "items": { "type": "string" } },
+                    "before": {
+                      "type": "object",
+                      "properties": {
+                        "x": { "type": "number" },
+                        "y": { "type": "number" },
+                        "elevation": { "type": "number" },
+                        "revision": { "type": "string", "minLength": 1, "maxLength": 256 }
+                      },
+                      "required": ["x", "y", "revision"],
+                      "additionalProperties": false
+                    },
+                    "after": {
+                      "type": "object",
+                      "properties": {
+                        "x": { "type": "number" },
+                        "y": { "type": "number" },
+                        "elevation": { "type": "number" },
+                        "revision": { "type": "string", "minLength": 1, "maxLength": 256 }
+                      },
+                      "required": ["x", "y", "revision"],
+                      "additionalProperties": false
+                    },
+                    "evidence": {
+                      "type": "object",
+                      "properties": {
+                        "before": {
+                          "type": "object",
+                          "properties": {
+                            "tokenRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "sceneRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "wallRevisions": {
+                              "type": "object",
+                              "propertyNames": { "type": "string" },
+                              "additionalProperties": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              }
+                            },
+                            "topologySignature": { "type": "string" },
+                            "token": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "revision": { "type": "string", "minLength": 1, "maxLength": 256 }
+                              },
+                              "required": ["x", "y", "elevation", "width", "height", "revision"],
+                              "additionalProperties": false
+                            },
+                            "walls": {
+                              "type": "object",
+                              "propertyNames": { "type": "string" },
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "revision": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "coordinates": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      { "type": "number" },
+                                      { "type": "number" },
+                                      { "type": "number" },
+                                      { "type": "number" }
+                                    ],
+                                    "items": false,
+                                    "minItems": 4,
+                                    "maxItems": 4
+                                  },
+                                  "doorType": {
+                                    "type": "string",
+                                    "enum": ["none", "door", "secret"]
+                                  },
+                                  "doorState": {
+                                    "type": "string",
+                                    "enum": ["none", "open", "closed", "locked", "barred", "sealed"]
+                                  },
+                                  "move": { "type": "number" },
+                                  "direction": { "type": "number" },
+                                  "bottom": { "type": ["number", "null"] },
+                                  "top": { "type": ["number", "null"] }
+                                },
+                                "required": [
+                                  "revision",
+                                  "coordinates",
+                                  "doorType",
+                                  "doorState",
+                                  "move",
+                                  "direction",
+                                  "bottom",
+                                  "top"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "malformedWalls": {
+                              "type": "object",
+                              "propertyNames": { "type": "string" },
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "revision": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "shapeSignature": { "type": "string" }
+                                },
+                                "required": ["revision", "shapeSignature"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "fog": {
+                              "type": "object",
+                              "properties": {
+                                "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                                "exists": { "type": "boolean" },
+                                "documentId": { "type": ["string", "null"] },
+                                "revision": { "type": ["string", "null"] },
+                                "stateSignature": { "type": "string" }
+                              },
+                              "required": [
+                                "userId",
+                                "exists",
+                                "documentId",
+                                "revision",
+                                "stateSignature"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "tokenRevision",
+                            "sceneRevision",
+                            "wallRevisions",
+                            "topologySignature",
+                            "token",
+                            "walls",
+                            "malformedWalls"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "after": {
+                          "type": "object",
+                          "properties": {
+                            "tokenRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "sceneRevision": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "wallRevisions": {
+                              "type": "object",
+                              "propertyNames": { "type": "string" },
+                              "additionalProperties": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              }
+                            },
+                            "topologySignature": { "type": "string" },
+                            "token": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" },
+                                "width": { "type": "number" },
+                                "height": { "type": "number" },
+                                "revision": { "type": "string", "minLength": 1, "maxLength": 256 }
+                              },
+                              "required": ["x", "y", "elevation", "width", "height", "revision"],
+                              "additionalProperties": false
+                            },
+                            "walls": {
+                              "type": "object",
+                              "propertyNames": { "type": "string" },
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "revision": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "coordinates": {
+                                    "type": "array",
+                                    "prefixItems": [
+                                      { "type": "number" },
+                                      { "type": "number" },
+                                      { "type": "number" },
+                                      { "type": "number" }
+                                    ],
+                                    "items": false,
+                                    "minItems": 4,
+                                    "maxItems": 4
+                                  },
+                                  "doorType": {
+                                    "type": "string",
+                                    "enum": ["none", "door", "secret"]
+                                  },
+                                  "doorState": {
+                                    "type": "string",
+                                    "enum": ["none", "open", "closed", "locked", "barred", "sealed"]
+                                  },
+                                  "move": { "type": "number" },
+                                  "direction": { "type": "number" },
+                                  "bottom": { "type": ["number", "null"] },
+                                  "top": { "type": ["number", "null"] }
+                                },
+                                "required": [
+                                  "revision",
+                                  "coordinates",
+                                  "doorType",
+                                  "doorState",
+                                  "move",
+                                  "direction",
+                                  "bottom",
+                                  "top"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "malformedWalls": {
+                              "type": "object",
+                              "propertyNames": { "type": "string" },
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "revision": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "shapeSignature": { "type": "string" }
+                                },
+                                "required": ["revision", "shapeSignature"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "fog": {
+                              "type": "object",
+                              "properties": {
+                                "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                                "exists": { "type": "boolean" },
+                                "documentId": { "type": ["string", "null"] },
+                                "revision": { "type": ["string", "null"] },
+                                "stateSignature": { "type": "string" }
+                              },
+                              "required": [
+                                "userId",
+                                "exists",
+                                "documentId",
+                                "revision",
+                                "stateSignature"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "tokenRevision",
+                            "sceneRevision",
+                            "wallRevisions",
+                            "topologySignature",
+                            "token",
+                            "walls",
+                            "malformedWalls"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "unchanged": { "type": "boolean" },
+                        "independentReadRequired": { "type": "boolean", "const": true }
+                      },
+                      "required": ["before", "after", "unchanged", "independentReadRequired"],
+                      "additionalProperties": false
+                    },
+                    "persisted": { "type": "boolean", "const": false }
+                  },
+                  "required": [
+                    "sceneId",
+                    "tokenId",
+                    "movementMode",
+                    "reachable",
+                    "status",
+                    "incompleteReasons",
+                    "segments",
+                    "firstCollision",
+                    "malformedWallIds",
+                    "invalidSimulatedDoorIds",
+                    "modeSupport",
+                    "gridFit",
+                    "gridWarnings",
+                    "before",
+                    "after",
+                    "evidence",
+                    "persisted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -1995,7 +5026,69 @@
           }
         ],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "status": { "type": "string", "enum": ["complete", "incomplete"] },
+                    "incompleteReasons": { "type": "array", "items": { "type": "string" } },
+                    "wallCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                    "malformedWallIds": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                    },
+                    "zeroLengthWallIds": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                    },
+                    "duplicateGroups": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                      }
+                    },
+                    "danglingEndpointWallIds": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+                    },
+                    "crossingPairs": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "prefixItems": [
+                          { "type": "string", "minLength": 1, "maxLength": 256 },
+                          { "type": "string", "minLength": 1, "maxLength": 256 }
+                        ],
+                        "items": false,
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    },
+                    "persisted": { "type": "boolean", "const": false }
+                  },
+                  "required": [
+                    "sceneId",
+                    "status",
+                    "incompleteReasons",
+                    "wallCount",
+                    "malformedWallIds",
+                    "zeroLengthWallIds",
+                    "duplicateGroups",
+                    "danglingEndpointWallIds",
+                    "crossingPairs",
+                    "persisted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -2030,6 +5123,7 @@
                         "properties": {
                           "kind": { "type": "string", "const": "attack" },
                           "itemId": { "type": "string", "minLength": 1 },
+                          "activityId": { "type": "string", "minLength": 1 },
                           "modifier": { "type": "number" },
                           "targetAC": { "type": "number" },
                           "damage": { "type": "string", "maxLength": 32 }
@@ -2054,6 +5148,7 @@
                         "properties": {
                           "kind": { "type": "string", "const": "damage" },
                           "itemId": { "type": "string", "minLength": 1 },
+                          "activityId": { "type": "string", "minLength": 1 },
                           "amount": { "type": "number", "minimum": 0 },
                           "formula": { "type": "string", "maxLength": 32 },
                           "damageType": { "type": "string", "minLength": 1, "maxLength": 32 }
@@ -2121,6 +5216,7 @@
                           "properties": {
                             "kind": { "type": "string", "const": "attack" },
                             "itemId": { "type": "string", "minLength": 1 },
+                            "activityId": { "type": "string", "minLength": 1 },
                             "modifier": { "type": "number" },
                             "targetAC": { "type": "number" },
                             "damage": { "type": "string", "maxLength": 32 }
@@ -2145,6 +5241,7 @@
                           "properties": {
                             "kind": { "type": "string", "const": "damage" },
                             "itemId": { "type": "string", "minLength": 1 },
+                            "activityId": { "type": "string", "minLength": 1 },
                             "amount": { "type": "number", "minimum": 0 },
                             "formula": { "type": "string", "maxLength": 32 },
                             "damageType": { "type": "string", "minLength": 1, "maxLength": 32 }
@@ -2350,7 +5447,312 @@
           }
         },
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "eventType": { "type": "string", "const": "token_movement" },
+                    "movementFields": {
+                      "type": "array",
+                      "items": { "type": "string", "enum": ["x", "y", "elevation"] }
+                    },
+                    "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "tokenId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                    "timestamp": { "type": "number" },
+                    "from": {
+                      "type": "object",
+                      "properties": {
+                        "x": { "type": "number" },
+                        "y": { "type": "number" },
+                        "elevation": { "type": "number" }
+                      },
+                      "required": ["x", "y"],
+                      "additionalProperties": false
+                    },
+                    "to": {
+                      "type": "object",
+                      "properties": {
+                        "x": { "type": "number" },
+                        "y": { "type": "number" },
+                        "elevation": { "type": "number" }
+                      },
+                      "required": ["x", "y"],
+                      "additionalProperties": false
+                    },
+                    "footprint": {
+                      "type": "object",
+                      "properties": {
+                        "width": { "type": "number" },
+                        "height": { "type": "number" }
+                      },
+                      "required": ["width", "height"],
+                      "additionalProperties": false
+                    },
+                    "geometryStatus": { "type": "string", "enum": ["complete", "incomplete"] },
+                    "incompleteReasons": { "type": "array", "items": { "type": "string" } },
+                    "deltas": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "dx": { "type": "number" },
+                          "dy": { "type": "number" },
+                          "delevation": { "type": "number" }
+                        },
+                        "required": ["dx", "dy", "delevation"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "waypoints": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "x": { "type": "number" },
+                          "y": { "type": "number" },
+                          "elevation": { "type": "number" }
+                        },
+                        "required": ["x", "y"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "segments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "from": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          },
+                          "to": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          },
+                          "dx": { "type": "number" },
+                          "dy": { "type": "number" },
+                          "delevation": { "type": "number" }
+                        },
+                        "required": ["index", "from", "to", "dx", "dy", "delevation"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "transitions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "regionName": { "type": "string" },
+                          "category": {
+                            "type": "string",
+                            "enum": ["hazard", "threshold", "exit", "room", "corridor", "other"]
+                          },
+                          "stopOnEnter": { "type": "boolean", "const": true },
+                          "kind": { "type": "string", "enum": ["enter", "exit"] },
+                          "segmentIndex": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "t": { "type": "number" },
+                          "point": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["regionId", "category", "kind", "segmentIndex", "t", "point"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "firstStop": {
+                      "type": "object",
+                      "properties": {
+                        "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "regionName": { "type": "string" },
+                        "category": {
+                          "type": "string",
+                          "enum": ["hazard", "threshold", "exit", "room", "corridor", "other"]
+                        },
+                        "stopOnEnter": { "type": "boolean", "const": true },
+                        "kind": { "type": "string", "enum": ["enter", "exit"] },
+                        "segmentIndex": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "t": { "type": "number" },
+                        "point": {
+                          "type": "object",
+                          "properties": {
+                            "x": { "type": "number" },
+                            "y": { "type": "number" },
+                            "elevation": { "type": "number" }
+                          },
+                          "required": ["x", "y"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["regionId", "category", "kind", "segmentIndex", "t", "point"],
+                      "additionalProperties": false
+                    },
+                    "acceptedPoint": {
+                      "type": "object",
+                      "properties": {
+                        "x": { "type": "number" },
+                        "y": { "type": "number" },
+                        "elevation": { "type": "number" }
+                      },
+                      "required": ["x", "y"],
+                      "additionalProperties": false
+                    },
+                    "remainingPath": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "x": { "type": "number" },
+                          "y": { "type": "number" },
+                          "elevation": { "type": "number" }
+                        },
+                        "required": ["x", "y"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "pendingMovement": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "const": "pending" },
+                        "stop": {
+                          "type": "object",
+                          "properties": {
+                            "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                            "regionName": { "type": "string" },
+                            "category": {
+                              "type": "string",
+                              "enum": ["hazard", "threshold", "exit", "room", "corridor", "other"]
+                            },
+                            "stopOnEnter": { "type": "boolean", "const": true },
+                            "kind": { "type": "string", "enum": ["enter", "exit"] },
+                            "segmentIndex": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "t": { "type": "number" },
+                            "point": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "regionId",
+                            "category",
+                            "kind",
+                            "segmentIndex",
+                            "t",
+                            "point"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "acceptedPoint": {
+                          "type": "object",
+                          "properties": {
+                            "x": { "type": "number" },
+                            "y": { "type": "number" },
+                            "elevation": { "type": "number" }
+                          },
+                          "required": ["x", "y"],
+                          "additionalProperties": false
+                        },
+                        "remainingPath": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["status", "stop", "acceptedPoint", "remainingPath"],
+                      "additionalProperties": false
+                    },
+                    "provenance": {
+                      "type": "object",
+                      "properties": {
+                        "reporterClientId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "reporterUserId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "reporterLane": { "type": "string", "enum": ["gm", "player", "tv"] }
+                      },
+                      "required": ["reporterClientId", "reporterUserId", "reporterLane"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "eventId",
+                    "eventType",
+                    "movementFields",
+                    "sceneId",
+                    "tokenId",
+                    "userId",
+                    "timestamp",
+                    "from",
+                    "to",
+                    "footprint",
+                    "geometryStatus",
+                    "incompleteReasons",
+                    "deltas",
+                    "waypoints",
+                    "segments",
+                    "transitions",
+                    "acceptedPoint",
+                    "remainingPath"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },
@@ -2399,7 +5801,420 @@
           }
         ],
         "responses": {
-          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "eventType": { "type": "string", "const": "token_movement" },
+                          "movementFields": {
+                            "type": "array",
+                            "items": { "type": "string", "enum": ["x", "y", "elevation"] }
+                          },
+                          "sceneId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "tokenId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "userId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                          "timestamp": { "type": "number" },
+                          "from": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          },
+                          "to": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          },
+                          "footprint": {
+                            "type": "object",
+                            "properties": {
+                              "width": { "type": "number" },
+                              "height": { "type": "number" }
+                            },
+                            "required": ["width", "height"],
+                            "additionalProperties": false
+                          },
+                          "geometryStatus": {
+                            "type": "string",
+                            "enum": ["complete", "incomplete"]
+                          },
+                          "incompleteReasons": { "type": "array", "items": { "type": "string" } },
+                          "deltas": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "dx": { "type": "number" },
+                                "dy": { "type": "number" },
+                                "delevation": { "type": "number" }
+                              },
+                              "required": ["dx", "dy", "delevation"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "waypoints": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "segments": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "index": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                "from": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": { "type": "number" },
+                                    "y": { "type": "number" },
+                                    "elevation": { "type": "number" }
+                                  },
+                                  "required": ["x", "y"],
+                                  "additionalProperties": false
+                                },
+                                "to": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": { "type": "number" },
+                                    "y": { "type": "number" },
+                                    "elevation": { "type": "number" }
+                                  },
+                                  "required": ["x", "y"],
+                                  "additionalProperties": false
+                                },
+                                "dx": { "type": "number" },
+                                "dy": { "type": "number" },
+                                "delevation": { "type": "number" }
+                              },
+                              "required": ["index", "from", "to", "dx", "dy", "delevation"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "transitions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                                "regionName": { "type": "string" },
+                                "category": {
+                                  "type": "string",
+                                  "enum": [
+                                    "hazard",
+                                    "threshold",
+                                    "exit",
+                                    "room",
+                                    "corridor",
+                                    "other"
+                                  ]
+                                },
+                                "stopOnEnter": { "type": "boolean", "const": true },
+                                "kind": { "type": "string", "enum": ["enter", "exit"] },
+                                "segmentIndex": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                "t": { "type": "number" },
+                                "point": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": { "type": "number" },
+                                    "y": { "type": "number" },
+                                    "elevation": { "type": "number" }
+                                  },
+                                  "required": ["x", "y"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "regionId",
+                                "category",
+                                "kind",
+                                "segmentIndex",
+                                "t",
+                                "point"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "firstStop": {
+                            "type": "object",
+                            "properties": {
+                              "regionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                              "regionName": { "type": "string" },
+                              "category": {
+                                "type": "string",
+                                "enum": ["hazard", "threshold", "exit", "room", "corridor", "other"]
+                              },
+                              "stopOnEnter": { "type": "boolean", "const": true },
+                              "kind": { "type": "string", "enum": ["enter", "exit"] },
+                              "segmentIndex": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "t": { "type": "number" },
+                              "point": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "regionId",
+                              "category",
+                              "kind",
+                              "segmentIndex",
+                              "t",
+                              "point"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "acceptedPoint": {
+                            "type": "object",
+                            "properties": {
+                              "x": { "type": "number" },
+                              "y": { "type": "number" },
+                              "elevation": { "type": "number" }
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": false
+                          },
+                          "remainingPath": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "elevation": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "pendingMovement": {
+                            "type": "object",
+                            "properties": {
+                              "status": { "type": "string", "const": "pending" },
+                              "stop": {
+                                "type": "object",
+                                "properties": {
+                                  "regionId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 256
+                                  },
+                                  "regionName": { "type": "string" },
+                                  "category": {
+                                    "type": "string",
+                                    "enum": [
+                                      "hazard",
+                                      "threshold",
+                                      "exit",
+                                      "room",
+                                      "corridor",
+                                      "other"
+                                    ]
+                                  },
+                                  "stopOnEnter": { "type": "boolean", "const": true },
+                                  "kind": { "type": "string", "enum": ["enter", "exit"] },
+                                  "segmentIndex": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "t": { "type": "number" },
+                                  "point": {
+                                    "type": "object",
+                                    "properties": {
+                                      "x": { "type": "number" },
+                                      "y": { "type": "number" },
+                                      "elevation": { "type": "number" }
+                                    },
+                                    "required": ["x", "y"],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "regionId",
+                                  "category",
+                                  "kind",
+                                  "segmentIndex",
+                                  "t",
+                                  "point"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "acceptedPoint": {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" },
+                                  "elevation": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false
+                              },
+                              "remainingPath": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": { "type": "number" },
+                                    "y": { "type": "number" },
+                                    "elevation": { "type": "number" }
+                                  },
+                                  "required": ["x", "y"],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": ["status", "stop", "acceptedPoint", "remainingPath"],
+                            "additionalProperties": false
+                          },
+                          "provenance": {
+                            "type": "object",
+                            "properties": {
+                              "reporterClientId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              },
+                              "reporterUserId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 256
+                              },
+                              "reporterLane": { "type": "string", "enum": ["gm", "player", "tv"] }
+                            },
+                            "required": ["reporterClientId", "reporterUserId", "reporterLane"],
+                            "additionalProperties": false
+                          },
+                          "sequence": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "eventId",
+                          "eventType",
+                          "movementFields",
+                          "sceneId",
+                          "tokenId",
+                          "userId",
+                          "timestamp",
+                          "from",
+                          "to",
+                          "footprint",
+                          "geometryStatus",
+                          "incompleteReasons",
+                          "deltas",
+                          "waypoints",
+                          "segments",
+                          "transitions",
+                          "acceptedPoint",
+                          "remainingPath",
+                          "sequence"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": { "type": "string" },
+                    "generation": { "type": "string" },
+                    "gap": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string", "const": "CURSOR_GAP" },
+                        "reason": { "type": "string", "enum": ["restart", "expired"] },
+                        "oldestSequence": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "requestedGeneration": { "type": "string" },
+                        "currentGeneration": { "type": "string" },
+                        "missingRanges": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "fromSequence": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "toSequence": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": ["fromSequence", "toSequence"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "missingRangesComplete": { "type": "boolean" },
+                        "reconciliationRequired": { "type": "boolean", "const": true }
+                      },
+                      "required": [
+                        "code",
+                        "reason",
+                        "oldestSequence",
+                        "requestedGeneration",
+                        "currentGeneration",
+                        "missingRanges",
+                        "missingRangesComplete",
+                        "reconciliationRequired"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["events", "nextCursor", "generation"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "429": { "$ref": "#/components/responses/RateLimited" },

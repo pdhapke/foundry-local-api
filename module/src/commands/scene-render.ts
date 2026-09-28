@@ -240,10 +240,10 @@ function visibleBarriers(
   queryPoints: Array<{ id: string; x: number; y: number; visible: boolean; inRange: boolean }>,
 ): {
   barriers: SceneVisibilityResult["visibleBarriers"];
-  attributedQueryIds: Set<string>;
+  blockerKeysByQueryId: Map<string, string[]>;
 } {
   const result: SceneVisibilityResult["visibleBarriers"] = [];
-  const attributedQueryIds = new Set<string>();
+  const blockerKeysByQueryId = new Map<string, string[]>();
   let exceeded = false;
   for (const wall of runtime.walls?.placeables ?? []) {
     const source = sourceOf(wall.document as PermissionDocument | undefined);
@@ -288,20 +288,25 @@ function visibleBarriers(
             segmentsIntersect(origin, point, coordinates[0], coordinates[1]),
         )
       : [];
-    for (const point of attributedPoints) attributedQueryIds.add(point.id);
     const midpoint = {
       x: (coordinates[0].x + coordinates[1].x) / 2,
       y: (coordinates[0].y + coordinates[1].y) / 2,
     };
     if (!attributedPoints.length && !isolation.test(midpoint, wall)) continue;
+    const key = `${attributedPoints.length ? "blocker" : "barrier"}-${result.length + 1}`;
     result.push({
-      key: `${attributedPoints.length ? "blocker" : "barrier"}-${result.length + 1}`,
+      key,
       kind: door === 0 ? "barrier" : "door",
       state,
       blocksVision,
       exit: localFlags?.["exit"] === true,
       destination: "redacted",
     });
+    for (const point of attributedPoints) {
+      const keys = blockerKeysByQueryId.get(point.id) ?? [];
+      keys.push(key);
+      blockerKeysByQueryId.set(point.id, keys);
+    }
   }
   if (exceeded)
     issues.push({
@@ -309,7 +314,7 @@ function visibleBarriers(
       message: "Visible barrier output reached its response limit.",
       retryable: false,
     });
-  return { barriers: result, attributedQueryIds };
+  return { barriers: result, blockerKeysByQueryId };
 }
 
 function wallCoordinates(
@@ -782,7 +787,7 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
   );
   const barriers = barrierEvidence.barriers;
   for (const point of evaluatedQueries) {
-    if (!point.visible && point.inRange && !barrierEvidence.attributedQueryIds.has(point.id))
+    if (!point.visible && point.inRange && !barrierEvidence.blockerKeysByQueryId.has(point.id))
       issues.push({
         code: "QUERY_FAILED",
         message:
@@ -792,6 +797,17 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
       });
   }
   const queryPoints = evaluatedQueries.map((point) => {
+    const blockerKeys = barrierEvidence.blockerKeysByQueryId.get(point.id) ?? [];
+    const blockerAttribution: SceneVisibilityResult["queryPoints"][number]["blockerAttribution"] =
+      point.visible
+        ? "none"
+        : isolation.status === "unsupported"
+          ? "unavailable"
+          : !point.inRange
+            ? "out-of-range"
+            : blockerKeys.length > 0
+              ? "visible-wall"
+              : "environment-ambiguous";
     return {
       id: point.id,
       visible: point.visible,
@@ -800,6 +816,8 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
             .filter(({ placeable }) => regionContains(placeable, point.x, point.y))
             .map(({ key }) => key)
         : [],
+      blockerAttribution,
+      blockerKeys,
     };
   });
 

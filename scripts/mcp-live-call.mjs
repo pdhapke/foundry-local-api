@@ -20,7 +20,12 @@ try {
       JSON.stringify(
         tools.tools
           .filter((tool) => names.includes(tool.name))
-          .map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
+          .map(({ name, description, inputSchema, outputSchema }) => ({
+            name,
+            description,
+            inputSchema,
+            outputSchema,
+          })),
         null,
         2,
       ),

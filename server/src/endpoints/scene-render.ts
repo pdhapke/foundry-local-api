@@ -7,6 +7,10 @@ import {
   type SceneVisibilityResult,
 } from "@foundry-local-api/shared";
 import { FoundryBridgeError } from "../bridge/errors.js";
+import {
+  sceneRenderOutputSchema,
+  sceneVisibilityOutputSchema,
+} from "./requirement-output-schemas.js";
 import type { AnyEndpointDescriptor, EndpointContext } from "./types.js";
 
 const id = z.string().min(1).max(128);
@@ -59,6 +63,7 @@ export const sceneRenderEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "post",
     path: "/scenes/render-snapshot",
     inputSchema: sceneRenderSchema,
+    outputSchema: sceneRenderOutputSchema,
     handler: (input: Request, ctx): Promise<SceneRenderResult> => {
       const { requester, target } = route(input, ctx);
       return ctx.foundryClient.call(SCENE_RENDER_COMMANDS.SNAPSHOT, payload(input), {
@@ -76,6 +81,7 @@ export const sceneRenderEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "post",
     path: "/scenes/token-visibility",
     inputSchema: sceneRenderSchema,
+    outputSchema: sceneVisibilityOutputSchema,
     handler: (input: Request, ctx): Promise<SceneVisibilityResult> => {
       const { requester, target } = route(input, ctx);
       return ctx.foundryClient.call(SCENE_RENDER_COMMANDS.VISIBILITY, payload(input), {

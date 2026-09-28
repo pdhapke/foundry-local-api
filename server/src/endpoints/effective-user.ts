@@ -149,6 +149,55 @@ const commandResultSchema = z.object({
   data: operationDataSchema,
 });
 
+function resultMatchesRequest(
+  input: EffectiveUserExecuteInput,
+  result: z.infer<typeof commandResultSchema>,
+): boolean {
+  const operation = input.operation;
+  const data = result.data;
+  if (operation.kind === "inspectActorControl") {
+    return (
+      data.kind === "actorControl" &&
+      data.actorId === operation.actorId &&
+      result.mutationIds.length === 0
+    );
+  }
+  if (operation.kind === "applyActorOwnerProbe") {
+    return (
+      data.kind === "actorOwnerProbe" &&
+      data.actorId === operation.actorId &&
+      data.testRunId === operation.testRunId &&
+      data.beforeRevision === operation.expectedRevision &&
+      data.afterValue === operation.probeValue &&
+      result.mutationIds.length === 1 &&
+      result.mutationIds[0] === operation.actorId
+    );
+  }
+  if (operation.kind === "readJournalContent") {
+    return (
+      data.kind === "journalContent" &&
+      data.journalEntryId === operation.journalEntryId &&
+      result.mutationIds.length === 0 &&
+      (operation.pageId === undefined ||
+        (data.pages.length === 1 && data.pages[0]?.pageId === operation.pageId))
+    );
+  }
+  if (operation.kind === "inspectSceneToken") {
+    return (
+      data.kind === "sceneToken" &&
+      data.sceneId === operation.sceneId &&
+      data.tokenId === operation.tokenId &&
+      result.mutationIds.length === 0
+    );
+  }
+  return (
+    data.kind === "noteAccess" &&
+    data.sceneId === operation.sceneId &&
+    data.noteId === operation.noteId &&
+    result.mutationIds.length === 0
+  );
+}
+
 export const effectiveUserEndpointDescriptors: AnyEndpointDescriptor[] = [
   {
     name: "foundry_execute_as_user",
@@ -254,7 +303,8 @@ export const effectiveUserEndpointDescriptors: AnyEndpointDescriptor[] = [
             (input.operation.kind === "inspectActorControl" ||
             input.operation.kind === "applyActorOwnerProbe"
               ? "OWNER"
-              : "OBSERVER")
+              : "OBSERVER") ||
+          !resultMatchesRequest(input, parsed.data)
         ) {
           throw new FoundryBridgeError(
             "INCOMPLETE_RESULT",

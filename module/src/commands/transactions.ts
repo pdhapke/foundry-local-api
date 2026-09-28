@@ -312,7 +312,7 @@ function assertAllowed(operation: TransactionOperation): void {
     throw new ProtocolError({
       code: "UNSUPPORTED_TYPE",
       message:
-        "This document operation has Foundry side effects that are not proven compensable in strict atomic mode.",
+        "This document operation has Foundry side effects that are not proven compensable in strict-compensation mode.",
       retryable: false,
       fieldPath: "operations.documentType",
       details: { uncompensated: true, operationId: operation.operationId },
@@ -337,7 +337,7 @@ function assertAllowed(operation: TransactionOperation): void {
   ) {
     throw new ProtocolError({
       code: "UNSUPPORTED_TYPE",
-      message: `${operation.documentType} deletion has persistent or runtime side effects that cannot be completely compensated and is excluded from atomic mode.`,
+      message: `${operation.documentType} deletion has persistent or runtime side effects that cannot be completely compensated and is excluded from strict-compensation mode.`,
       retryable: false,
       fieldPath: "operations.kind",
       details: { uncompensated: true, operationId: operation.operationId },
@@ -605,7 +605,12 @@ export async function preflightTransactionResult(
   return {
     transactionId: manifest.correlationId,
     correlationId: manifest.correlationId,
-    atomic: true,
+    atomic: false,
+    transactionSemantics: "strict-verified-compensation",
+    limitations: [
+      "Foundry does not expose database-isolated multi-document transactions.",
+      "Browser crashes can interrupt compensation and already-observed hook side effects cannot be undone.",
+    ],
     valid: true,
     executionOrder: prepared.map(({ operation }) => operation.operationId),
     checkedRevisions: await Promise.all(
@@ -628,7 +633,7 @@ export async function preflightTransactionResult(
 function duplicateTarget(key: string): ProtocolError {
   return new ProtocolError({
     code: "INVALID_PAYLOAD",
-    message: `Atomic manifests may mutate target "${key}" only once.`,
+    message: `Strict-compensation manifests may mutate target "${key}" only once.`,
     retryable: false,
     fieldPath: "operations",
   });
@@ -1010,7 +1015,12 @@ export async function executeAtomicTransaction(
       correlationId: manifest.correlationId,
       idempotencyKey: manifest.idempotencyKey,
       committed: true,
-      atomic: true,
+      atomic: false,
+      transactionSemantics: "strict-verified-compensation",
+      limitations: [
+        "Foundry does not expose database-isolated multi-document transactions.",
+        "Browser crashes can interrupt compensation and already-observed hook side effects cannot be undone.",
+      ],
       replayed: false,
       executionOrder: prepared.map(({ operation }) => operation.operationId),
       operations: operationResults,
@@ -1037,7 +1047,7 @@ export async function executeAtomicTransaction(
       throw new ProtocolError({
         code: "ROLLBACK_FAILED",
         message:
-          "Atomic rollback could not restore every before image; manual recovery is required.",
+          "Verified compensation could not restore every before image; manual recovery is required.",
         retryable: false,
         correlationId: manifest.correlationId,
         details: { failedOperationId, rolledBackOperationIds, recoveryManifest },

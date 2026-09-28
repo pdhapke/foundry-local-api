@@ -329,6 +329,73 @@ void describe("live collision commands", () => {
     assert.equal(result.evidence.before.malformedWalls["malformed"]?.revision, "9");
     assert.equal(result.evidence.after.malformedWalls["malformed"]?.revision, "9");
   });
+  void it("detects non-finite and null malformed-wall changes without revision changes", () => {
+    let wallRead = 0;
+    const coordinateReads: unknown[] = [
+      [0, Number.NaN, 1, 1],
+      [0, Infinity, 1, 1],
+      null,
+      [0, -Infinity, 1, 1],
+    ];
+    const token = {
+      id: "t",
+      toObject: () => ({
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        _stats: { modifiedTime: 8 },
+      }),
+    };
+    const malformed = {
+      id: "malformed",
+      toObject: () => ({
+        c: coordinateReads[wallRead++],
+        move: 1,
+        _stats: { modifiedTime: 9 },
+      }),
+    };
+    const scene = {
+      id: "s",
+      toObject: () => ({ _stats: { modifiedTime: 7 } }),
+      grid: { type: 1, size: 5, diagonalRule: "euclidean" },
+      testUserPermission: () => true,
+      getEmbeddedCollection: (type: string) =>
+        type === "Token" ? new Map([["t", token]]) : new Map([["malformed", malformed]]),
+    };
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        collections: new Map([["Scene", new Map([["s", scene]])]]),
+        user: { id: "gm", isGM: true },
+        settings: { get: () => "euclidean" },
+      },
+    });
+    const input = {
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 10, y: 0 }],
+      movementMode: "walk" as const,
+    };
+    const nonFiniteChange = validateLiveTokenPath(input);
+    const nullChange = validateLiveTokenPath(input);
+    for (const result of [nonFiniteChange, nullChange]) {
+      assert.equal(result.status, "incomplete");
+      assert.equal(result.reachable, false);
+      assert.equal(result.evidence.unchanged, false);
+      assert.equal(result.evidence.before.malformedWalls["malformed"]?.revision, "9");
+      assert.equal(result.evidence.after.malformedWalls["malformed"]?.revision, "9");
+      assert.match(
+        result.evidence.before.malformedWalls["malformed"]!.shapeSignature,
+        /^[0-9a-f]{8}$/,
+      );
+      assert.notEqual(
+        result.evidence.before.malformedWalls["malformed"]?.shapeSignature,
+        result.evidence.after.malformedWalls["malformed"]?.shapeSignature,
+      );
+    }
+    assert.equal(wallRead, 4);
+  });
   void it("refuses document ID revision fallbacks", () => {
     const token = { id: "t", toObject: () => ({ x: 0, y: 0, width: 1, height: 1 }) };
     const scene = {

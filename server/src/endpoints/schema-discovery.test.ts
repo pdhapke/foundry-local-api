@@ -144,6 +144,20 @@ void describe("MCP-REQ-003 schema REST/MCP endpoints", () => {
       .post("/api/schemas/validate")
       .send({ documentType: "Actor", mode: "wrong", data: {}, ...versionLock })
       .expect(400);
+    await request(app)
+      .post("/api/schemas/validate")
+      .send({ documentType: "Actor", mode: "create", ...versionLock })
+      .expect(400);
+    await request(app)
+      .post("/api/schemas/validate")
+      .send({
+        documentType: "Actor",
+        mode: "create",
+        data: {},
+        candidates: [{}],
+        ...versionLock,
+      })
+      .expect(400);
     assert.equal(calls, 1);
   });
 

@@ -18,6 +18,14 @@ class MemoryStorage implements BridgeOutboxStorage {
   }
 }
 
+class FailingStorage extends MemoryStorage {
+  failWrites = false;
+  override setItem(key: string, value: string): void {
+    if (this.failWrites) throw new Error("quota exceeded");
+    super.setItem(key, value);
+  }
+}
+
 const sender = { clientId: "izzy-tab", userId: "izzy", lane: "player" as const };
 const movement = (eventId = "move-1") => ({
   eventId,
@@ -128,6 +136,60 @@ void describe("BridgeEventOutbox", () => {
       lastError: "storage-corrupt",
     });
     assert.equal(storage.values.get("outbox"), "not-json");
+    assert.throws(
+      () => outbox.enqueue(MOVEMENT_EVENT_NAME, movement()),
+      /durable movement outbox is unavailable/i,
+    );
+  });
+
+  void it("rolls back a disconnected enqueue when durable persistence fails", () => {
+    const storage = new FailingStorage();
+    const outbox = new BridgeEventOutbox(sender, { storage, storageKey: "outbox", now: () => 10 });
+    storage.failWrites = true;
+    assert.throws(
+      () => outbox.enqueue(MOVEMENT_EVENT_NAME, movement()),
+      /unable to persist movement event/i,
+    );
+    assert.deepEqual(outbox.diagnostics(), {
+      persistence: "unavailable",
+      queuedCount: 0,
+      deadLetterCount: 0,
+      lastError: "storage-write-failed",
+    });
+  });
+
+  void it("does not forget an acknowledged record when removal cannot be persisted", () => {
+    const storage = new FailingStorage();
+    const outbox = new BridgeEventOutbox(sender, { storage, storageKey: "outbox", now: () => 10 });
+    const queued = outbox.enqueue(MOVEMENT_EVENT_NAME, movement());
+    storage.failWrites = true;
+    assert.equal(
+      outbox.acknowledge({
+        kind: "event-ack",
+        deliveryId: queued.deliveryId,
+        accepted: true,
+        clientId: sender.clientId,
+      }),
+      false,
+    );
+    assert.equal(outbox.diagnostics().queuedCount, 1);
+    assert.equal(
+      new BridgeEventOutbox(sender, { storage, storageKey: "outbox" }).ready().length,
+      1,
+    );
+  });
+
+  void it("fails closed when persisted records do not match the storage identity", () => {
+    const storage = new MemoryStorage();
+    const first = new BridgeEventOutbox(sender, { storage, storageKey: "outbox", now: () => 10 });
+    first.enqueue(MOVEMENT_EVENT_NAME, movement());
+    const otherSender = { ...sender, clientId: "other-tab" };
+    const mismatched = new BridgeEventOutbox(otherSender, { storage, storageKey: "outbox" });
+    assert.equal(mismatched.diagnostics().lastError, "storage-corrupt");
+    assert.throws(
+      () => mismatched.enqueue(MOVEMENT_EVENT_NAME, movement("move-2")),
+      /durable movement outbox is unavailable/i,
+    );
   });
 
   void it("accepts only the bounded acknowledgement wire shape", () => {
@@ -142,6 +204,16 @@ void describe("BridgeEventOutbox", () => {
     );
     assert.equal(
       isBridgeEventAcknowledgement({ kind: "event-ack", deliveryId: "x", accepted: false }),
+      false,
+    );
+    assert.equal(
+      isBridgeEventAcknowledgement({
+        kind: "event-ack",
+        deliveryId: "movement:izzy:move-1",
+        accepted: true,
+        clientId: "izzy-tab",
+        unexpected: "field",
+      }),
       false,
     );
   });

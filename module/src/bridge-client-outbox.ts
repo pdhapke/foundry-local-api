@@ -78,17 +78,33 @@ function stablePayload(value: unknown): string {
 function isRecord(value: unknown): value is BridgeOutboxRecord {
   if (!value || typeof value !== "object") return false;
   const record = value as Partial<BridgeOutboxRecord>;
+  const payload =
+    record.payload && typeof record.payload === "object"
+      ? (record.payload as { eventId?: unknown })
+      : null;
   return (
     typeof record.deliveryId === "string" &&
-    typeof record.event === "string" &&
+    record.event === MOVEMENT_EVENT_NAME &&
+    typeof payload?.eventId === "string" &&
+    payload.eventId.length > 0 &&
+    payload.eventId.length <= 256 &&
     typeof record.sender?.clientId === "string" &&
+    record.sender.clientId.length > 0 &&
+    record.sender.clientId.length <= 128 &&
     typeof record.sender.userId === "string" &&
+    record.sender.userId.length > 0 &&
+    record.sender.userId.length <= 128 &&
     (record.sender.lane === "gm" ||
       record.sender.lane === "player" ||
       record.sender.lane === "tv") &&
+    record.deliveryId === `movement:${record.sender.userId}:${payload.eventId}` &&
     typeof record.createdAt === "number" &&
+    Number.isFinite(record.createdAt) &&
+    typeof record.attemptCount === "number" &&
     Number.isSafeInteger(record.attemptCount) &&
+    record.attemptCount >= 0 &&
     typeof record.nextAttemptAt === "number" &&
+    Number.isFinite(record.nextAttemptAt) &&
     (record.state === "queued" || record.state === "dead-letter")
   );
 }
@@ -128,6 +144,9 @@ export class BridgeEventOutbox {
 
   enqueue(event: string, payload: unknown): BridgeOutboxRecord {
     if (event !== MOVEMENT_EVENT_NAME) throw new Error("Only movement events are durable");
+    if (this.storage && this.persistence === "unavailable") {
+      throw new Error("Durable movement outbox is unavailable");
+    }
     const eventId =
       payload &&
       typeof payload === "object" &&
@@ -155,7 +174,10 @@ export class BridgeEventOutbox {
       state: "queued",
     };
     this.records.set(deliveryId, record);
-    this.persist();
+    if (!this.persist()) {
+      this.records.delete(deliveryId);
+      throw new Error("Unable to persist movement event in durable outbox");
+    }
     return structuredClone(record);
   }
 
@@ -196,9 +218,14 @@ export class BridgeEventOutbox {
 
   acknowledge(acknowledgement: BridgeEventAcknowledgement): boolean {
     if (acknowledgement.clientId !== this.sender.clientId) return false;
-    const removed = this.records.delete(acknowledgement.deliveryId);
-    if (removed) this.persist();
-    return removed;
+    const record = this.records.get(acknowledgement.deliveryId);
+    if (!record) return false;
+    this.records.delete(acknowledgement.deliveryId);
+    if (!this.persist()) {
+      this.records.set(record.deliveryId, record);
+      return false;
+    }
+    return true;
   }
 
   diagnostics(): BridgeEventOutboxDiagnostics {
@@ -231,14 +258,18 @@ export class BridgeEventOutbox {
       ) {
         throw new Error("invalid outbox");
       }
+      if (
+        parsed.records.some(
+          (record) =>
+            record.sender.clientId !== this.sender.clientId ||
+            record.sender.userId !== this.sender.userId ||
+            record.sender.lane !== this.sender.lane,
+        )
+      ) {
+        throw new Error("outbox identity mismatch");
+      }
       for (const record of parsed.records) {
-        if (
-          record.sender.clientId === this.sender.clientId &&
-          record.sender.userId === this.sender.userId &&
-          record.sender.lane === this.sender.lane
-        ) {
-          this.records.set(record.deliveryId, structuredClone(record));
-        }
+        this.records.set(record.deliveryId, structuredClone(record));
       }
     } catch {
       this.persistence = "unavailable";
@@ -246,17 +277,20 @@ export class BridgeEventOutbox {
     }
   }
 
-  private persist(): void {
-    if (!this.storage || this.persistence === "unavailable") return;
+  private persist(): boolean {
+    if (!this.storage) return true;
+    if (this.persistence === "unavailable") return false;
     try {
       const value: PersistedOutbox = {
         version: OUTBOX_VERSION,
         records: [...this.records.values()].map((record) => structuredClone(record)),
       };
       this.storage.setItem(this.storageKey, JSON.stringify(value));
+      return true;
     } catch {
       this.persistence = "unavailable";
       this.lastError = "storage-write-failed";
+      return false;
     }
   }
 }
@@ -265,9 +299,14 @@ export function isBridgeEventAcknowledgement(value: unknown): value is BridgeEve
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<BridgeEventAcknowledgement>;
   return (
+    Object.keys(value).length === 4 &&
     candidate.kind === "event-ack" &&
     candidate.accepted === true &&
     typeof candidate.deliveryId === "string" &&
-    typeof candidate.clientId === "string"
+    candidate.deliveryId.length > 0 &&
+    candidate.deliveryId.length <= 512 &&
+    typeof candidate.clientId === "string" &&
+    candidate.clientId.length > 0 &&
+    candidate.clientId.length <= 128
   );
 }

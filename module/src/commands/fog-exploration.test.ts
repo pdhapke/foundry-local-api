@@ -44,18 +44,19 @@ function install(existing?: { explored: string | null; positions: Record<string,
     value: {
       FogExploration: {
         documentClass: {
-          create: (data: Record<string, unknown>, options?: Record<string, unknown>) =>
-            Promise.resolve(
-              make(
-                options?.["keepId"] === true && typeof data["_id"] === "string"
-                  ? data["_id"]
-                  : "fog-created",
-                {
-                  explored: (data["explored"] as string | null) ?? null,
-                  positions: (data["positions"] as Record<string, unknown>) ?? {},
-                },
-              ),
-            ),
+          create: async (data: Record<string, unknown>, options?: Record<string, unknown>) => {
+            const document = make(
+              options?.["keepId"] === true && typeof data["_id"] === "string"
+                ? data["_id"]
+                : `fog-created-${fogs.size + 1}`,
+              {
+                explored: (data["explored"] as string | null) ?? null,
+                positions: (data["positions"] as Record<string, unknown>) ?? {},
+              },
+            );
+            await document.update(data);
+            return document;
+          },
         },
       },
     },
@@ -291,5 +292,43 @@ void describe("fog exploration commands", () => {
       (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
     );
     assert.deepEqual([...collection.keys()], before);
+  });
+
+  void it("isolates exact state and revisions between users on the same Scene", async () => {
+    const fogs = install();
+    (globalThis as any).game.users.set("player-two", { id: "player-two" });
+    const playerOneBefore = await getFogExploration({ sceneId: "scene", userId: "player" });
+    const playerTwoBefore = await getFogExploration({
+      sceneId: "scene",
+      userId: "player-two",
+    });
+    const playerOne = await updateFogExploration({
+      sceneId: "scene",
+      userId: "player",
+      mode: "replace",
+      state: { explored: "player-one", positions: { one: { x: 1, y: 2 } } },
+      expectedRevision: playerOneBefore.revision,
+      idempotencyKey: "fog-player-one-0001",
+    });
+    const playerTwo = await updateFogExploration({
+      sceneId: "scene",
+      userId: "player-two",
+      mode: "replace",
+      state: { explored: "player-two", positions: { two: { x: 3, y: 4 } } },
+      expectedRevision: playerTwoBefore.revision,
+      idempotencyKey: "fog-player-two-0001",
+    });
+
+    assert.equal(fogs.size, 2);
+    assert.equal(playerOne.after.userId, "player");
+    assert.equal(playerTwo.after.userId, "player-two");
+    assert.deepEqual(
+      (await getFogExploration({ sceneId: "scene", userId: "player" })).state,
+      playerOne.after.state,
+    );
+    assert.deepEqual(
+      (await getFogExploration({ sceneId: "scene", userId: "player-two" })).state,
+      playerTwo.after.state,
+    );
   });
 });

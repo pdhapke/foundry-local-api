@@ -16,6 +16,10 @@ import { EnrollmentIssueError, type EnrollmentStore } from "../bridge/enrollment
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import type { FoundationRuntime } from "../foundations/runtime.js";
 import { readPackageVersion } from "../version.js";
+import {
+  enrollmentDiagnosticsOutputSchema,
+  issueEnrollmentOutputSchema,
+} from "./requirement-output-schemas.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 
 const issueSchema = z
@@ -278,6 +282,7 @@ export const bridgeEnrollmentEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "post",
     path: "/bridge/enrollments",
     inputSchema: issueSchema,
+    outputSchema: issueEnrollmentOutputSchema,
     handler: (input: IssueBridgeEnrollmentInput, { foundryClient, foundations }) =>
       issueEnrollment(input, foundryClient, foundations),
   },
@@ -287,6 +292,7 @@ export const bridgeEnrollmentEndpointDescriptors: AnyEndpointDescriptor[] = [
       "Returns secrecy-safe pending, active, and recent enrollment metadata. It never returns credentials, digests, URLs, headers, cookies, or device data.",
     method: "get",
     path: "/bridge/enrollments/diagnostics",
+    outputSchema: enrollmentDiagnosticsOutputSchema,
     handler: (_input: void, { foundations, foundryClient }) => ({
       generatedAt: new Date().toISOString(),
       ...requireEnrollmentStore(foundations).getDiagnostics(),

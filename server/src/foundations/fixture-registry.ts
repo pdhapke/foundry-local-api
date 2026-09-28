@@ -13,7 +13,17 @@ export class FixtureRegistry {
   constructor(private readonly path: string) {
     mkdirSync(dirname(path), { recursive: true });
     try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as TestFixtureRun[];
+      let contents: string;
+      try {
+        contents = readFileSync(path, "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        const temporary = `${path}.tmp`;
+        contents = readFileSync(temporary, "utf8");
+        // An interrupted atomic replacement left the complete temporary snapshot behind.
+        renameSync(temporary, path);
+      }
+      const parsed = JSON.parse(contents) as TestFixtureRun[];
       for (const run of parsed) this.runs.set(run.testRunId, run);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;

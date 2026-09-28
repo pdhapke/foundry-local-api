@@ -306,6 +306,86 @@ void describe("effective-user endpoint", () => {
       ),
       (error: unknown) => error instanceof FoundryBridgeError && error.code === "INCOMPLETE_RESULT",
     );
+    await assert.rejects(
+      execute(
+        fakeFoundryClient([gmClient(), client()], (() =>
+          Promise.resolve({
+            ...commandResult,
+            mutationIds: ["actor-1"],
+          })) as FoundryClient["call"]),
+      ),
+      (error: unknown) => error instanceof FoundryBridgeError && error.code === "INCOMPLETE_RESULT",
+    );
+    await assert.rejects(
+      execute(
+        fakeFoundryClient([gmClient(), client()], (() =>
+          Promise.resolve({
+            ...commandResult,
+            data: {
+              kind: "noteAccess",
+              sceneId: "scene-1",
+              noteId: "note-1",
+              journalEntryId: null,
+              pageId: null,
+              canObserve: true,
+              hidden: false,
+              position: { x: 0, y: 0 },
+            },
+          })) as FoundryClient["call"]),
+      ),
+      (error: unknown) => error instanceof FoundryBridgeError && error.code === "INCOMPLETE_RESULT",
+    );
+  });
+
+  void it("binds owner-action evidence and mutation IDs to the exact requested fixture Actor", async () => {
+    const ownerInput: EffectiveUserExecuteInput = {
+      effectiveUserId: "player-1",
+      operation: {
+        kind: "applyActorOwnerProbe",
+        actorId: "actor-1",
+        testRunId: "test-owner-action-0001",
+        probeValue: "applied",
+        expectedRevision: "a".repeat(64),
+      },
+    };
+    const ownerResult: EffectiveUserCommandResult = {
+      effectiveUserId: "player-1",
+      operation: "applyActorOwnerProbe",
+      permissionDecision: { allowed: true, requiredPermission: "OWNER" },
+      mutationIds: ["actor-1"],
+      data: {
+        kind: "actorOwnerProbe",
+        actorId: "actor-1",
+        testRunId: "test-owner-action-0001",
+        beforeValue: null,
+        afterValue: "applied",
+        beforeRevision: "a".repeat(64),
+        afterRevision: "b".repeat(64),
+        readbackVerified: true,
+      },
+    };
+    const accepted = await execute(
+      fakeFoundryClient([gmClient(), client()], (() =>
+        Promise.resolve(ownerResult)) as FoundryClient["call"]),
+      ownerInput,
+    );
+    assert.deepEqual(accepted.mutationIds, ["actor-1"]);
+
+    for (const mismatched of [
+      { ...ownerResult, mutationIds: ["actor-other"] },
+      { ...ownerResult, data: { ...ownerResult.data, testRunId: "test-other-0001" } },
+      { ...ownerResult, data: { ...ownerResult.data, afterValue: "wrong" } },
+    ]) {
+      await assert.rejects(
+        execute(
+          fakeFoundryClient([gmClient(), client()], (() =>
+            Promise.resolve(mismatched)) as FoundryClient["call"]),
+          ownerInput,
+        ),
+        (error: unknown) =>
+          error instanceof FoundryBridgeError && error.code === "INCOMPLETE_RESULT",
+      );
+    }
   });
 
   void it("can be registered as a single authenticated REST/MCP descriptor", () => {

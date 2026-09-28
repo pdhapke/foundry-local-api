@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   REFERENCE_AUDIT_COMMAND,
+  type ReferenceAuditClass,
   type ReferenceAuditInput,
   type ReferenceAuditResult,
 } from "@foundry-local-api/shared";
@@ -29,8 +30,30 @@ export function createReferenceAuditEndpointDescriptors(
           input,
         );
         if (!service) return result;
+        const requiredClasses: ReferenceAuditClass[] = [
+          "uuid",
+          "asset",
+          "embedded",
+          "note",
+          "tokenActor",
+          "folder",
+          "ownership",
+          "stableId",
+          "tableResult",
+        ];
+        for (const kind of requiredClasses)
+          if (!result.classes.some((entry) => entry.class === kind))
+            result.classes.push({
+              class: kind,
+              complete: false,
+              scanned: 0,
+              issueCount: 0,
+              reason: "The client omitted required reference coverage.",
+            });
         const assetClass = result.classes.find((x) => x.class === "asset");
-        let complete = true;
+        // The required-class pass above guarantees this entry.
+        if (!assetClass) throw new Error("unreachable asset coverage state");
+        let complete = assetClass.scanned > 0 || result.scannedDocuments === 0;
         for (const issue of result.issues.filter((x) => x.class === "asset")) {
           if (!issue.target) continue;
           try {
@@ -47,6 +70,7 @@ export function createReferenceAuditEndpointDescriptors(
           else assetClass.reason = "Some asset paths could not be validated.";
         }
         result.issues = result.issues.filter((x) => x.code !== "ASSET_OK");
+        assetClass.issueCount = result.issues.filter((x) => x.class === "asset").length;
         result.complete = result.classes.every((x) => x.complete);
         result.clean = result.complete ? result.issues.length === 0 : null;
         return result;

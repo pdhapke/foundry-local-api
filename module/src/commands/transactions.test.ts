@@ -222,9 +222,15 @@ void describe("atomic transaction command", () => {
     ]);
     const preflight = await preflightTransactionResult(input);
     assert.equal(preflight.transactionId, input.correlationId);
+    assert.equal(preflight.atomic, false);
+    assert.equal(preflight.transactionSemantics, "strict-verified-compensation");
+    assert.match(preflight.limitations.join(" "), /not expose database-isolated/i);
     assert.deepEqual(preflight.executionOrder, ["first", "second"]);
     const result = await executeAtomicTransaction(input);
     assert.equal(result.transactionId, input.correlationId);
+    assert.equal(result.atomic, false);
+    assert.equal(result.transactionSemantics, "strict-verified-compensation");
+    assert.match(result.limitations.join(" "), /hook side effects cannot be undone/i);
     assert.match(result.committedRevision, /^[a-f0-9]{64}$/);
     assert.ok(
       result.operations.every(({ validationWarnings }) => Array.isArray(validationWarnings)),

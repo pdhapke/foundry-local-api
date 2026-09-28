@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { SequencedMovementEvent } from "@foundry-local-api/shared";
 import type { MovementEventStore } from "../events/movement-event-store.js";
@@ -125,6 +125,14 @@ export interface DeliveryRunResult {
   deadLettered: number;
 }
 
+const PREPARATION_EVENT = {
+  sceneId: "Nbj38PEdvw1zX1J9",
+  tokenId: "mRgn9lP9y9fY3jcw",
+  userId: "X7X4KK7zca5U2Ics",
+  from: { x: 450, y: 650, elevation: 0 },
+  to: { x: 500, y: 500, elevation: 0 },
+} as const;
+
 function safeText(value: string, fallback: string): string {
   const normalized = value.replace(/[\r\n\t]+/g, " ").trim();
   return (normalized || fallback).slice(0, 500);
@@ -159,7 +167,8 @@ export class AiGmDeliveryService {
     this.retryMaxMs = Math.max(this.retryBaseMs, options.retryMaxMs ?? 60_000);
     this.now = options.now ?? Date.now;
     this.state = this.load();
-    if (this.migrationNeeded || this.recoverInterruptedAttempts()) this.save();
+    if (this.migrationNeeded) this.save(this.state);
+    this.recoverInterruptedAttempts();
   }
 
   private load(): DeliveryFile {
@@ -237,36 +246,52 @@ export class AiGmDeliveryService {
     );
   }
 
-  private save(): void {
+  private save(state: DeliveryFile): void {
     mkdirSync(dirname(this.path), { recursive: true });
     const temporary = `${this.path}.${process.pid}.${Date.now()}.tmp`;
-    writeFileSync(temporary, JSON.stringify(this.state), { encoding: "utf8", mode: 0o600 });
-    renameSync(temporary, this.path);
+    try {
+      writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
+      renameSync(temporary, this.path);
+    } catch (error) {
+      try {
+        unlinkSync(temporary);
+      } catch {
+        // The temporary file may not have been created or may already have been renamed.
+      }
+      throw error;
+    }
   }
 
-  private recoverInterruptedAttempts(): boolean {
+  private commit(mutator: (next: DeliveryFile) => void): void {
+    const next = clone(this.state);
+    mutator(next);
+    this.save(next);
+    this.state = next;
+  }
+
+  private recoverInterruptedAttempts(): void {
     const recoveredAt = this.now();
-    let changed = false;
-    for (const item of this.state.items) {
-      if (item.state !== "in_flight") continue;
-      const attempt = item.attemptHistory.at(-1);
-      if (attempt && attempt.finishedAt === undefined) {
-        attempt.finishedAt = recoveredAt;
-        attempt.outcome = "interrupted";
-        attempt.errorCode = "HOST_PROCESS_INTERRUPTED";
-        attempt.message = "Delivery attempt was interrupted before acknowledgement.";
+    if (!this.state.items.some((item) => item.state === "in_flight")) return;
+    this.commit((next) => {
+      for (const item of next.items) {
+        if (item.state !== "in_flight") continue;
+        const attempt = item.attemptHistory.at(-1);
+        if (attempt && attempt.finishedAt === undefined) {
+          attempt.finishedAt = recoveredAt;
+          attempt.outcome = "interrupted";
+          attempt.errorCode = "HOST_PROCESS_INTERRUPTED";
+          attempt.message = "Delivery attempt was interrupted before acknowledgement.";
+        }
+        item.state = "retry_wait";
+        item.nextAttemptAt = recoveredAt;
+        item.updatedAt = recoveredAt;
+        item.lastFailure = {
+          code: "HOST_PROCESS_INTERRUPTED",
+          message: "Delivery attempt was interrupted before acknowledgement.",
+          retryable: true,
+        };
       }
-      item.state = "retry_wait";
-      item.nextAttemptAt = recoveredAt;
-      item.updatedAt = recoveredAt;
-      item.lastFailure = {
-        code: "HOST_PROCESS_INTERRUPTED",
-        message: "Delivery attempt was interrupted before acknowledgement.",
-        retryable: true,
-      };
-      changed = true;
-    }
-    return changed;
+    });
   }
 
   enqueue(
@@ -300,8 +325,7 @@ export class AiGmDeliveryService {
       updatedAt: timestamp,
       nextAttemptAt: timestamp,
     };
-    this.state.items.push(item);
-    this.save();
+    this.commit((next) => next.items.push(item));
     return { item: clone(item), created: true };
   }
 
@@ -325,24 +349,59 @@ export class AiGmDeliveryService {
   }
 
   initializeReconciliationWatermark(
-    store: Pick<MovementEventStore, "cursor" | "generation">,
+    store: Pick<MovementEventStore, "cursor" | "generation" | "query">,
     excludeThroughSequence: number,
   ): { watermark: DeliveryReconciliationWatermark; initialized: boolean } {
     if (!Number.isSafeInteger(excludeThroughSequence) || excludeThroughSequence < 0)
       throw new Error("Delivery reconciliation watermark must be a non-negative integer.");
     const existing = this.state.reconciliationWatermark;
     if (existing) return { watermark: clone(existing), initialized: false };
+    if (excludeThroughSequence > 1)
+      throw new Error(
+        "Delivery reconciliation can exclude only the guarded preparation event at sequence 1.",
+      );
+    let initialSequence = 0;
+    if (excludeThroughSequence === 1) {
+      const firstPage = store.query({ cursor: store.cursor(0), limit: 1 });
+      if (!firstPage.gap && this.isGuardedPreparationEvent(firstPage.events[0]))
+        initialSequence = 1;
+    }
     const timestamp = this.now();
     const watermark: DeliveryReconciliationWatermark = {
       generation: store.generation,
-      sequence: excludeThroughSequence,
-      cursor: store.cursor(excludeThroughSequence),
+      sequence: initialSequence,
+      cursor: store.cursor(initialSequence),
       initializedAt: timestamp,
       updatedAt: timestamp,
     };
-    this.state.reconciliationWatermark = watermark;
-    this.save();
+    this.commit((next) => {
+      next.reconciliationWatermark = watermark;
+    });
     return { watermark: clone(watermark), initialized: true };
+  }
+
+  private isGuardedPreparationEvent(event: SequencedMovementEvent | undefined): boolean {
+    if (
+      !event ||
+      event.sequence !== 1 ||
+      event.eventType !== "token_movement" ||
+      event.sceneId !== PREPARATION_EVENT.sceneId ||
+      event.tokenId !== PREPARATION_EVENT.tokenId ||
+      event.userId !== PREPARATION_EVENT.userId ||
+      event.waypoints.length !== 2
+    )
+      return false;
+    const [from, to] = event.waypoints;
+    return this.samePoint(from, PREPARATION_EVENT.from) && this.samePoint(to, PREPARATION_EVENT.to);
+  }
+
+  private samePoint(
+    actual: { x: number; y: number; elevation?: number } | undefined,
+    expected: { x: number; y: number; elevation: number },
+  ): boolean {
+    return (
+      actual?.x === expected.x && actual.y === expected.y && actual.elevation === expected.elevation
+    );
   }
 
   getReconciliationWatermark(): DeliveryReconciliationWatermark | undefined {
@@ -360,7 +419,7 @@ export class AiGmDeliveryService {
       );
     if (initial.generation !== store.generation)
       throw new Error(
-        `Movement generation changed from ${initial.generation} to ${store.generation}; explicit reconciliation is required.`,
+        `Movement generation changed from ${initial.generation} to ${store.generation}; the cross-generation missing range is unknown and explicit reconciliation is required.`,
       );
 
     const created: AiGmDeliveryItem[] = [];
@@ -372,7 +431,9 @@ export class AiGmDeliveryService {
       pagesRead += 1;
       if (page.gap)
         throw new Error(
-          `Movement delivery reconciliation encountered ${page.gap.reason} gap from sequence ${initial.sequence}; explicit reconciliation is required.`,
+          page.gap.reason === "expired"
+            ? `Movement delivery reconciliation encountered exact expired gap ${page.gap.missingRanges.map((range) => `${range.fromSequence}-${range.toSequence}`).join(",")} from sequence ${initial.sequence}; explicit reconciliation is required.`
+            : `Movement delivery reconciliation encountered a cross-generation gap with an unknown missing range from sequence ${initial.sequence}; explicit reconciliation is required.`,
         );
       for (const event of page.events) {
         const eventCursor = store.cursor(event.sequence);
@@ -421,10 +482,12 @@ export class AiGmDeliveryService {
       throw new Error(
         "AI-GM delivery reconciliation watermark cannot move backward or generations.",
       );
-    watermark.sequence = sequence;
-    watermark.cursor = cursor;
-    watermark.updatedAt = this.now();
-    this.save();
+    this.commit((next) => {
+      const nextWatermark = next.reconciliationWatermark!;
+      nextWatermark.sequence = sequence;
+      nextWatermark.cursor = cursor;
+      nextWatermark.updatedAt = this.now();
+    });
   }
 
   private sequenceFromCursor(cursor: string, generation: string): number {
@@ -460,14 +523,16 @@ export class AiGmDeliveryService {
     }
     if (item.state === "dead_letter") throw new Error(`Delivery ${id} is dead-lettered.`);
     const timestamp = this.now();
-    item.state = "acknowledged";
-    item.acknowledgementId = safeText(acknowledgementId, "acknowledged");
-    item.acknowledgedAt = timestamp;
-    item.updatedAt = timestamp;
-    delete item.nextAttemptAt;
-    delete item.lastFailure;
-    this.save();
-    return clone(item);
+    this.commit((next) => {
+      const nextItem = next.items.find((candidate) => candidate.id === id)!;
+      nextItem.state = "acknowledged";
+      nextItem.acknowledgementId = safeText(acknowledgementId, "acknowledged");
+      nextItem.acknowledgedAt = timestamp;
+      nextItem.updatedAt = timestamp;
+      delete nextItem.nextAttemptAt;
+      delete nextItem.lastFailure;
+    });
+    return clone(this.requireItem(id));
   }
 
   async dispatchDue(adapter: HostWakeAdapter, limit = 25): Promise<DeliveryRunResult> {
@@ -500,12 +565,13 @@ export class AiGmDeliveryService {
   ): Promise<"acknowledged" | "retry_wait" | "dead_letter"> {
     const attemptNumber = item.attemptHistory.length + 1;
     const startedAt = this.now();
-    const attempt: DeliveryAttempt = { attempt: attemptNumber, startedAt };
-    item.state = "in_flight";
-    item.updatedAt = startedAt;
-    delete item.nextAttemptAt;
-    item.attemptHistory.push(attempt);
-    this.save();
+    this.commit((next) => {
+      const nextItem = next.items.find((candidate) => candidate.id === item.id)!;
+      nextItem.state = "in_flight";
+      nextItem.updatedAt = startedAt;
+      delete nextItem.nextAttemptAt;
+      nextItem.attemptHistory.push({ attempt: attemptNumber, startedAt });
+    });
 
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -550,39 +616,52 @@ export class AiGmDeliveryService {
     }
 
     const finishedAt = this.now();
-    attempt.finishedAt = finishedAt;
     if (response.status === "acknowledged") {
-      attempt.outcome = "acknowledged";
-      item.state = "acknowledged";
-      item.acknowledgementId = safeText(response.acknowledgementId, "acknowledged");
-      item.acknowledgedAt = finishedAt;
-      item.updatedAt = finishedAt;
-      delete item.lastFailure;
-      this.save();
+      this.commit((next) => {
+        const nextItem = next.items.find((candidate) => candidate.id === item.id)!;
+        const nextAttempt = nextItem.attemptHistory.at(-1)!;
+        nextAttempt.finishedAt = finishedAt;
+        nextAttempt.outcome = "acknowledged";
+        nextItem.state = "acknowledged";
+        nextItem.acknowledgementId = safeText(response.acknowledgementId, "acknowledged");
+        nextItem.acknowledgedAt = finishedAt;
+        nextItem.updatedAt = finishedAt;
+        delete nextItem.lastFailure;
+      });
       return "acknowledged";
     }
 
     const retryable = response.retryable && attemptNumber < this.maxAttempts;
-    attempt.errorCode = safeText(response.code, "HOST_INVOCATION_FAILED");
-    attempt.message = safeText(response.message, "Host invocation failed.");
-    item.lastFailure = {
-      code: attempt.errorCode,
-      message: attempt.message,
-      retryable: response.retryable,
-    };
-    item.updatedAt = finishedAt;
+    const errorCode = safeText(response.code, "HOST_INVOCATION_FAILED");
+    const message = safeText(response.message, "Host invocation failed.");
     if (retryable) {
-      attempt.outcome = "retry_scheduled";
-      item.state = "retry_wait";
-      item.nextAttemptAt = finishedAt + this.retryDelay(attemptNumber);
-      this.save();
+      this.commit((next) => {
+        const nextItem = next.items.find((candidate) => candidate.id === item.id)!;
+        const nextAttempt = nextItem.attemptHistory.at(-1)!;
+        nextAttempt.finishedAt = finishedAt;
+        nextAttempt.outcome = "retry_scheduled";
+        nextAttempt.errorCode = errorCode;
+        nextAttempt.message = message;
+        nextItem.lastFailure = { code: errorCode, message, retryable: response.retryable };
+        nextItem.updatedAt = finishedAt;
+        nextItem.state = "retry_wait";
+        nextItem.nextAttemptAt = finishedAt + this.retryDelay(attemptNumber);
+      });
       return "retry_wait";
     }
-    attempt.outcome = "dead_letter";
-    item.state = "dead_letter";
-    item.deadLetteredAt = finishedAt;
-    delete item.nextAttemptAt;
-    this.save();
+    this.commit((next) => {
+      const nextItem = next.items.find((candidate) => candidate.id === item.id)!;
+      const nextAttempt = nextItem.attemptHistory.at(-1)!;
+      nextAttempt.finishedAt = finishedAt;
+      nextAttempt.outcome = "dead_letter";
+      nextAttempt.errorCode = errorCode;
+      nextAttempt.message = message;
+      nextItem.lastFailure = { code: errorCode, message, retryable: response.retryable };
+      nextItem.updatedAt = finishedAt;
+      nextItem.state = "dead_letter";
+      nextItem.deadLetteredAt = finishedAt;
+      delete nextItem.nextAttemptAt;
+    });
     return "dead_letter";
   }
 

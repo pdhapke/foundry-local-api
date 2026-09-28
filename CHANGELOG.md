@@ -24,19 +24,27 @@ log that documents every non-obvious design decision made along the way.
   reference audit, path/topology validation, acknowledged readiness,
   deterministic dnd5e projections, and durable movement cursors/transitions.
 - Added unit, module-command, endpoint, registration, and transport coverage;
-  generated OpenAPI and MCP catalog now include the new descriptors.
-- Independent QA keeps all thirteen requirements open pending the full ledger
-  criteria. Notable gaps include real multi-client live proof, true database
-  atomicity, full graph/reference coverage, swept-footprint collision,
-  dnd5e-engine-equivalent simulation, and disconnected movement capture.
+  generated OpenAPI and MCP catalog now publish concrete success contracts for
+  enrollment, rendering, embedded CRUD, collision, movement, and AI-GM delivery.
+- Closed the outstanding source defects in asset/reference integrity, continuous
+  collision evidence, Foundry-14 waypoint/Region handling, durable movement and
+  readiness state, effective-user response binding, and deterministic dnd5e
+  projection. The final automated gate passes 44 shared, 473 server, and 229
+  module tests plus typecheck, lint, formatting, build, manifest-sync, and diff
+  checks.
+- Live acceptance remains open because only the GM lane is connected after the
+  rebuilt bridge restart. MCP-REQ-004 remains partial by design: strict verified
+  compensation is not database isolation or crash-safe atomicity. FIX-006 is
+  precisely blocked because this host cannot wake or invoke the active Codex
+  conversation without a human turn.
 - Added Phase 0R GM-authorized player/TV enrollment: digest-only one-time
   credentials, exact identity/lane/version/path binding, rotation and replay
   rejection, server lane allowlists, safe diagnostics, and encrypted targeted
   delivery using an ephemeral RSA-OAEP browser key. Player browsers no longer
   require or read the administrative API key.
 - Phase 0R passed independent source/test security review but remains live
-  blocked until the actual GM, Izzy, and TV tabs reload the current module
-  bundle and complete three-client acceptance.
+  blocked until the actual Izzy and TV tabs reload the current module bundle and
+  all three clients complete acceptance; the GM lane is connected.
 
 ### Phase 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity
 - `foundry_get_canvas_viewport` (`GET /api/canvas/viewport`) reads the

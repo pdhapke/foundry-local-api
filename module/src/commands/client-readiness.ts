@@ -11,6 +11,7 @@ import { registerCommand } from "../command-registry.js";
 import { getClientId } from "../bridge-client.js";
 
 const acknowledgements = new Map<string, { input: string; result: ClientReadinessResult }>();
+const pendingCommands = new Map<string, { input: string; operation: "preload" | "viewport" }>();
 const loadedAssets = new Map<string, "loaded" | "failed">();
 let lastPreloadedSceneId: string | null = null;
 let hydratedUserId: string | null = null;
@@ -22,6 +23,7 @@ interface DurableReadinessState {
   userId: string;
   clientId: string;
   acknowledgements: Array<[string, { input: string; result: ClientReadinessResult }]>;
+  pendingCommands?: Array<[string, { input: string; operation: "preload" | "viewport" }]>;
   loadedAssets: Array<[string, "loaded" | "failed"]>;
   lastPreloadedSceneId: string | null;
 }
@@ -48,6 +50,7 @@ function hydrate(): void {
   )
     return;
   acknowledgements.clear();
+  pendingCommands.clear();
   loadedAssets.clear();
   lastPreloadedSceneId = null;
   hydratedUserId = game.user.id;
@@ -63,6 +66,7 @@ function hydrate(): void {
       state.userId !== game.user.id ||
       state.clientId !== clientId ||
       !Array.isArray(state.acknowledgements) ||
+      (state.pendingCommands !== undefined && !Array.isArray(state.pendingCommands)) ||
       !Array.isArray(state.loadedAssets) ||
       (state.lastPreloadedSceneId !== null && typeof state.lastPreloadedSceneId !== "string")
     )
@@ -79,6 +83,17 @@ function hydrate(): void {
       )
         throw new Error("invalid durable acknowledgement");
       acknowledgements.set(entry[0], structuredClone(entry[1]));
+    }
+    for (const entry of state.pendingCommands ?? []) {
+      if (
+        !Array.isArray(entry) ||
+        typeof entry[0] !== "string" ||
+        !entry[1] ||
+        typeof entry[1].input !== "string" ||
+        (entry[1].operation !== "preload" && entry[1].operation !== "viewport")
+      )
+        throw new Error("invalid durable pending command");
+      pendingCommands.set(entry[0], structuredClone(entry[1]));
     }
     for (const entry of state.loadedAssets) {
       if (
@@ -99,15 +114,24 @@ function hydrate(): void {
   }
 }
 
-function persist(): void {
+function persist(requireDurability = false): void {
   const storage = browserStorage();
-  if (!storage) return;
+  if (!storage) {
+    if (requireDurability)
+      throw new ProtocolError({
+        code: "INCOMPLETE_RESULT",
+        message: "Durable browser storage is unavailable; the client command was not applied.",
+        retryable: false,
+      });
+    return;
+  }
   const clientId = getClientId();
   const state: DurableReadinessState = {
     version: 1,
     userId: game.user.id,
     clientId,
     acknowledgements: [...acknowledgements],
+    pendingCommands: [...pendingCommands],
     loadedAssets: [...loadedAssets],
     lastPreloadedSceneId,
   };
@@ -168,23 +192,52 @@ function result(
 function replayOrThrow(correlationId: string, input: unknown): ClientReadinessResult | undefined {
   hydrate();
   const existing = acknowledgements.get(correlationId);
-  if (!existing) return undefined;
-  if (existing.input !== encode(input)) {
+  if (existing) {
+    if (existing.input !== encode(input)) {
+      throw new ProtocolError({
+        code: "IDEMPOTENCY_CONFLICT",
+        message: "The client correlation ID was used with different input.",
+        retryable: false,
+        fieldPath: "correlationId",
+      });
+    }
+    return { ...structuredClone(existing.result), replayed: true };
+  }
+  const pending = pendingCommands.get(correlationId);
+  if (!pending) return undefined;
+  if (pending.input !== encode(input)) {
     throw new ProtocolError({
       code: "IDEMPOTENCY_CONFLICT",
-      message: "The client correlation ID was reused with different input.",
+      message: "The client correlation ID was used with different input.",
       retryable: false,
       fieldPath: "correlationId",
     });
   }
-  return { ...structuredClone(existing.result), replayed: true };
+  throw new ProtocolError({
+    code: "INCOMPLETE_RESULT",
+    message:
+      "A prior client command with this correlation ID has an unknown outcome; it will not be applied twice.",
+    retryable: false,
+    fieldPath: "correlationId",
+  });
+}
+
+function begin(correlationId: string, input: unknown, operation: "preload" | "viewport"): void {
+  pendingCommands.set(correlationId, { input: encode(input), operation });
+  try {
+    persist(true);
+  } catch (error) {
+    pendingCommands.delete(correlationId);
+    throw error;
+  }
 }
 
 function remember(correlationId: string, input: unknown, value: ClientReadinessResult): void {
   acknowledgements.set(correlationId, { input: encode(input), result: structuredClone(value) });
+  pendingCommands.delete(correlationId);
   if (acknowledgements.size > 200)
     acknowledgements.delete(acknowledgements.keys().next().value as string);
-  persist();
+  persist(true);
 }
 
 async function loadAsset(path: string, timeoutMs: number): Promise<void> {
@@ -212,16 +265,21 @@ export async function preloadClientScene(
   const sceneCollection = (
     game as unknown as { scenes?: { preload?: (id: string) => Promise<unknown> } }
   ).scenes;
-  if (typeof scene?.preload === "function") await scene.preload();
-  else if (typeof sceneCollection?.preload === "function")
-    await sceneCollection.preload(input.sceneId);
-  else {
+  const preload =
+    typeof scene?.preload === "function"
+      ? () => scene.preload!()
+      : typeof sceneCollection?.preload === "function"
+        ? () => sceneCollection.preload!(input.sceneId)
+        : null;
+  if (!preload) {
     throw new ProtocolError({
       code: "UNSUPPORTED_VERSION",
       message: "This Foundry client does not expose a Scene preload API.",
       retryable: false,
     });
   }
+  begin(input.correlationId, input, "preload");
+  await preload();
   lastPreloadedSceneId = input.sceneId;
   const assets = await Promise.all(
     input.assetPaths.map(async (path) => {
@@ -285,6 +343,7 @@ export async function applyClientViewport(
       fieldPath: "sceneId",
     });
   }
+  begin(input.correlationId, input, "viewport");
   await canvas.animatePan(input.viewport);
   const actual = currentViewport();
   const viewportMatches =

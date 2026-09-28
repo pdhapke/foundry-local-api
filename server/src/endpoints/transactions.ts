@@ -118,7 +118,7 @@ export function createTransactionEndpointDescriptors(
     {
       name: "foundry_preflight_transaction",
       description:
-        "Prevalidates an allowlisted atomic document transaction, dependency order, permissions, and expected revisions without mutating Foundry. File uploads and file lifecycle operations are outside atomic manifest scope.",
+        "Prevalidates an allowlisted strict-compensation manifest, dependency order, permissions, and expected revisions without mutating Foundry. This proves compensability, not database isolation. File uploads and file lifecycle operations are outside manifest scope.",
       method: "post",
       path: "/transactions/preflight",
       inputSchema: transactionManifestSchema,
@@ -139,7 +139,7 @@ export function createTransactionEndpointDescriptors(
       handler: async (manifest: TransactionManifest, { foundryClient, foundations }) => {
         if (!foundations) throw new Error("Track 0 foundation runtime is not configured.");
         const prior = journal.find(manifest.correlationId);
-        if (prior && prior.state !== "committed") {
+        if (prior && (prior.state === "pending" || prior.state === "recoveryRequired")) {
           throw new FoundryBridgeError(
             "INCOMPLETE_RESULT",
             `Transaction ${manifest.correlationId} is ${prior.state}; inspect status and recover instead of redispatching.`,
@@ -148,6 +148,9 @@ export function createTransactionEndpointDescriptors(
         }
         try {
           journal.prepare(manifest);
+          if (prior?.state === "rolledBack") {
+            journal.transition(manifest.correlationId, "pending");
+          }
         } catch (error) {
           if (error instanceof ProtocolError) {
             throw new FoundryBridgeError(error.code, error.message, {
@@ -185,7 +188,7 @@ export function createTransactionEndpointDescriptors(
           });
           throw new FoundryBridgeError(
             "NOT_CONNECTED",
-            "No opted-in GM command lane is connected for the atomic transaction.",
+            "No opted-in GM command lane is connected for the strict-compensation manifest.",
             { retryable: true, correlationId: manifest.correlationId },
           );
         }
@@ -271,7 +274,11 @@ export function createTransactionEndpointDescriptors(
             }
           }
           if (error instanceof ProtocolError) {
-            journal.transition(manifest.correlationId, "rolledBack", { errorCode: error.code });
+            journal.transition(
+              manifest.correlationId,
+              error.code === "INCOMPLETE_RESULT" ? "recoveryRequired" : "rolledBack",
+              { errorCode: error.code },
+            );
             throw new FoundryBridgeError(error.code, error.message, {
               retryable: error.retryable,
               fieldPath: error.fieldPath,

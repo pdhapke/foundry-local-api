@@ -7,6 +7,10 @@ import type {
   DeliveryState,
   HostWakeAdapter,
 } from "../services/ai-gm-delivery.js";
+import {
+  aiGmDeliveryItemOutputSchema,
+  aiGmDeliveryListOutputSchema,
+} from "./requirement-output-schemas.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 
 let service: AiGmDeliveryService | undefined;
@@ -40,6 +44,7 @@ export const aiGmDeliveryEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "get",
     path: "/ai-gm/deliveries",
     inputSchema: z.object({ states: z.array(state).max(5).optional() }).strict(),
+    outputSchema: aiGmDeliveryListOutputSchema,
     handler: (input: { states?: DeliveryState[] }) => {
       const runtime = requireRuntime();
       return {
@@ -58,6 +63,7 @@ export const aiGmDeliveryEndpointDescriptors: AnyEndpointDescriptor[] = [
     method: "get",
     path: "/ai-gm/deliveries/:deliveryId",
     inputSchema: z.object({ deliveryId: z.string().min(1).max(256) }).strict(),
+    outputSchema: aiGmDeliveryItemOutputSchema,
     handler: (input: { deliveryId: string }) => {
       const runtime = requireRuntime();
       const item = runtime.service.get(input.deliveryId);

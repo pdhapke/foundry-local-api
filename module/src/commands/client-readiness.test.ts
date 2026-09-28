@@ -11,6 +11,16 @@ const savedSessionStorage = Object.getOwnPropertyDescriptor(globalThis, "session
 function install(clientId = "client-player") {
   let applications = 0;
   let preloads = 0;
+  if (typeof globalThis.localStorage === "undefined") {
+    const values = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+  }
   const canvasValue = {
     scene: { id: "scene" },
     stage: { pivot: { x: 0, y: 0 }, scale: { x: 1, y: 1 } },
@@ -214,6 +224,61 @@ void describe("client readiness commands", () => {
     assert.equal(second.replayed, false);
     assert.equal(second.executingClientId, "client-tab-two");
     assert.equal(secondTab.applications(), 1);
+  });
+
+  void it("persists intent before mutation and refuses an unknown restart outcome", async () => {
+    const values = new Map<string, string>();
+    let writes = 0;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          writes += 1;
+          if (writes > 1) throw new Error("storage failed after apply");
+          values.set(key, value);
+        },
+      },
+    });
+    const input = {
+      sceneId: "scene",
+      correlationId: "viewport-pending-0001",
+      viewport: { x: 19, y: 23, scale: 1.4 },
+    };
+    const firstClient = install();
+    await assert.rejects(
+      applyClientViewport(input),
+      (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
+    );
+    assert.equal(firstClient.applications(), 1);
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    const restartedClient = install();
+    await assert.rejects(
+      applyClientViewport(input),
+      (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
+    );
+    assert.equal(restartedClient.applications(), 0, "unknown outcomes are never applied twice");
+  });
+
+  void it("fails before mutation when durable storage is unavailable", async () => {
+    const state = install();
+    Reflect.deleteProperty(globalThis, "localStorage");
+    await assert.rejects(
+      applyClientViewport({
+        sceneId: "scene",
+        correlationId: "viewport-no-storage-0001",
+        viewport: { x: 3, y: 4, scale: 1.2 },
+      }),
+      (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
+    );
+    assert.equal(state.applications(), 0);
   });
 
   void it("fails visibly without discarding corrupt durable state", () => {

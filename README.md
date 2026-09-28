@@ -62,10 +62,11 @@ errors, durable audit/idempotency journals, and exact-ID test-fixture
 manifests. This is not a claim that all thirteen ledger requirements are
 complete. The runtime capability report deliberately marks incomplete
 families as `partial`, and the campaign completion report records the exact
-remaining acceptance and live-client gates. In particular, Foundry's API
-does not provide database-isolated multi-document transactions; the current
-atomic manifest is strict verified compensation and rejects operations it
-cannot compensate.
+remaining acceptance and live-client gates. The complete automated source gate
+currently passes 44 shared, 473 server, and 229 module tests. In particular,
+Foundry's API does not provide database-isolated multi-document transactions;
+the manifest reports `atomic: false`, identifies its semantics as strict
+verified compensation, and rejects operations it cannot compensate.
 
 ## Workspace layout
 

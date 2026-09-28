@@ -14,6 +14,10 @@ interface TokenLike extends FoundryDocument {
   testUserPermission?: (user: FoundryUser, permission: string) => boolean;
 }
 
+interface RegionLike extends FoundryDocument {
+  polygons?: readonly unknown[];
+}
+
 interface PendingMovement {
   eventId: string;
   sceneId: string;
@@ -23,6 +27,7 @@ interface PendingMovement {
   waypoints: CollisionPoint[];
   movementFields: MovementField[];
   footprint: { width: number; height: number };
+  incompleteReasons: string[];
 }
 
 const pending = new Map<string, PendingMovement>();
@@ -41,20 +46,80 @@ function point(value: Record<string, unknown>, fallback: CollisionPoint): Collis
   };
 }
 
-function waypointList(options: Record<string, unknown>): CollisionPoint[] {
-  const movement = options["movement"];
-  const candidate =
+function keyedValue(container: unknown, tokenId: string): unknown {
+  if (container instanceof Map) return container.get(tokenId);
+  if (container && typeof container === "object")
+    return (container as Record<string, unknown>)[tokenId];
+  return undefined;
+}
+
+interface ParsedWaypoints {
+  waypoints: CollisionPoint[];
+  incompleteReasons: string[];
+}
+
+function waypointArray(value: unknown): unknown {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return undefined;
+  return (value as Record<string, unknown>)["waypoints"];
+}
+
+function waypointList(
+  options: Record<string, unknown>,
+  tokenId: string,
+  start: CollisionPoint,
+): ParsedWaypoints {
+  const prepared = keyedValue(options["_movement"], tokenId);
+  const preparedPassed =
+    prepared && typeof prepared === "object"
+      ? (prepared as Record<string, unknown>)["passed"]
+      : undefined;
+  const keyed = keyedValue(options["movement"], tokenId);
+  const legacy =
     options["waypoints"] ??
-    (movement && typeof movement === "object"
-      ? (movement as Record<string, unknown>)["waypoints"]
+    (options["movement"] && typeof options["movement"] === "object"
+      ? (options["movement"] as Record<string, unknown>)["waypoints"]
       : undefined);
-  if (!Array.isArray(candidate)) return [];
-  return candidate.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
+  const candidate =
+    prepared !== undefined
+      ? waypointArray(preparedPassed)
+      : keyed !== undefined
+        ? waypointArray(keyed)
+        : waypointArray(legacy);
+  const movementMetadataPresent =
+    options["_movement"] !== undefined ||
+    options["movement"] !== undefined ||
+    options["waypoints"] !== undefined;
+  if (!Array.isArray(candidate))
+    return {
+      waypoints: [],
+      incompleteReasons: movementMetadataPresent
+        ? [`Movement waypoints for Token ${tokenId} could not be interpreted.`]
+        : [],
+    };
+
+  const result: CollisionPoint[] = [];
+  let fallback = start;
+  for (let index = 0; index < candidate.length; index++) {
+    const entry = candidate[index];
+    if (!entry || typeof entry !== "object")
+      return {
+        waypoints: [],
+        incompleteReasons: [`Movement waypoint ${index} for Token ${tokenId} is not an object.`],
+      };
     const value = entry as Record<string, unknown>;
-    if (!Number.isFinite(Number(value["x"])) || !Number.isFinite(Number(value["y"]))) return [];
-    return [point(value, { x: 0, y: 0, elevation: 0 })];
-  });
+    if (!Number.isFinite(Number(value["x"])) || !Number.isFinite(Number(value["y"])))
+      return {
+        waypoints: [],
+        incompleteReasons: [
+          `Movement waypoint ${index} for Token ${tokenId} has non-finite coordinates.`,
+        ],
+      };
+    const parsed = point(value, fallback);
+    result.push(parsed);
+    fallback = parsed;
+  }
+  return { waypoints: result, incompleteReasons: [] };
 }
 
 interface ParsedShape {
@@ -227,6 +292,31 @@ function polygonFromShape(shape: Record<string, unknown>, index: number): Parsed
   };
 }
 
+function actualRegionPolygons(region: RegionLike): CollisionPoint[][] | undefined {
+  if (!Array.isArray(region.polygons)) return undefined;
+  const result: CollisionPoint[][] = [];
+  for (const polygon of region.polygons) {
+    const raw =
+      polygon && typeof polygon === "object"
+        ? (polygon as Record<string, unknown>)["points"]
+        : undefined;
+    if (!Array.isArray(raw) && !(raw instanceof Float32Array) && !(raw instanceof Float64Array))
+      return undefined;
+    const coordinates = Array.from(raw);
+    if (coordinates.length < 6 || coordinates.length % 2 !== 0) return undefined;
+    const parsed: CollisionPoint[] = [];
+    for (let index = 0; index < coordinates.length; index += 2) {
+      const x = finiteNumber(coordinates[index]);
+      const y = finiteNumber(coordinates[index + 1]);
+      if (x === undefined || y === undefined) return undefined;
+      parsed.push({ x, y });
+    }
+    if (polygonArea(parsed) === 0) return undefined;
+    result.push(parsed);
+  }
+  return result.length ? result : undefined;
+}
+
 export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
   let collection: Map<string, FoundryDocument>;
   try {
@@ -236,7 +326,8 @@ export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
       cause: error,
     });
   }
-  return [...collection.values()].flatMap((region) => {
+  return [...collection.values()].flatMap((document) => {
+    const region = document as RegionLike;
     const source = region.toObject();
     const allFlags =
       source["flags"] && typeof source["flags"] === "object"
@@ -261,10 +352,10 @@ export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
         ? polygonFromShape(shape as Record<string, unknown>, index)
         : ({ hole: false, incompleteReason: `shapes.${index} is not an object` } as ParsedShape),
     );
-    const polygons = parsedShapes.flatMap((shape) =>
+    let polygons = parsedShapes.flatMap((shape) =>
       shape.polygon && !shape.hole ? [shape.polygon] : [],
     );
-    const holes = parsedShapes.flatMap((shape) =>
+    let holes = parsedShapes.flatMap((shape) =>
       shape.polygon && shape.hole ? [shape.polygon] : [],
     );
     const incompleteReasons = parsedShapes.flatMap((shape) =>
@@ -279,6 +370,32 @@ export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
       incompleteReasons.push(
         "interleaved additive shapes and holes cannot be represented by the movement geometry model",
       );
+    const restriction =
+      source["restriction"] && typeof source["restriction"] === "object"
+        ? (source["restriction"] as Record<string, unknown>)
+        : undefined;
+    if (restriction?.["enabled"] === true) {
+      const constraints = source["_shapeConstraints"];
+      if (constraints === null || constraints === undefined) {
+        incompleteReasons.push("restriction is enabled but _shapeConstraints are unavailable");
+      } else if (!Array.isArray(constraints)) {
+        incompleteReasons.push("restriction is enabled but _shapeConstraints is not an array");
+      } else {
+        const actual = actualRegionPolygons(region);
+        if (actual) {
+          polygons = actual;
+          holes = [];
+          if (parsedShapes.some((shape) => shape.hole))
+            incompleteReasons.push(
+              "restricted Region holes cannot be distinguished in the available constrained polygons",
+            );
+        } else {
+          incompleteReasons.push(
+            "restriction is enabled but the constrained Region polygons are unavailable or malformed",
+          );
+        }
+      }
+    }
     const elevation =
       source["elevation"] && typeof source["elevation"] === "object"
         ? (source["elevation"] as Record<string, unknown>)
@@ -287,12 +404,15 @@ export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
     const top = elevation["top"] ?? source["top"];
     const parsedBottom = finiteNumber(bottom);
     const parsedTop = finiteNumber(top);
+    const topInclusive = elevation["topInclusive"];
     if (bottom !== null && bottom !== undefined && parsedBottom === undefined)
       incompleteReasons.push("elevation.bottom is not finite or null");
     if (top !== null && top !== undefined && parsedTop === undefined)
       incompleteReasons.push("elevation.top is not finite or null");
     if (parsedBottom !== undefined && parsedTop !== undefined && parsedBottom > parsedTop)
       incompleteReasons.push("elevation.bottom is greater than elevation.top");
+    if (topInclusive !== undefined && typeof topInclusive !== "boolean")
+      incompleteReasons.push("elevation.topInclusive is not boolean");
     return [
       {
         id: region.id,
@@ -303,6 +423,7 @@ export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
         ...(category ? { category } : {}),
         ...(parsedBottom !== undefined ? { bottom: parsedBottom } : {}),
         ...(parsedTop !== undefined ? { top: parsedTop } : {}),
+        ...(typeof topInclusive === "boolean" ? { topInclusive } : {}),
         ...(metadata["stopOnEnter"] === true ? { stopOnEnter: true } : {}),
       },
     ];
@@ -334,19 +455,18 @@ export function captureTokenMovement(
   if (policy["suppressMovementEvent"] === true || policy["setup"] === true) return;
   // The canonical GM observer may report player-authored moves. GM-authored setup or
   // automation is accepted only when it deliberately opts in.
-  if (game.user?.id === userId && policy["authorizedGmMovement"] !== true) return;
+  const initiatingUser = game.users?.get(userId);
+  if (initiatingUser?.isGM && policy["authorizedGmMovement"] !== true) return;
   if (!initiatingUserOwnsToken(token, userId)) return;
   const source = token.toObject();
   const start = point(source, { x: 0, y: 0, elevation: 0 });
   const end = point(changes, start);
-  const supplied = waypointList(options);
-  const waypoints = [start, ...supplied, end].filter(
-    (entry, index, all) =>
-      index === 0 ||
-      entry.x !== all[index - 1]!.x ||
-      entry.y !== all[index - 1]!.y ||
-      entry.elevation !== all[index - 1]!.elevation,
-  );
+  const supplied = waypointList(options, token.id, start);
+  const waypoints = [...supplied.waypoints];
+  const samePoint = (left: CollisionPoint, right: CollisionPoint) =>
+    left.x === right.x && left.y === right.y && left.elevation === right.elevation;
+  if (!waypoints.length || !samePoint(waypoints[0]!, start)) waypoints.unshift(start);
+  if (!samePoint(waypoints.at(-1)!, end)) waypoints.push(end);
   if (waypoints.length < 2) return;
   const movementFields = (["x", "y", "elevation"] as const).filter((field) => field in changes);
   const gridSize = numeric(token.parent?.grid?.size, 1);
@@ -365,6 +485,7 @@ export function captureTokenMovement(
     waypoints,
     movementFields,
     footprint,
+    incompleteReasons: supplied.incompleteReasons,
   });
 }
 

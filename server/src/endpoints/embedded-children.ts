@@ -1,13 +1,23 @@
 import { z } from "zod";
-import { EMBEDDED_CHILD_COMMANDS } from "@foundry-local-api/shared";
+import { EMBEDDED_CHILD_COMMANDS, ProtocolError } from "@foundry-local-api/shared";
 import { FoundryBridgeError } from "../bridge/errors.js";
+import {
+  embeddedListOutputSchema,
+  embeddedMutationOutputSchema,
+  embeddedReadOutputSchema,
+} from "./requirement-output-schemas.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 
 const family = z.enum(["Tile", "RegionBehavior", "PlaylistSound", "TableResult", "Card"]);
 const parent = {
   family,
   parentId: z.string().min(1).max(128),
-  sceneId: z.string().min(1).max(128).optional(),
+  sceneId: z
+    .string()
+    .min(1)
+    .max(128)
+    .optional()
+    .describe("Required when family is RegionBehavior; omit for other embedded families."),
 };
 const identifier = { ...parent, childId: z.string().min(1).max(128) };
 const revision = z.string().regex(/^[a-f0-9]{64}$/);
@@ -70,6 +80,15 @@ const operations = [
   ["update", EMBEDDED_CHILD_COMMANDS.UPDATE, false],
   ["delete", EMBEDDED_CHILD_COMMANDS.DELETE, false],
 ] as const;
+const DEFINITELY_PRECOMMIT_CODES = new Set([
+  "INVALID_PAYLOAD",
+  "PERMISSION_DENIED",
+  "NOT_FOUND",
+  "STALE_REVISION",
+  "UNSUPPORTED_VERSION",
+  "UNSUPPORTED_TYPE",
+  "IDEMPOTENCY_CONFLICT",
+]);
 export const embeddedChildrenEndpointDescriptors: AnyEndpointDescriptor[] = operations.map(
   ([operation, command, readOnly]) => ({
     name: `foundry_${operation}_embedded_child`,
@@ -82,6 +101,12 @@ export const embeddedChildrenEndpointDescriptors: AnyEndpointDescriptor[] = oper
           : "post",
     path: `/embedded-children/${operation}`,
     inputSchema: schemas[operation],
+    outputSchema:
+      operation === "list"
+        ? embeddedListOutputSchema
+        : operation === "get"
+          ? embeddedReadOutputSchema
+          : embeddedMutationOutputSchema,
     handler: async (input, { foundryClient, foundations }) => {
       const execute = () =>
         foundryClient.call(command, input, {
@@ -99,12 +124,25 @@ export const embeddedChildrenEndpointDescriptors: AnyEndpointDescriptor[] = oper
       try {
         stored = await foundations.idempotency.execute(storeKey, input, execute);
       } catch (error) {
-        if (
-          error instanceof FoundryBridgeError &&
-          error.details?.["compensationVerified"] === true &&
-          error.details["persistentPartialSuccess"] === false
-        ) {
-          foundations.idempotency.resolvePendingAsRolledBack(storeKey, input);
+        if (error instanceof FoundryBridgeError) {
+          const verifiedRolledBack =
+            error.details?.["compensationVerified"] === true &&
+            error.details["persistentPartialSuccess"] === false;
+          if (verifiedRolledBack || DEFINITELY_PRECOMMIT_CODES.has(error.code)) {
+            try {
+              foundations.idempotency.resolvePendingAsRolledBack(storeKey, input);
+            } catch (rollbackResolutionError) {
+              // A store-level idempotency conflict means the durable marker
+              // belongs to a different input. Preserve it and surface the
+              // original operation error rather than clearing another call's state.
+              if (
+                !(rollbackResolutionError instanceof ProtocolError) ||
+                rollbackResolutionError.code !== "IDEMPOTENCY_CONFLICT"
+              ) {
+                throw rollbackResolutionError;
+              }
+            }
+          }
         }
         throw error;
       }
