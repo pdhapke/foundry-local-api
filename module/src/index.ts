@@ -7,12 +7,17 @@
 
 import {
   BridgeClient,
+  clearLegacyNonGmApiKey,
+  configureBridgeAdminSettingVisibility,
+  MODULE_ID,
   getConfiguredApiKey,
   getConfiguredBridgeUrl,
   registerBridgeSettings,
 } from "./bridge-client.js";
+import { registerBridgeEnrollmentQuery } from "./bridge-enrollment.js";
 import { registerHookForwarding } from "./hooks.js";
 import { registerModuleSocketListener } from "./socket.js";
+import { registerMovementEventHooks } from "./movement-event-hooks.js";
 import "./command-registry.js";
 import "./commands/meta.js";
 import "./commands/settings.js";
@@ -44,6 +49,19 @@ import "./commands/dnd5e.js";
 import "./commands/digital-tabletops.js";
 import "./commands/world-time.js";
 import "./commands/notifications.js";
+import "./commands/trails-of-destiny.js";
+import "./commands/schema-discovery.js";
+import "./commands/effective-user.js";
+import "./commands/transactions.js";
+import "./commands/fog-exploration.js";
+import "./commands/scene-render.js";
+import "./commands/client-readiness.js";
+import "./commands/embedded-children.js";
+import "./commands/asset-lifecycle.js";
+import "./commands/reference-audit.js";
+import "./commands/collision-topology.js";
+import "./commands/dnd5e-simulation.js";
+import "./commands/movement-events.js";
 
 // Set once `ready` constructs the client; `registerBridgeSettings()` is
 // called from `init` (before the client exists), but a GM can't reach the
@@ -53,13 +71,19 @@ import "./commands/notifications.js";
 let client: BridgeClient | undefined;
 
 Hooks.once("init", () => {
-  registerBridgeSettings(() => client?.reconnect());
+  registerBridgeSettings(() => client?.handleSettingsChanged());
+  registerBridgeEnrollmentQuery(() => client);
 });
 
 Hooks.once("ready", () => {
+  configureBridgeAdminSettingVisibility();
+  void clearLegacyNonGmApiKey().then((cleared) => {
+    if (!cleared) console.error(`[${MODULE_ID}] failed to clear legacy client API key`);
+  });
   client = new BridgeClient(getConfiguredBridgeUrl, getConfiguredApiKey);
   client.connect();
   registerHookForwarding(client);
+  registerMovementEventHooks(client);
   // Registered unconditionally — must fire on every client (including
   // players, who never open a bridge connection) per PLAN.md's Phase 47/42.
   registerModuleSocketListener();

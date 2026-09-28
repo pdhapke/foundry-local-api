@@ -4,12 +4,43 @@
 // today's server will fail and retry via the backoff loop below — that is
 // expected until Phase 3 lands, not a bug in this file.
 
-import type { BridgeEventMessage, BridgeRequest, BridgeResponse } from "@foundry-local-api/shared";
-import { dispatch } from "./command-registry.js";
+import {
+  BRIDGE_PROTOCOL_VERSION,
+  type BridgeEnrollmentDeliveryInput,
+  type BridgeEnrollmentHelloMessage,
+  type BridgeClientLane,
+  type BridgeEventMessage,
+  type BridgeHelloMessage,
+  type BridgeNegotiationMessage,
+  type BridgeRequest,
+  type BridgeResponse,
+} from "@foundry-local-api/shared";
+
+export type AcceptedBridgeEnrollment = Omit<
+  BridgeEnrollmentDeliveryInput,
+  "encryptedCredential"
+> & { credential: string };
+import { dispatch, listRegisteredCommands } from "./command-registry.js";
+import {
+  createBridgeDiagnostics,
+  projectBridgeDiagnostics,
+  transitionBridgeDiagnostics,
+  type BridgeClientDiagnostics,
+  type BridgeDiagnosticErrorCode,
+} from "./bridge-diagnostics.js";
+import {
+  BridgeEventOutbox,
+  MOVEMENT_EVENT_NAME,
+  isBridgeEventAcknowledgement,
+  type BridgeEventOutboxDiagnostics,
+  type BridgeOutboxStorage,
+} from "./bridge-client-outbox.js";
 
 export const MODULE_ID = "foundry-local-api";
 export const BRIDGE_URL_SETTING = "bridgeUrl";
 export const BRIDGE_API_KEY_SETTING = "bridgeApiKey";
+export const ALLOW_REMOTE_CONTROL_SETTING = "allowRemoteControl";
+const CLIENT_ID_STORAGE_KEY = `${MODULE_ID}.clientId`;
 
 /** Matches the server's Phase 1 default port (`server/src/config.ts`). */
 export const DEFAULT_BRIDGE_URL = "ws://127.0.0.1:3939/bridge";
@@ -68,14 +99,35 @@ export function registerBridgeSettings(onSettingChanged?: () => void): void {
   });
 
   game.settings.register<string>(MODULE_ID, BRIDGE_API_KEY_SETTING, {
-    name: "Bridge API Key",
-    hint: "Must match the API_KEY the foundry-local-api server was started with.",
+    name: "Bridge Administrative API Key (GM only)",
+    hint: "Administrative bridge credential. It is never used by player or TV clients.",
     scope: "client",
-    config: true,
+    // `game.user` is deliberately null during Foundry 14's `init` hook. Keep
+    // this security-sensitive setting hidden while settings are registered;
+    // `configureBridgeAdminSettingVisibility()` reveals it only after the
+    // authenticated user exists at `ready`, and only for a GM.
+    config: false,
     type: String,
     default: "",
     onChange: () => onSettingChanged?.(),
   });
+
+  game.settings.register<boolean>(MODULE_ID, ALLOW_REMOTE_CONTROL_SETTING, {
+    name: "Allow bounded remote control for this client",
+    hint: "Lets the bridge route explicitly allowlisted commands to this signed-in user's client. GM clients are always available on the GM lane.",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: false,
+    onChange: () => onSettingChanged?.(),
+  });
+}
+
+/** Reveals the administrative credential setting only to the authenticated GM. */
+export function configureBridgeAdminSettingVisibility(): void {
+  const setting = game.settings.settings.get(`${MODULE_ID}.${BRIDGE_API_KEY_SETTING}`);
+  if (!setting) throw new Error(`Bridge setting "${BRIDGE_API_KEY_SETTING}" is not registered.`);
+  setting.config = getClientLane() === "gm";
 }
 
 /** Reads the currently configured bridge URL from the module setting. */
@@ -85,7 +137,60 @@ export function getConfiguredBridgeUrl(): string {
 
 /** Reads the currently configured bridge API key from the module setting. */
 export function getConfiguredApiKey(): string {
-  return game.settings.get<string>(MODULE_ID, BRIDGE_API_KEY_SETTING);
+  return getClientLane() === "gm"
+    ? game.settings.get<string>(MODULE_ID, BRIDGE_API_KEY_SETTING)
+    : "";
+}
+
+/** Removes a legacy administrative key from every bounded lane and verifies the readback. */
+export async function clearLegacyNonGmApiKey(): Promise<boolean> {
+  if (getClientLane() === "gm") return true;
+  if (game.settings.get<string>(MODULE_ID, BRIDGE_API_KEY_SETTING) !== "") {
+    await game.settings.set(MODULE_ID, BRIDGE_API_KEY_SETTING, "");
+  }
+  return game.settings.get<string>(MODULE_ID, BRIDGE_API_KEY_SETTING) === "";
+}
+
+export function getClientId(): string {
+  const existing = sessionStorage.getItem(CLIENT_ID_STORAGE_KEY);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  sessionStorage.setItem(CLIENT_ID_STORAGE_KEY, created);
+  return created;
+}
+
+export function getClientLane(): BridgeClientLane {
+  if (game.user.isGM) return game.user.name.toLowerCase() === "tv" ? "tv" : "gm";
+  return game.user.name.toLowerCase() === "tv" ? "tv" : "player";
+}
+
+/** Produces the authenticated client's negotiation message without secrets or device telemetry. */
+export function buildBridgeHello(laneOverride?: BridgeClientLane): BridgeHelloMessage {
+  const moduleVersion = game.modules.get(MODULE_ID)?.version ?? "unknown";
+  const lane = laneOverride ?? getClientLane();
+  return {
+    kind: "hello",
+    identity: {
+      clientId: getClientId(),
+      userId: game.user.id,
+      userName: game.user.name,
+      // This field describes bridge authority, not the Foundry role alone.
+      // A Foundry GM deliberately assigned to the bounded TV lane must not
+      // authenticate, reconnect, or advertise itself as the GM bridge lane.
+      isGM: lane === "gm",
+      lane,
+      optedIn: lane === "gm" || game.settings.get<boolean>(MODULE_ID, ALLOW_REMOTE_CONTROL_SETTING),
+    },
+    versions: {
+      protocolVersion: BRIDGE_PROTOCOL_VERSION,
+      foundryVersion: game.release.version,
+      systemId: game.system.id,
+      systemVersion: game.system.version,
+      moduleVersion,
+      transport: "websocket",
+    },
+    capabilities: listRegisteredCommands().sort(),
+  };
 }
 
 /**
@@ -112,6 +217,12 @@ export class BridgeClient {
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private manuallyClosed = false;
+  private enrollment: AcceptedBridgeEnrollment | null = null;
+  private diagnostics: BridgeClientDiagnostics;
+  private readonly clientId: string;
+  private readonly fixedLane: BridgeClientLane;
+  private readonly eventOutbox: BridgeEventOutbox;
+  private outboxTimer: ReturnType<typeof setInterval> | null = null;
   /**
    * Bumped by every `openSocket()` call; each socket's listeners close over
    * the generation they were opened with and no-op if it's stale. This is
@@ -125,16 +236,82 @@ export class BridgeClient {
     private readonly getUrl: () => string,
     private readonly getApiKey: () => string,
     private readonly backoffOptions: BackoffOptions = DEFAULT_BACKOFF_OPTIONS,
-  ) {}
+  ) {
+    this.clientId = getClientId();
+    this.fixedLane = getClientLane();
+    this.diagnostics = createBridgeDiagnostics({
+      moduleVersion: game.modules.get(MODULE_ID)?.version ?? "unknown",
+      userId: game.user.id,
+      intendedLane: this.fixedLane,
+      consentGranted:
+        this.fixedLane === "gm" ||
+        game.settings.get<boolean>(MODULE_ID, ALLOW_REMOTE_CONTROL_SETTING),
+    });
+    const outboxStorage = safeLocalStorage();
+    this.eventOutbox = new BridgeEventOutbox(
+      { clientId: this.clientId, userId: game.user.id, lane: this.fixedLane },
+      {
+        ...(outboxStorage ? { storage: outboxStorage } : {}),
+        storageKey: `${MODULE_ID}.movementOutbox.${game.user.id}.${this.clientId}`,
+      },
+    );
+  }
 
   /** Current connection status, programmatically queryable. */
   getStatus(): ConnectionStatus {
     return this.status;
   }
 
+  getDiagnostics(): BridgeClientDiagnostics {
+    return projectBridgeDiagnostics(this.diagnostics);
+  }
+
+  getOutboxDiagnostics(): BridgeEventOutboxDiagnostics {
+    return this.eventOutbox.diagnostics();
+  }
+
+  /** Applies live client-setting changes to diagnostics before reconnecting. */
+  handleSettingsChanged(): void {
+    this.diagnostics = transitionBridgeDiagnostics(this.diagnostics, {
+      type: "consent-changed",
+      granted:
+        this.fixedLane === "gm" ||
+        game.settings.get<boolean>(MODULE_ID, ALLOW_REMOTE_CONTROL_SETTING),
+    });
+    this.reconnect();
+  }
+
+  /** Accepts a GM-targeted one-time offer in memory. It is never persisted to settings/storage. */
+  acceptEnrollment(delivery: AcceptedBridgeEnrollment): void {
+    if (
+      delivery.targetUserId !== game.user.id ||
+      delivery.expectedClientId !== this.clientId ||
+      delivery.expectedLane !== this.fixedLane
+    ) {
+      throw new Error("Enrollment identity does not match this client");
+    }
+    this.enrollment = { ...delivery };
+    this.diagnostics = {
+      ...this.diagnostics,
+      intendedLane: this.fixedLane,
+      consentGranted: game.settings.get<boolean>(MODULE_ID, ALLOW_REMOTE_CONTROL_SETTING),
+    };
+    this.reconnect();
+  }
+
   /** Opens the connection (and lets the reconnect loop keep it open). */
   connect(): void {
     this.manuallyClosed = false;
+    if (this.fixedLane !== "gm" && this.enrollment === null) {
+      this.diagnostics = transitionBridgeDiagnostics(this.diagnostics, {
+        type: "negotiation-rejected",
+        at: new Date().toISOString(),
+        protocolVersion: BRIDGE_PROTOCOL_VERSION,
+        moduleVersion: game.modules.get(MODULE_ID)?.version ?? "unknown",
+        errorCode: "enrollment-required",
+      });
+      return;
+    }
     this.openSocket();
   }
 
@@ -145,6 +322,7 @@ export class BridgeClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.stopOutboxPump();
     this.socket?.close();
   }
 
@@ -175,7 +353,14 @@ export class BridgeClient {
   }
 
   private openSocket(): void {
-    const url = buildBridgeConnectionUrl(this.getUrl(), this.getApiKey());
+    if (this.fixedLane !== "gm" && this.enrollment === null) return;
+    const administrative = this.fixedLane === "gm";
+    const url = buildBridgeConnectionUrl(this.getUrl(), administrative ? this.getApiKey() : "");
+    this.diagnostics = transitionBridgeDiagnostics(this.diagnostics, {
+      type: "connection-attempted",
+      at: new Date().toISOString(),
+      reconnectAttempt: this.reconnectAttempt,
+    });
     this.setStatus("connecting");
     // Captured per-socket so a superseded socket's later events (its "close"
     // above all) are recognizable as stale and ignored — see `generation`'s
@@ -185,8 +370,8 @@ export class BridgeClient {
     let socket: WebSocket;
     try {
       socket = new WebSocket(url);
-    } catch (err) {
-      console.error(`[${MODULE_ID}] failed to open bridge socket`, err);
+    } catch {
+      console.error(`[${MODULE_ID}] failed to open bridge socket`);
       this.setStatus("disconnected");
       this.scheduleReconnect();
       return;
@@ -196,7 +381,20 @@ export class BridgeClient {
     socket.addEventListener("open", () => {
       if (generation !== this.generation) return;
       this.reconnectAttempt = 0;
-      this.setStatus("connected");
+      const enrollment = this.enrollment;
+      if (administrative) {
+        socket.send(JSON.stringify(buildBridgeHello("gm")));
+      } else if (enrollment) {
+        const message: BridgeEnrollmentHelloMessage = {
+          kind: "enrollment",
+          credential: enrollment.credential,
+          hello: buildBridgeHello(enrollment.expectedLane),
+        };
+        this.enrollment = null;
+        socket.send(JSON.stringify(message));
+      } else {
+        socket.close(1008, "Enrollment required");
+      }
     });
 
     socket.addEventListener("message", (event: MessageEvent) => {
@@ -207,17 +405,23 @@ export class BridgeClient {
     socket.addEventListener("close", () => {
       if (generation !== this.generation) return;
       this.socket = null;
+      this.stopOutboxPump();
       this.setStatus("disconnected");
-      if (!this.manuallyClosed) {
+      if (!this.manuallyClosed && administrative) {
         this.scheduleReconnect();
+      } else if (!administrative) {
+        this.diagnostics = transitionBridgeDiagnostics(this.diagnostics, {
+          type: "disconnected",
+          errorCode: null,
+        });
       }
     });
 
-    socket.addEventListener("error", (event) => {
+    socket.addEventListener("error", () => {
       if (generation !== this.generation) return;
       // The "close" event that follows drives status change + reconnect
       // scheduling; this just gets the failure into the console.
-      console.error(`[${MODULE_ID}] bridge socket error`, event);
+      console.error(`[${MODULE_ID}] bridge socket error`);
     });
   }
 
@@ -227,6 +431,11 @@ export class BridgeClient {
     }
     const delay = computeBackoffDelayMs(this.reconnectAttempt, this.backoffOptions);
     this.reconnectAttempt += 1;
+    this.diagnostics = transitionBridgeDiagnostics(this.diagnostics, {
+      type: "reconnect-scheduled",
+      attempt: this.reconnectAttempt,
+      nextAttemptAt: new Date(Date.now() + delay).toISOString(),
+    });
     console.log(`[${MODULE_ID}] reconnecting to bridge in ${delay}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -241,15 +450,42 @@ export class BridgeClient {
       return;
     }
 
-    let request: BridgeRequest;
+    let parsed: BridgeRequest | BridgeNegotiationMessage;
     try {
-      request = JSON.parse(raw) as BridgeRequest;
+      parsed = JSON.parse(raw) as BridgeRequest | BridgeNegotiationMessage;
     } catch (err) {
       console.error(`[${MODULE_ID}] failed to parse bridge message as JSON`, err);
       return;
     }
 
-    const response: BridgeResponse = await dispatch(request);
+    if (isBridgeNegotiationMessage(parsed)) {
+      if (parsed.accepted) {
+        this.setStatus("connected");
+        this.diagnostics = transitionBridgeDiagnostics(this.diagnostics, {
+          type: "negotiation-accepted",
+          at: parsed.at,
+          protocolVersion: parsed.protocolVersion,
+          moduleVersion: parsed.moduleVersion,
+        });
+        this.startOutboxPump();
+      } else {
+        this.diagnostics = transitionBridgeDiagnostics(this.diagnostics, {
+          type: "negotiation-rejected",
+          at: parsed.at,
+          protocolVersion: parsed.protocolVersion,
+          moduleVersion: parsed.moduleVersion,
+          errorCode: diagnosticCode(parsed.errorCode),
+        });
+      }
+      return;
+    }
+
+    if (isBridgeEventAcknowledgement(parsed)) {
+      this.eventOutbox.acknowledge(parsed);
+      return;
+    }
+
+    const response: BridgeResponse = await dispatch(parsed);
     this.send(response);
   }
 
@@ -268,9 +504,89 @@ export class BridgeClient {
    * requests); mirrors its readyState-check idiom.
    */
   sendEvent(event: string, payload: unknown): void {
-    if (this.socket !== null && this.socket.readyState === WebSocket.OPEN) {
+    if (event === MOVEMENT_EVENT_NAME) {
+      this.eventOutbox.enqueue(event, payload);
+      this.flushOutbox();
+    } else if (this.socket !== null && this.socket.readyState === WebSocket.OPEN) {
       const message: BridgeEventMessage = { kind: "event", event, payload };
       this.socket.send(JSON.stringify(message));
     }
   }
+
+  private startOutboxPump(): void {
+    this.stopOutboxPump();
+    this.flushOutbox();
+    this.outboxTimer = setInterval(() => this.flushOutbox(), 1_000);
+  }
+
+  private stopOutboxPump(): void {
+    if (this.outboxTimer !== null) {
+      clearInterval(this.outboxTimer);
+      this.outboxTimer = null;
+    }
+  }
+
+  private flushOutbox(): void {
+    if (
+      this.status !== "connected" ||
+      this.socket === null ||
+      this.socket.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+    for (const record of this.eventOutbox.ready()) {
+      const message = this.eventOutbox.markAttempt(record.deliveryId);
+      if (message) this.socket.send(JSON.stringify(message));
+    }
+  }
+}
+
+function safeLocalStorage(): BridgeOutboxStorage | undefined {
+  try {
+    return typeof localStorage === "undefined" ? undefined : localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function diagnosticCode(code: BridgeNegotiationMessage["errorCode"]): BridgeDiagnosticErrorCode {
+  switch (code) {
+    case "CONSENT_REQUIRED":
+      return "consent-required";
+    case "ENROLLMENT_EXPIRED":
+      return "enrollment-expired";
+    case "ENROLLMENT_REPLAYED":
+      return "enrollment-replayed";
+    case "ENROLLMENT_USER_MISMATCH":
+      return "enrollment-wrong-user";
+    case "ENROLLMENT_LANE_MISMATCH":
+      return "enrollment-wrong-lane";
+    case "ENROLLMENT_CLIENT_MISMATCH":
+      return "enrollment-wrong-client";
+    case "ENROLLMENT_PATH_MISMATCH":
+      return "enrollment-wrong-path";
+    case "ENROLLMENT_INVALID":
+      return "enrollment-invalid";
+    case "ENROLLMENT_REVOKED":
+    case "SERVER_RESTARTED":
+      return "enrollment-revoked";
+    case "ENROLLMENT_PROTOCOL_MISMATCH":
+      return "protocol-version-mismatch";
+    case "ENROLLMENT_MODULE_MISMATCH":
+      return "module-version-mismatch";
+    case "DUPLICATE_CLIENT":
+      return "duplicate-client";
+    case null:
+    default:
+      return "negotiation-rejected";
+  }
+}
+
+function isBridgeNegotiationMessage(value: unknown): value is BridgeNegotiationMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { kind?: unknown }).kind === "negotiation" &&
+    typeof (value as { accepted?: unknown }).accepted === "boolean"
+  );
 }

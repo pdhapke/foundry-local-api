@@ -12,6 +12,36 @@ import { isVersionInRange } from "./version.js";
 
 export type IntegrationChangeListener = (active: Integration[]) => void;
 
+/**
+ * Resolves the active optional integrations from the public system/module
+ * snapshot. Kept pure so both the in-process bridge manager and the remote
+ * HTTP-forwarding MCP process apply exactly the same detection/version rules.
+ */
+export function detectActiveIntegrations(
+  system: SystemInfo,
+  modules: ModuleInfo[],
+  integrations: Integration[],
+): Integration[] {
+  const activeModules = modules.filter((module) => module.active);
+  const activeModuleIds = activeModules.map((module) => module.id);
+
+  return integrations.filter((integration) => {
+    if (!integration.detect(system.id, activeModuleIds)) {
+      return false;
+    }
+
+    const version =
+      integration.kind === "system"
+        ? system.version
+        : activeModules.find((module) => module.id === integration.id)?.version;
+
+    return (
+      version === undefined ||
+      isVersionInRange(version, integration.minVersion, integration.maxVersion)
+    );
+  });
+}
+
 export class IntegrationManager {
   private active: Integration[] = [];
   private readonly changeListeners = new Set<IntegrationChangeListener>();
@@ -52,34 +82,7 @@ export class IntegrationManager {
       this.foundryClient.call<undefined, ModuleInfo[]>(META_COMMANDS.MODULES),
     ]);
 
-    const activeModules = modules.filter((m) => m.active);
-    const activeModuleIds = activeModules.map((m) => m.id);
-
-    const nextActive = this.integrations.filter((integration) => {
-      if (!integration.detect(system.id, activeModuleIds)) {
-        return false;
-      }
-
-      // detect() passing only tells us *which* integration matched, not
-      // its version — resolve that separately depending on `kind`.
-      let version: string | undefined;
-      if (integration.kind === "system") {
-        // There is only ever one active system, so if detect() passed, it
-        // matched the world's one active system.
-        version = system.version;
-      } else {
-        const matchedModule = activeModules.find((m) => m.id === integration.id);
-        // No matching module version found -> can't further restrict by
-        // version, but detect() already passed, so this is not an error,
-        // just a fallback (no minVersion/maxVersion enforcement possible).
-        version = matchedModule?.version;
-      }
-
-      if (version === undefined) {
-        return true;
-      }
-      return isVersionInRange(version, integration.minVersion, integration.maxVersion);
-    });
+    const nextActive = detectActiveIntegrations(system, modules, this.integrations);
 
     const previousIds = new Set(this.active.map((i) => i.id));
     const nextIds = new Set(nextActive.map((i) => i.id));

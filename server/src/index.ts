@@ -1,19 +1,29 @@
 // Bootstraps the standalone server process: loads config, builds the
 // Express app, starts listening, and wires graceful shutdown.
 import http from "node:http";
+import { fileURLToPath } from "node:url";
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { createApp, createDefaultRequestLogger } from "./app.js";
 import { FoundryClient } from "./bridge/foundry-client.js";
 import { BridgeGateway } from "./bridge/gateway.js";
+import { EnrollmentStore } from "./bridge/enrollment-store.js";
 import { ConfigError, loadConfig, type AppConfig } from "./config.js";
 import { FoundryEventBus } from "./events/event-bus.js";
+import { ingestMovementEvent, MOVEMENT_EVENT_NAME } from "./events/movement-event-ingestor.js";
+import { MovementEventStore } from "./events/movement-event-store.js";
+import { configureAiGmDelivery } from "./endpoints/ai-gm-delivery.js";
+import { configureMovementEventStore } from "./endpoints/movement-events.js";
+import { DurableAuditLog } from "./foundations/audit-log.js";
+import { DurableIdempotencyStore } from "./foundations/idempotency-store.js";
+import { productionFixtureRegistry } from "./foundations/runtime.js";
 import { IntegrationManager } from "./integrations/manager.js";
-import { applyActiveIntegrationTools } from "./integrations/mcp-tools.js";
 import { integrations } from "./integrations/registry.js";
 import { applyActiveIntegrations } from "./integrations/router.js";
 import { connectMcpStdio } from "./mcp/index.js";
+import { readPackageVersion } from "./version.js";
+import { AiGmDeliveryService, UnavailableHostWakeAdapter } from "./services/ai-gm-delivery.js";
 
 function main(): void {
   let config: AppConfig;
@@ -27,32 +37,48 @@ function main(): void {
     throw err;
   }
 
-  // When MCP_STDIO is on, this process's stdout is reserved exclusively for
-  // the MCP JSON-RPC stream (see connectMcpStdio below) — nothing else may
-  // write to it, so the request logger is redirected to stderr instead.
-  // Behavior is byte-for-byte unchanged (stdout logger) when it's off.
-  const app = createApp({
-    isDevelopment: config.isDevelopment,
-    apiKey: config.apiKey,
-    corsAllowedOrigins: config.corsAllowedOrigins,
-    rateLimitWindowMs: config.rateLimitWindowMs,
-    rateLimitMax: config.rateLimitMax,
-    ...(config.mcpStdio ? { requestLogger: createDefaultRequestLogger(console.error) } : {}),
-  });
-  const server = http.createServer(app);
+  // `server` is created without a request listener yet: BridgeGateway only
+  // needs the raw http.Server to attach its own WS `upgrade` listener to,
+  // and building `foundryClient`/`eventBus` before `createApp()` lets the
+  // app wire up the MCP HTTP transport (which needs `foundryClient`) in one
+  // pass instead of bolting `/mcp` on after the fact — see CreateAppOptions'
+  // `mcp` field in app.ts for why that ordering matters (must exist before
+  // the catch-all 404 handler, which `createApp` also owns).
+  const server = http.createServer();
 
   // Bridge WS gateway (Phase 3), mounted on the same http.Server/port at
   // `/bridge`, plus the FoundryClient abstraction route handlers will use
   // from Phase 6 onward to round-trip commands to the connected module.
-  // Stashed on app.locals so future route modules can reach it via
-  // `req.app.locals.foundryClient` without a separate wiring mechanism.
   // The same API key (Phase 4) gates the WS upgrade, since `/bridge` has no
   // auth of its own otherwise.
-  const gateway = new BridgeGateway(server, { apiKey: config.apiKey });
+  const enrollmentStore = new EnrollmentStore({
+    laneCommandAllowlist: {
+      player: [
+        "effectiveUserExecute",
+        "sceneRenderSnapshot",
+        "sceneVisibilityInspect",
+        "clientPreloadScene",
+        "clientReadinessGet",
+        "clientViewportApply",
+      ],
+      tv: ["clientPreloadScene", "clientReadinessGet", "clientViewportApply"],
+    },
+  });
+  const gateway = new BridgeGateway(server, { apiKey: config.apiKey, enrollmentStore });
+  const runtimeDirectory = new URL("../../.runtime/", import.meta.url);
+  const auditLog = new DurableAuditLog(fileURLToPath(new URL("audit.jsonl", runtimeDirectory)));
+  const foundations = {
+    fixtures: productionFixtureRegistry,
+    idempotency: new DurableIdempotencyStore(
+      fileURLToPath(new URL("idempotency.json", runtimeDirectory)),
+    ),
+    enrollments: enrollmentStore,
+  };
   const foundryClient = new FoundryClient(gateway, {
     defaultTimeoutMs: config.bridgeTimeoutMs,
+    serverVersion: readPackageVersion(),
+    auditSink: (record) => auditLog.write(record),
   });
-  app.locals["foundryClient"] = foundryClient;
 
   // Optional integration framework (Phase 32) — detects which registered
   // integrations (server/src/integrations/registry.js, empty until Phase 34
@@ -74,12 +100,65 @@ function main(): void {
   // Server-side event bus (Phase 26) — buffers/fans out the module's pushed
   // hook events (FoundryClient.onEvent()) to the SSE route
   // (server/src/endpoints/events-sse.ts) and the MCP recent-events tool
-  // (server/src/endpoints/events.ts). Stashed on app.locals the same way and
-  // for the same reason as foundryClient above (see endpoints/registry.ts's
-  // header comment).
+  // (server/src/endpoints/events.ts).
   const eventBus = new FoundryEventBus();
-  foundryClient.onEvent((event, payload) => eventBus.publish(event, payload));
+  const movementEventStore = new MovementEventStore(
+    fileURLToPath(new URL("movement-events.json", runtimeDirectory)),
+  );
+  configureMovementEventStore(movementEventStore);
+  const aiGmDeliveryService = new AiGmDeliveryService(
+    fileURLToPath(new URL("ai-gm-deliveries.json", runtimeDirectory)),
+    "codex-active-ai-gm",
+  );
+  // Sequence 1 is the explicitly recorded preparation rollback and predates
+  // live-session adjudication. Persist that exclusion once, then reconcile
+  // every later canonical movement before accepting new browser events.
+  aiGmDeliveryService.initializeReconciliationWatermark(movementEventStore, 1);
+  aiGmDeliveryService.reconcileMovementStore(movementEventStore);
+  const hostWakeAdapter = new UnavailableHostWakeAdapter(
+    "This local bridge process has no configured mechanism that can invoke or wake the active Codex AI-GM without a human turn.",
+  );
+  configureAiGmDelivery(aiGmDeliveryService, hostWakeAdapter);
+  foundryClient.onEvent((event, payload, metadata) => {
+    if (event !== MOVEMENT_EVENT_NAME) {
+      eventBus.publish(event, payload);
+      return;
+    }
+    const record = ingestMovementEvent(movementEventStore, payload, metadata);
+    if (!record) return;
+    aiGmDeliveryService.reconcileMovementStore(movementEventStore);
+    eventBus.publish(event, record);
+    if (metadata.delivery) {
+      gateway.acknowledgeEvent(metadata.delivery.deliveryId, metadata.clientId);
+    }
+  });
+  const deliveryWorker = setInterval(() => {
+    void aiGmDeliveryService.dispatchDue(hostWakeAdapter).catch((error: unknown) => {
+      console.error(
+        "[ai-gm-delivery] worker failed:",
+        error instanceof Error ? error.message : "unknown failure",
+      );
+    });
+  }, 1_000);
+  deliveryWorker.unref();
+
+  // When MCP_STDIO is on, this process's stdout is reserved exclusively for
+  // the MCP JSON-RPC stream (see connectMcpStdio below) — nothing else may
+  // write to it, so the request logger is redirected to stderr instead.
+  // Behavior is byte-for-byte unchanged (stdout logger) when it's off.
+  const app = createApp({
+    isDevelopment: config.isDevelopment,
+    apiKey: config.apiKey,
+    corsAllowedOrigins: config.corsAllowedOrigins,
+    rateLimitWindowMs: config.rateLimitWindowMs,
+    rateLimitMax: config.rateLimitMax,
+    mcp: { foundryClient, integrationManager, eventBus, foundations },
+    ...(config.mcpStdio ? { requestLogger: createDefaultRequestLogger(console.error) } : {}),
+  });
+  app.locals["foundryClient"] = foundryClient;
   app.locals["eventBus"] = eventBus;
+  app.locals["foundations"] = foundations;
+  server.on("request", app);
 
   // MCP stdio server (Phase 5) — opt-in via MCP_STDIO, for MCP clients
   // (Claude Desktop/Code) that spawn this process directly. While it's on,
@@ -87,26 +166,10 @@ function main(): void {
   // (like the banner below) logs via console.error rather than console.log.
   let mcpServer: McpServer | undefined;
   if (config.mcpStdio) {
-    connectMcpStdio(foundryClient, eventBus)
+    connectMcpStdio(foundryClient, integrationManager, eventBus, foundations)
       .then((connectedMcpServer) => {
         mcpServer = connectedMcpServer;
         console.error("MCP stdio server connected (MCP_STDIO=true).");
-
-        // Phase 32 — subscribe the MCP tool set to future integration
-        // changes, then immediately sync it to whatever's active *right
-        // now*: a bridge connection (and thus detection) may already have
-        // happened before this promise resolved, in which case
-        // `integrationManager.getActive()` is already non-empty and this
-        // call is what actually registers those tools for the first time.
-        integrationManager.onChange((active) => {
-          applyActiveIntegrationTools(connectedMcpServer, active, foundryClient, eventBus);
-        });
-        applyActiveIntegrationTools(
-          connectedMcpServer,
-          integrationManager.getActive(),
-          foundryClient,
-          eventBus,
-        );
       })
       .catch((err: unknown) => {
         console.error("Failed to start MCP stdio server:", err);
@@ -146,6 +209,7 @@ function main(): void {
       return;
     }
     shuttingDown = true;
+    clearInterval(deliveryWorker);
     lifecycleLog(`\nReceived ${signal}, shutting down gracefully...`);
 
     const forceExitTimer = setTimeout(() => {

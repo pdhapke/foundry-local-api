@@ -3,7 +3,9 @@
 // unnormalized — every rejection is a `FoundryBridgeError`, so route
 // handlers from Phase 6 onward can catch one type and convert it into a
 // proper REST error via `foundryBridgeErrorToHttpError`.
-import { HttpError } from "../app.js";
+import type { ProtocolErrorCode } from "@foundry-local-api/shared";
+
+import { HttpError } from "../http-error.js";
 
 /**
  * The closed set of error codes a bridge call can fail with:
@@ -19,17 +21,33 @@ import { HttpError } from "../app.js";
  * as the closest generic bucket, so callers never have to handle an
  * open-ended string.
  */
-export type FoundryBridgeErrorCode =
-  "NOT_CONNECTED" | "TIMEOUT" | "UNKNOWN_COMMAND" | "HANDLER_ERROR";
+export type FoundryBridgeErrorCode = ProtocolErrorCode;
 
 /** Thrown/rejected by `FoundryClient.call` for every failure mode. */
 export class FoundryBridgeError extends Error {
   readonly code: FoundryBridgeErrorCode;
+  readonly retryable: boolean;
+  readonly fieldPath: string | undefined;
+  readonly correlationId: string | undefined;
+  readonly details: Record<string, unknown> | undefined;
 
-  constructor(code: FoundryBridgeErrorCode, message: string) {
+  constructor(
+    code: FoundryBridgeErrorCode,
+    message: string,
+    options: {
+      retryable?: boolean | undefined;
+      fieldPath?: string | undefined;
+      correlationId?: string | undefined;
+      details?: Record<string, unknown> | undefined;
+    } = {},
+  ) {
     super(message);
     this.name = "FoundryBridgeError";
     this.code = code;
+    this.retryable = options.retryable ?? (code === "TIMEOUT" || code === "NOT_CONNECTED");
+    this.fieldPath = options.fieldPath;
+    this.correlationId = options.correlationId;
+    this.details = options.details;
   }
 }
 
@@ -40,6 +58,18 @@ export function normalizeBridgeErrorCode(raw: string | undefined): FoundryBridge
     case "TIMEOUT":
     case "UNKNOWN_COMMAND":
     case "HANDLER_ERROR":
+    case "INVALID_PAYLOAD":
+    case "PERMISSION_DENIED":
+    case "NOT_FOUND":
+    case "STALE_REVISION":
+    case "UNSUPPORTED_VERSION":
+    case "UNSUPPORTED_TYPE":
+    case "IDEMPOTENCY_CONFLICT":
+    case "CURSOR_GAP":
+    case "PROTECTED_PATH":
+    case "HASH_MISMATCH":
+    case "ROLLBACK_FAILED":
+    case "INCOMPLETE_RESULT":
       return raw;
     default:
       return "HANDLER_ERROR";
@@ -73,13 +103,32 @@ export function normalizeBridgeErrorCode(raw: string | undefined): FoundryBridge
 export function foundryBridgeErrorToHttpError(err: FoundryBridgeError): HttpError {
   switch (err.code) {
     case "NOT_CONNECTED":
-      return new HttpError(503, err.message, err.code);
+      return new HttpError(503, err.message, err.code, err);
     case "TIMEOUT":
-      return new HttpError(504, err.message, err.code);
+      return new HttpError(504, err.message, err.code, err);
     case "UNKNOWN_COMMAND":
-      return new HttpError(502, err.message, err.code);
+      return new HttpError(502, err.message, err.code, err);
     case "HANDLER_ERROR":
-      return new HttpError(500, err.message, err.code);
+      return new HttpError(500, err.message, err.code, err);
+    case "INVALID_PAYLOAD":
+      return new HttpError(400, err.message, err.code, err);
+    case "PERMISSION_DENIED":
+      return new HttpError(403, err.message, err.code, err);
+    case "NOT_FOUND":
+      return new HttpError(404, err.message, err.code, err);
+    case "STALE_REVISION":
+    case "IDEMPOTENCY_CONFLICT":
+    case "HASH_MISMATCH":
+      return new HttpError(409, err.message, err.code, err);
+    case "UNSUPPORTED_VERSION":
+    case "UNSUPPORTED_TYPE":
+      return new HttpError(422, err.message, err.code, err);
+    case "CURSOR_GAP":
+    case "ROLLBACK_FAILED":
+    case "INCOMPLETE_RESULT":
+      return new HttpError(409, err.message, err.code, err);
+    case "PROTECTED_PATH":
+      return new HttpError(403, err.message, err.code, err);
     default:
       return new HttpError(500, err.message, err.code);
   }

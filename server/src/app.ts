@@ -5,9 +5,17 @@ import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 
+import type { FoundryClient } from "./bridge/foundry-client.js";
+import type { FoundryEventBus } from "./events/event-bus.js";
+import type { IntegrationManager } from "./integrations/manager.js";
+import type { FoundationRuntime } from "./foundations/runtime.js";
+import { mountMcpHttp } from "./mcp/http-transport.js";
 import { createApiKeyAuth } from "./middleware/auth.js";
 import { apiRouter } from "./routes/api.js";
 import { readPackageVersion } from "./version.js";
+import { HttpError } from "./http-error.js";
+
+export { HttpError } from "./http-error.js";
 
 const startedAt = Date.now();
 
@@ -50,20 +58,11 @@ interface ErrorResponseBody {
   error: {
     message: string;
     code?: string;
+    retryable?: boolean;
+    fieldPath?: string;
+    correlationId?: string;
+    details?: Record<string, unknown>;
   };
-}
-
-/** Error subclass routes/middleware can throw to control the response status/code. */
-export class HttpError extends Error {
-  readonly status: number;
-  readonly code: string | undefined;
-
-  constructor(status: number, message: string, code?: string) {
-    super(message);
-    this.name = "HttpError";
-    this.status = status;
-    this.code = code;
-  }
 }
 
 export interface CreateAppOptions {
@@ -77,6 +76,20 @@ export interface CreateAppOptions {
   rateLimitWindowMs: number;
   /** Max requests per `rateLimitWindowMs` per client, applied to `/api/*`. */
   rateLimitMax: number;
+  /**
+   * When provided, mounts the MCP Streamable HTTP transport at `/mcp`
+   * (behind the same CORS/API-key auth as `/api`, no rate limiting — see
+   * mcp/http-transport.ts). Optional because `foundryClient`/`eventBus`
+   * only exist once index.ts has an `http.Server` to build the bridge
+   * gateway from — tests that just exercise REST endpoints never pass it,
+   * so `/mcp` doesn't exist in that Express instance at all.
+   */
+  mcp?: {
+    foundryClient: FoundryClient;
+    integrationManager: IntegrationManager;
+    eventBus?: FoundryEventBus;
+    foundations?: FoundationRuntime;
+  };
 }
 
 export function createApp(options: CreateAppOptions): Express {
@@ -87,6 +100,7 @@ export function createApp(options: CreateAppOptions): Express {
     corsAllowedOrigins,
     rateLimitWindowMs,
     rateLimitMax,
+    mcp,
   } = options;
   const app = express();
 
@@ -177,6 +191,29 @@ export function createApp(options: CreateAppOptions): Express {
     apiRouter,
   );
 
+  // --- `/mcp` mount (Streamable HTTP MCP transport) --------------------
+  // Same CORS/API-key gate as `/api`, minus the rate limiter — MCP
+  // sessions hold a long-lived GET stream open rather than making bursts
+  // of discrete requests, so the REST rate limiter's request-count model
+  // doesn't fit it. Must be mounted here, before the catch-all 404 below
+  // (Express dispatches middleware in registration order), which is why
+  // this whole block is conditional on `mcp` rather than something index.ts
+  // bolts on after the fact.
+  if (mcp) {
+    app.use(
+      "/mcp",
+      cors(corsOptions),
+      (_req: Request, res: Response, next: NextFunction) => {
+        res.locals["authenticated"] = false;
+        next();
+      },
+      createApiKeyAuth(apiKey),
+    );
+    mountMcpHttp(app, mcp);
+  }
+
+  if (mcp?.foundations) app.locals["foundations"] = mcp.foundations;
+
   // 404 for anything unmatched by a route above.
   app.use((req: Request, res: Response) => {
     const body: ErrorResponseBody = {
@@ -200,7 +237,20 @@ export function createApp(options: CreateAppOptions): Express {
       console.error(err instanceof Error ? err.message : "Unknown error");
     }
 
-    const body: ErrorResponseBody = { error: { message, ...(code ? { code } : {}) } };
+    const body: ErrorResponseBody = {
+      error: {
+        message,
+        ...(code ? { code } : {}),
+        ...(err instanceof HttpError && err.retryable !== undefined
+          ? { retryable: err.retryable }
+          : {}),
+        ...(err instanceof HttpError && err.fieldPath ? { fieldPath: err.fieldPath } : {}),
+        ...(err instanceof HttpError && err.correlationId
+          ? { correlationId: err.correlationId }
+          : {}),
+        ...(err instanceof HttpError && err.details ? { details: err.details } : {}),
+      },
+    };
     res.status(status).json(body);
   });
 

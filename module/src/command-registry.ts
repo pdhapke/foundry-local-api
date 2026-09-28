@@ -5,7 +5,12 @@
 // in bridge-client.ts. Phase 2 registers only a trivial `ping` proof-of-life
 // handler.
 
-import type { BridgeRequest, BridgeResponse, CommandHandler } from "@foundry-local-api/shared";
+import {
+  ProtocolError,
+  type BridgeRequest,
+  type BridgeResponse,
+  type CommandHandler,
+} from "@foundry-local-api/shared";
 
 const handlers = new Map<string, CommandHandler>();
 
@@ -20,6 +25,11 @@ export function registerCommand<TPayload = unknown, TResult = unknown>(
 /** Removes a registered command handler, if one exists. Mainly for tests. */
 export function unregisterCommand(type: string): void {
   handlers.delete(type);
+}
+
+/** Returns a snapshot of registered command types. Mainly for wiring tests. */
+export function listRegisteredCommands(): string[] {
+  return [...handlers.keys()];
 }
 
 /**
@@ -47,6 +57,20 @@ export async function dispatch(request: BridgeRequest): Promise<BridgeResponse> 
     const result = await handler(request.payload);
     return { id: request.id, ok: true, result };
   } catch (err) {
+    if (err instanceof ProtocolError) {
+      return {
+        id: request.id,
+        ok: false,
+        error: {
+          message: err.message,
+          code: err.code,
+          retryable: err.retryable,
+          ...(err.fieldPath ? { fieldPath: err.fieldPath } : {}),
+          ...(err.correlationId ? { correlationId: err.correlationId } : {}),
+          ...(err.details ? { details: err.details } : {}),
+        },
+      };
+    }
     return {
       id: request.id,
       ok: false,

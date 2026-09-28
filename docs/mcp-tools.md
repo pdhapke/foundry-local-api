@@ -1,20 +1,29 @@
 # MCP Tool Catalog
 
-Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section.
+Generated from core `allEndpointDescriptors` (server/src/endpoints/index.ts) and registered optional integration descriptors (server/src/integrations/registry.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here except the explicitly marked MCP-only status tool also has a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section. Optional integration tools are included in this documented total but appear in a live catalog only while their integration is active.
 
-Total tools: **198**.
+Total tools: **263** (236 core + 27 optional-integration).
 
 ## Contents
 
 - [actors](#actors)
+- [ai-gm](#ai-gm)
+- [assets](#assets)
+- [bridge](#bridge)
 - [canvas](#canvas)
+- [capabilities](#capabilities)
 - [cards](#cards)
 - [chat](#chat)
+- [clients](#clients)
 - [combats](#combats)
+- [dnd5e](#dnd5e)
 - [documents](#documents)
+- [effective-users](#effective-users)
+- [embedded-children](#embedded-children)
 - [enrich-html](#enrich-html)
 - [events](#events)
 - [files](#files)
+- [fixtures](#fixtures)
 - [folders](#folders)
 - [game](#game)
 - [items](#items)
@@ -23,22 +32,27 @@ Total tools: **198**.
 - [macros](#macros)
 - [meta](#meta)
 - [modules](#modules)
+- [movement-events](#movement-events)
 - [notify](#notify)
 - [packs](#packs)
 - [playlists](#playlists)
+- [references](#references)
 - [roll-tables](#roll-tables)
 - [rolls](#rolls)
 - [scenes](#scenes)
+- [schemas](#schemas)
 - [search](#search)
 - [settings](#settings)
 - [status](#status)
 - [system](#system)
+- [transactions](#transactions)
 - [user](#user)
 - [users](#users)
 - [world](#world)
 - [world-time](#world-time)
 - [Integration: dnd5e](#integration-dnd5e-system)
 - [Integration: digital-tabletops](#integration-digital-tabletops-module)
+- [Integration: trails-of-destiny](#integration-trails-of-destiny-system)
 
 ## actors
 
@@ -211,6 +225,91 @@ REST: `PUT /api/actors/:actorId/items/:itemId`
 | `itemId` | string | yes |  |
 | `changes` | object | yes |  |
 
+## ai-gm
+
+### `foundry_get_ai_gm_delivery`
+
+Reads one durable AI-GM movement delivery item by its stable delivery ID, including event/cursor linkage, attempt history, acknowledgement, failure, and pending-adjudication state.
+
+REST: `GET /api/ai-gm/deliveries/:deliveryId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `deliveryId` | string | yes |  |
+
+### `foundry_list_ai_gm_deliveries`
+
+Lists durable AI-GM movement work, acknowledgement, retry, dead-letter, and pending-adjudication state. Host wake capability and its precise limitation are reported without claiming polling is automatic delivery.
+
+REST: `GET /api/ai-gm/deliveries`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `states` | array | no |  |
+
+## assets
+
+### `foundry_delete_asset` ⚠️ **destructive**
+
+Deletes exactly one unreferenced fixture- or campaign-owned asset with expected-hash protection. Already-absent is reported explicitly.
+
+REST: `DELETE /api/assets/delete`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `root` | string | yes |  |
+| `path` | string | yes |  |
+| `expectedHash` | string | yes |  |
+| `ownership` | any | yes |  |
+| `requireUnreferenced` | boolean | yes |  |
+
+### `foundry_move_asset` ⚠️ **destructive**
+
+Moves exactly one fixture- or campaign-owned asset with expected-hash, containment, collision, and reference reporting. It does not rewrite document references transactionally.
+
+REST: `POST /api/assets/move`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `source` | object | yes |  |
+| `destination` | object | yes |  |
+| `expectedHash` | string | yes |  |
+| `collisionPolicy` | string | yes |  |
+| `ownership` | any | yes |  |
+
+### `foundry_stat_asset`
+
+Stats, SHA-256 hashes, and signature-validates exactly one path inside an allowlisted data root. A recognized signature is not a full codec decode.
+
+REST: `GET /api/assets/stat`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `root` | string | yes |  |
+| `path` | string | yes |  |
+
+## bridge
+
+### `foundry_get_bridge_enrollment_diagnostics`
+
+Returns secrecy-safe pending, active, and recent enrollment metadata. It never returns credentials, digests, URLs, headers, cookies, or device data.
+
+REST: `GET /api/bridge/enrollments/diagnostics`
+
+_No input._
+
+### `foundry_issue_bridge_enrollment`
+
+Uses the authenticated GM lane and Foundry's targeted User query to deliver a short-lived, one-time, /bridge-only credential to one consenting player or TV client. The credential is never returned.
+
+REST: `POST /api/bridge/enrollments`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `userId` | string | yes |  |
+| `lane` | string | yes |  |
+| `ttlMs` | integer | no |  |
+
 ## canvas
 
 ### `foundry_get_canvas_selection`
@@ -271,6 +370,16 @@ REST: `POST /api/canvas/targets`
 |---|---|---|---|
 | `tokenIds` | array | yes |  |
 | `additive` | boolean | no |  |
+
+## capabilities
+
+### `foundry_get_capability_report`
+
+Reports negotiated bridge/server/client versions and classifies foundational capabilities as supported, partial, or unsupported, with connected and live-verified state.
+
+REST: `GET /api/capabilities`
+
+_No input._
 
 ## cards
 
@@ -421,6 +530,53 @@ REST: `PUT /api/chat/:id`
 |---|---|---|---|
 | `id` | string | yes |  |
 | `changes` | object | yes |  |
+
+## clients
+
+### `foundry_apply_client_viewport`
+
+Applies and reads back a viewport on one opted-in receiver. Correlation replay returns the original acknowledgement without applying the command twice.
+
+REST: `POST /api/clients/apply-viewport`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `clientId` | string | no |  |
+| `userId` | string | no |  |
+| `correlationId` | string | yes |  |
+| `minimumModuleVersion` | string | no |  |
+| `sceneId` | string | yes |  |
+| `viewport` | object | yes |  |
+| `timeoutMs` | integer | no |  |
+
+### `foundry_get_client_readiness`
+
+Queries one opted-in receiver's active Scene, asset cache, viewport, and negotiated versions with an actual correlated acknowledgement.
+
+REST: `POST /api/clients/readiness`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `clientId` | string | no |  |
+| `userId` | string | no |  |
+| `correlationId` | string | yes |  |
+| `minimumModuleVersion` | string | no |  |
+
+### `foundry_preload_scene`
+
+Preloads an exact bounded asset manifest on one opted-in client and returns receiver acknowledgement with per-asset success/failure; dispatch without acknowledgement is never success.
+
+REST: `POST /api/clients/preload-scene`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `clientId` | string | no |  |
+| `userId` | string | no |  |
+| `correlationId` | string | yes |  |
+| `minimumModuleVersion` | string | no |  |
+| `sceneId` | string | yes |  |
+| `assetPaths` | array | yes |  |
+| `timeoutMs` | integer | yes |  |
 
 ## combats
 
@@ -578,6 +734,31 @@ REST: `PUT /api/combats/:id/combatants/:combatantId`
 | `combatantId` | string | yes |  |
 | `data` | object | yes |  |
 
+## dnd5e
+
+### `foundry_simulate_dnd5e_action`
+
+Deterministically projects one action or an ordered bounded dnd5e 6.0.3 action sequence using caller-verified live Actor/Item/Token/Combat revisions plus a seed or supplied rolls. It requires explicit no-persist mode, creates no chat, combat, effect, or document updates, stops at the first invalid step by default, and can isolate failed steps when continue-on-error is requested.
+
+REST: `POST /api/dnd5e/simulate`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `effectiveUserId` | string | yes |  |
+| `actorId` | string | yes |  |
+| `targetActorId` | string | no |  |
+| `tokenId` | string | no |  |
+| `sceneId` | string | no |  |
+| `combatId` | string | no |  |
+| `action` | any | no |  |
+| `actions` | array | no |  |
+| `continueOnError` | boolean | no |  |
+| `seed` | integer | no |  |
+| `suppliedRolls` | array | no |  |
+| `noPersist` | boolean | yes |  |
+| `expectedRevisions` | array | yes |  |
+| `expectedSystemVersion` | string | yes |  |
+
 ## documents
 
 ### `foundry_batch_create_documents`
@@ -648,6 +829,97 @@ REST: `PUT /api/documents/:documentType/:documentId/ownership`
 | `documentId` | string | yes |  |
 | `ownership` | object | yes |  |
 
+## effective-users
+
+### `foundry_execute_as_user` ⚠️ **destructive**
+
+Executes one audited, allowlisted operation on the explicitly opted-in non-GM player client for the named user. Supports read-only permission inspection plus a revision-guarded, fixture-only Actor owner probe with independent readback; it never accepts arbitrary commands or JavaScript.
+
+REST: `POST /api/effective-users/execute`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `effectiveUserId` | string | yes |  |
+| `operation` | any | yes |  |
+
+## embedded-children
+
+### `foundry_create_embedded_child`
+
+create one Tile, RegionBehavior, PlaylistSound, TableResult, or Card using its Foundry embedded-document API. Mutations use parent/child semantic revisions and preserve unrelated siblings.
+
+REST: `POST /api/embedded-children/create`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `family` | string | yes |  |
+| `parentId` | string | yes |  |
+| `sceneId` | string | no |  |
+| `expectedParentRevision` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `dryRun` | boolean | no |  |
+| `data` | any | yes |  |
+
+### `foundry_delete_embedded_child` ⚠️ **destructive**
+
+delete one Tile, RegionBehavior, PlaylistSound, TableResult, or Card using its Foundry embedded-document API. Mutations use parent/child semantic revisions and preserve unrelated siblings.
+
+REST: `DELETE /api/embedded-children/delete`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `family` | string | yes |  |
+| `parentId` | string | yes |  |
+| `sceneId` | string | no |  |
+| `childId` | string | yes |  |
+| `expectedParentRevision` | string | yes |  |
+| `expectedChildRevision` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `dryRun` | boolean | no |  |
+
+### `foundry_get_embedded_child`
+
+get one Tile, RegionBehavior, PlaylistSound, TableResult, or Card using its Foundry embedded-document API. Mutations use parent/child semantic revisions and preserve unrelated siblings.
+
+REST: `GET /api/embedded-children/get`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `family` | string | yes |  |
+| `parentId` | string | yes |  |
+| `sceneId` | string | no |  |
+| `childId` | string | yes |  |
+
+### `foundry_list_embedded_child`
+
+list one Tile, RegionBehavior, PlaylistSound, TableResult, or Card using its Foundry embedded-document API. Mutations use parent/child semantic revisions and preserve unrelated siblings.
+
+REST: `GET /api/embedded-children/list`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `family` | string | yes |  |
+| `parentId` | string | yes |  |
+| `sceneId` | string | no |  |
+
+### `foundry_update_embedded_child`
+
+update one Tile, RegionBehavior, PlaylistSound, TableResult, or Card using its Foundry embedded-document API. Mutations use parent/child semantic revisions and preserve unrelated siblings.
+
+REST: `POST /api/embedded-children/update`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `family` | string | yes |  |
+| `parentId` | string | yes |  |
+| `sceneId` | string | no |  |
+| `childId` | string | yes |  |
+| `expectedParentRevision` | string | yes |  |
+| `expectedChildRevision` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `dryRun` | boolean | no |  |
+| `changes` | object | yes |  |
+
 ## enrich-html
 
 ### `foundry_enrich_html`
@@ -709,6 +981,60 @@ REST: `POST /api/files/upload`
 | `fileName` | string | yes |  |
 | `contentBase64` | string | yes |  |
 | `mimeType` | string | no |  |
+
+## fixtures
+
+### `foundry_create_test_fixture_run`
+
+Creates or reads a namespaced non-canonical test-run manifest. Test documents must carry flags.foundry-local-api.testRunId.
+
+REST: `POST /api/fixtures/runs`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `testRunId` | string | yes |  |
+
+### `foundry_get_test_fixture_cleanup_plan`
+
+Returns only the exact document and file IDs previously recorded for a test run. It performs no broad deletion.
+
+REST: `GET /api/fixtures/runs/:testRunId/cleanup-plan`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `testRunId` | string | yes |  |
+
+### `foundry_get_test_fixture_run`
+
+Reads one exact test-run manifest; never searches or expands a wildcard.
+
+REST: `GET /api/fixtures/runs/:testRunId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `testRunId` | string | yes |  |
+
+### `foundry_record_test_fixture_document`
+
+Records one exact created fixture document ID for later exact-ID cleanup.
+
+REST: `POST /api/fixtures/runs/:testRunId/documents`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `testRunId` | string | yes |  |
+| `document` | object | yes |  |
+
+### `foundry_record_test_fixture_file`
+
+Records one exact fixture asset root/path/hash for exact cleanup and lifecycle checks.
+
+REST: `POST /api/fixtures/runs/:testRunId/files`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `testRunId` | string | yes |  |
+| `file` | object | yes |  |
 
 ## folders
 
@@ -1099,6 +1425,44 @@ REST: `GET /api/modules`
 
 _No input._
 
+## movement-events
+
+### `foundry_get_movement_events`
+
+Reads durable sequenced movement events with cursor replay and Scene/Token/User/transition filters. Restart or expired cursors return an explicit CURSOR_GAP object.
+
+REST: `GET /api/movement-events`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `cursor` | string | no |  |
+| `sceneId` | string | no |  |
+| `tokenId` | string | no |  |
+| `userId` | string | no |  |
+| `eventType` | string | no |  |
+| `movementField` | string | no |  |
+| `transitionKind` | string | no |  |
+| `limit` | integer | no |  |
+
+### `foundry_record_movement_event`
+
+Legacy manual movement ingestion endpoint. Canonical movement provenance can only enter through an authenticated GM bridge event, so public ingestion is refused.
+
+REST: `POST /api/movement-events`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `eventId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `tokenId` | string | yes |  |
+| `userId` | string | yes |  |
+| `timestamp` | integer | no |  |
+| `eventType` | string | no |  |
+| `movementFields` | array | no |  |
+| `footprint` | object | no |  |
+| `waypoints` | array | yes |  |
+| `regions` | array | yes |  |
+
 ## notify
 
 ### `foundry_notify`
@@ -1360,6 +1724,20 @@ REST: `PUT /api/playlists/:id`
 |---|---|---|---|
 | `id` | string | yes |  |
 | `changes` | object | yes |  |
+
+## references
+
+### `foundry_audit_campaign_references`
+
+Read-only bounded campaign reference-integrity audit. Returns per-class completeness; clean is null whenever any class is incomplete.
+
+REST: `POST /api/references/audit`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `includeDocumentTypes` | array | no |  |
+| `maxDocuments` | integer | no |  |
+| `maxIssues` | integer | no |  |
 
 ## roll-tables
 
@@ -1675,6 +2053,17 @@ REST: `GET /api/scenes/:sceneId/drawings/:placeableId`
 | `sceneId` | string | yes |  |
 | `placeableId` | string | yes |  |
 
+### `foundry_get_scene_fog`
+
+Reads the exact FogExploration state and revision for one Scene and user through the connected GM lane.
+
+REST: `GET /api/scenes/fog`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `userId` | string | yes |  |
+
 ### `foundry_get_scene_light`
 
 Reads a single embedded AmbientLight document from a scene by id.
@@ -1751,6 +2140,21 @@ REST: `GET /api/scenes/:sceneId/walls/:placeableId`
 |---|---|---|---|
 | `sceneId` | string | yes |  |
 | `placeableId` | string | yes |  |
+
+### `foundry_get_token_visibility`
+
+Returns bounded, coordinate-safe Region, visible-barrier, visible-placeable, query-point, fog, light, darkness, vision, and persistence evidence from the selected user's exact loaded canvas and owned Token. Occluded identities, secret doors, barrier coordinates, and destinations are always redacted, with no GM fallback.
+
+REST: `POST /api/scenes/token-visibility`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `effectiveUserId` | string | yes |  |
+| `tokenId` | string | yes |  |
+| `includeImage` | boolean | no |  |
+| `maxImageBytes` | integer | no |  |
+| `queryPoints` | array | no |  |
 
 ### `foundry_list_scene_drawings`
 
@@ -1853,6 +2257,21 @@ REST: `POST /api/scenes/:sceneId/tokens/:tokenId/move`
 | `x` | number | yes |  |
 | `y` | number | yes |  |
 
+### `foundry_render_scene_snapshot`
+
+Captures a bounded image and secrecy-safe visibility evidence from the selected user's exact opted-in client and owned Token. It never substitutes a GM render, persists state, exposes occluded identities, wall coordinates, secret doors, or exit destinations. Typed status and issues distinguish complete, incomplete, asset, and unsupported results; bridge failures retain NOT_CONNECTED or TIMEOUT codes.
+
+REST: `POST /api/scenes/render-snapshot`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `effectiveUserId` | string | yes |  |
+| `tokenId` | string | yes |  |
+| `includeImage` | boolean | no |  |
+| `maxImageBytes` | integer | no |  |
+| `queryPoints` | array | no |  |
+
 ### `foundry_reset_scene_fog`
 
 Clears a scene's explored fog-of-war for every connected client.
@@ -1897,6 +2316,22 @@ REST: `PUT /api/scenes/:sceneId/drawings/:placeableId`
 | `sceneId` | string | yes |  |
 | `placeableId` | string | yes |  |
 | `changes` | object | yes |  |
+
+### `foundry_update_scene_fog` ⚠️ **destructive**
+
+Revision-checked, idempotent replace or explicit merge of one user's FogExploration. Merge preserves the explored texture unless supplied; removeDocument restores a previously absent record.
+
+REST: `POST /api/scenes/fog`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `userId` | string | yes |  |
+| `mode` | string | yes |  |
+| `state` | object | yes |  |
+| `expectedRevision` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `removeDocument` | boolean | no |  |
 
 ### `foundry_update_scene_light`
 
@@ -1982,6 +2417,67 @@ REST: `PUT /api/scenes/:sceneId/walls/:placeableId`
 | `placeableId` | string | yes |  |
 | `changes` | object | yes |  |
 
+### `foundry_validate_token_path`
+
+Read-only token path collision validation against exact wall IDs, simulated door states, grid distance, elevation, and ordered waypoints. Never moves the token or changes doors/fog.
+
+REST: `POST /api/scenes/collision/path`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `tokenId` | string | yes |  |
+| `waypoints` | array | yes |  |
+| `movementMode` | string | yes |  |
+| `simulatedDoors` | object | no |  |
+
+### `foundry_validate_wall_topology`
+
+Read-only Scene wall topology audit for malformed, zero-length, duplicate, dangling, and crossing walls.
+
+REST: `GET /api/scenes/wall-topology`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+
+## schemas
+
+### `foundry_get_document_schema`
+
+Discovers the active Foundry 14 document/DataModel schema, including subtype context, required fields, static defaults, and enums. This is read-only and does not instantiate or persist a document.
+
+REST: `GET /api/schemas/discover`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `documentType` | string | yes |  |
+| `parentDocumentType` | string | no |  |
+| `parentDocumentId` | string | no |  |
+| `subtype` | string | no |  |
+| `expectedFoundryVersion` | string | yes |  |
+| `expectedSystemId` | string | yes |  |
+| `expectedSystemVersion` | string | yes |  |
+
+### `foundry_validate_document_data`
+
+Validates and normalizes a proposed create or update payload against active Foundry 14 core and system DataModels. It returns field-path errors and unknown-field warnings and never persists the candidate.
+
+REST: `POST /api/schemas/validate`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `documentType` | string | yes |  |
+| `parentDocumentType` | string | no |  |
+| `parentDocumentId` | string | no |  |
+| `subtype` | string | no |  |
+| `expectedFoundryVersion` | string | yes |  |
+| `expectedSystemId` | string | yes |  |
+| `expectedSystemVersion` | string | yes |  |
+| `mode` | string | yes |  |
+| `data` | object | no |  |
+| `candidates` | array | no |  |
+
 ## search
 
 ### `foundry_search`
@@ -2047,6 +2543,61 @@ Details of the active game system (id, title, version).
 REST: `GET /api/system`
 
 _No input._
+
+## transactions
+
+### `foundry_execute_transaction` ⚠️ **destructive**
+
+Executes a narrowly allowlisted, revision-checked document manifest with strict verified compensation. It restores exact persistent document sources after ordinary failures, but does not claim database isolation: a Foundry browser crash can require manual recovery and already-observed hook side effects cannot be undone. Stable idempotency keys prevent duplicate redispatch. File operations are excluded.
+
+REST: `POST /api/transactions`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `mode` | string | yes |  |
+| `rollbackPolicy` | string | yes |  |
+| `worldId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `operations` | array | yes |  |
+| `failureInjection` | object | no |  |
+
+### `foundry_get_transaction_status`
+
+Reads the durable, payload-redacted state of one exact transaction ID, including explicit pending and recovery-required states after restart.
+
+REST: `GET /api/transactions/:transactionId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `transactionId` | string | yes |  |
+
+### `foundry_preflight_transaction`
+
+Prevalidates an allowlisted atomic document transaction, dependency order, permissions, and expected revisions without mutating Foundry. File uploads and file lifecycle operations are outside atomic manifest scope.
+
+REST: `POST /api/transactions/preflight`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `mode` | string | yes |  |
+| `rollbackPolicy` | string | yes |  |
+| `worldId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `operations` | array | yes |  |
+| `failureInjection` | object | no |  |
+
+### `foundry_recover_transaction` ⚠️ **destructive**
+
+Retries the bounded in-memory compensation plan for a recovery-required transaction through the executing GM client. It fails explicitly if the browser restarted and lost that plan.
+
+REST: `POST /api/transactions/:transactionId/recover`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `transactionId` | string | yes |  |
+| `worldId` | string | yes |  |
 
 ## user
 
@@ -2180,7 +2731,7 @@ _No input._
 
 ## Integration: dnd5e (system)
 
-_These tools only appear when system `dnd5e` is active in the connected Foundry world — see PLAN.md's Phase 32._
+_These tools appear through in-process stdio, Streamable HTTP, and forwarding/remote stdio only when system `dnd5e` is active and satisfies its configured version range. While inactive, MCP omits them from the catalog and REST requests under `/api/integrations/dnd5e` return 404 `INTEGRATION_INACTIVE`._
 
 ### `dnd5e_adjust_spell_slot`
 
@@ -2288,7 +2839,7 @@ REST: `POST /api/integrations/dnd5e/items/:id/use`
 
 ## Integration: digital-tabletops (module)
 
-_These tools only appear when module `digital-tabletops` is active in the connected Foundry world — see PLAN.md's Phase 32._
+_These tools appear through in-process stdio, Streamable HTTP, and forwarding/remote stdio only when module `digital-tabletops` is active and satisfies its configured version range. While inactive, MCP omits them from the catalog and REST requests under `/api/integrations/digital-tabletops` return 404 `INTEGRATION_INACTIVE`._
 
 ### `dtt_get_status`
 
@@ -2326,4 +2877,158 @@ Scales the digital-tabletops battlemap display (the "TV" Foundry user) so 1 grid
 REST: `POST /api/integrations/digital-tabletops/scale-to-physical`
 
 _No input._
+
+## Integration: trails-of-destiny (system)
+
+_These tools appear through in-process stdio, Streamable HTTP, and forwarding/remote stdio only when system `trails-of-destiny` is active and satisfies its configured version range. While inactive, MCP omits them from the catalog and REST requests under `/api/integrations/trails-of-destiny` return 404 `INTEGRATION_INACTIVE`._
+
+### `trails_evaluate_creation`
+
+Evaluates an authorized actor's redacted creation readiness against runtime catalogs and returns findings, unmapped values, and manual boundaries only. It does not apply repairs or update documents.
+
+REST: `GET /api/integrations/trails-of-destiny/actors/:id/creation-readiness`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
+### `trails_get_actor_inventory`
+
+Reads all authorized embedded Trails items without deduplicating catalog IDs, preserving document, catalog, and owned-instance identities. It does not update inventory.
+
+REST: `GET /api/integrations/trails-of-destiny/actors/:id/inventory`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
+### `trails_get_actor_sheet`
+
+Reads an authorized, redacted prepared Trails actor summary and readiness findings. It omits private narrative and retained creation evidence and does not update the Actor.
+
+REST: `GET /api/integrations/trails-of-destiny/actors/:id/sheet`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+
+### `trails_get_catalog`
+
+Reads sanitized canonical entries from one allowlisted, accessible Trails catalog using portable catalog IDs. It does not expose UUIDs as identities or modify the pack.
+
+REST: `GET /api/integrations/trails-of-destiny/catalogs/:packId`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `packId` | string | yes |  |
+
+### `trails_get_config`
+
+Reads safe Trails package, rules, gameplay, catalog, and capability metadata. It does not change Foundry or Trails state.
+
+REST: `GET /api/integrations/trails-of-destiny/config`
+
+_No input._
+
+### `trails_get_experience_progress`
+
+Calculates level progress from total experience using only the published level 1-50 table. It reports table exhaustion and does not extrapolate or update an Actor.
+
+REST: `GET /api/integrations/trails-of-destiny/experience/:totalExperience`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `totalExperience` | integer | yes |  |
+
+### `trails_list_catalogs`
+
+Lists the four known Trails catalogs with access status and safe entry counts. It does not expose or modify compendium documents.
+
+REST: `GET /api/integrations/trails-of-destiny/catalogs`
+
+_No input._
+
+### `trails_preview_builder`
+
+Parses, validates, and previews at most 2 MB of Trails builder JSON, returning issues and unmapped values. Even an issue-free preview does not authorize or perform actor creation, reconciliation, or any persistence.
+
+REST: `POST /api/integrations/trails-of-destiny/builder/preview`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `raw` | string | yes |  |
+
+### `trails_preview_damage`
+
+Previews an already-adjudicated post-mitigation damage amount and preserves manual-review findings. It does not adjudicate armor or update Actors, equipment, conditions, timers, or chat.
+
+REST: `POST /api/integrations/trails-of-destiny/previews/damage`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `durability` | integer | yes |  |
+| `health` | integer | yes |  |
+| `damage` | integer | yes |  |
+| `lifeState` | string | no |  |
+
+### `trails_preview_initiative`
+
+Uses the Trails runtime RNG to preview initiative groups. Ties remain manual; it does not write Combat initiative, advance rounds, or change documents.
+
+REST: `POST /api/integrations/trails-of-destiny/previews/initiative`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `participants` | array | yes |  |
+
+### `trails_preview_recovery`
+
+Builds a non-authoritative recovery plan from a resource snapshot, explicit eligibility, and optional recorded d10 evidence. Daily claims remain unverified and no recovery is applied.
+
+REST: `POST /api/integrations/trails-of-destiny/previews/recovery`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `kind` | string | yes |  |
+| `resources` | object | yes |  |
+| `stamina` | integer | no |  |
+| `staminaBonusDice` | integer | no |  |
+| `soulBonusDice` | integer | no |  |
+| `staminaDice` | any | no |  |
+| `soulDice` | any | no |  |
+| `eligibility` | object | yes |  |
+
+### `trails_preview_threat_contest`
+
+Previews an attack or assault contest from supplied totals. It does not validate target eligibility, spend reaction resources, apply damage, or change Actor state.
+
+REST: `POST /api/integrations/trails-of-destiny/previews/threat-contest`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `classification` | string | yes |  |
+| `actionTotal` | integer | yes |  |
+| `passiveDefense` | integer | yes |  |
+| `reactionTotal` | any | no |  |
+
+### `trails_roll_action`
+
+Uses the Trails runtime RNG to produce action or skill roll evidence. It does not accept caller-supplied die results and does not spend resources, apply effects, update documents, or post chat.
+
+REST: `POST /api/integrations/trails-of-destiny/rolls/action`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `kind` | string | yes |  |
+| `abilityId` | string | yes |  |
+| `skillId` | string | yes |  |
+| `abilityDice` | integer | yes |  |
+| `skillDice` | integer | yes |  |
+| `otherDice` | integer | yes |  |
+| `abilityChallenges` | integer | yes |  |
+| `challenges` | integer | yes |  |
+| `chances` | integer | yes |  |
+| `charges` | integer | yes |  |
+| `vs` | any | no |  |
+| `conditionalDice` | array | yes |  |
 

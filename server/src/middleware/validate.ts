@@ -4,7 +4,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { ZodType, ZodError } from "zod";
 
-import { HttpError } from "../app.js";
+import { HttpError } from "../http-error.js";
 
 function describeZodError(error: ZodError): string {
   return error.issues

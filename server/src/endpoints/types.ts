@@ -8,6 +8,7 @@ import type { ZodType } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import type { FoundryEventBus } from "../events/event-bus.js";
+import type { FoundationRuntime } from "../foundations/runtime.js";
 
 export interface EndpointContext {
   foundryClient: FoundryClient;
@@ -21,6 +22,7 @@ export interface EndpointContext {
    * existing tests.
    */
   eventBus?: FoundryEventBus | undefined;
+  foundations?: FoundationRuntime | undefined;
 }
 
 export interface EndpointDescriptor<TInput = void, TResult = unknown> {

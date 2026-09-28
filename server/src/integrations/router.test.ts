@@ -25,8 +25,10 @@ import request from "supertest";
 // registry.test.ts (the latter gets this for free because `../app.js`
 // happens to sort alphabetically before its other imports).
 import "../app.js";
+import type { FoundryClient } from "../bridge/foundry-client.js";
 import type { AnyEndpointDescriptor } from "../endpoints/types.js";
 import { applyActiveIntegrations, integrationRouterMiddleware } from "./router.js";
+import { trailsOfDestinyIntegration } from "./trails-of-destiny/index.js";
 import type { Integration } from "./types.js";
 
 function buildTestApp(): express.Express {
@@ -76,6 +78,38 @@ void describe("applyActiveIntegrations / integrationRouterMiddleware", () => {
     const bare = await request(app).get("/api/integrations/beta");
     assert.equal(bare.status, 404);
     assert.equal(bare.body.error.code, "INTEGRATION_INACTIVE");
+  });
+
+  void it("returns INTEGRATION_INACTIVE for a real Trails route when Trails is inactive", async () => {
+    applyActiveIntegrations([], [trailsOfDestinyIntegration]);
+    const app = buildTestApp();
+
+    const res = await request(app).get("/api/integrations/trails-of-destiny/config");
+
+    assert.equal(res.status, 404);
+    assert.equal(res.body.error.code, "INTEGRATION_INACTIVE");
+    assert.match(res.body.error.message, /trails-of-destiny/);
+  });
+
+  void it("mounts the real Trails descriptors only at the exact active REST namespace", async () => {
+    applyActiveIntegrations([trailsOfDestinyIntegration], [trailsOfDestinyIntegration]);
+    const app = buildTestApp();
+    const calls: Array<{ command: string; payload: unknown }> = [];
+    app.locals["foundryClient"] = {
+      call: (command: string, payload: unknown) => {
+        calls.push({ command, payload });
+        return Promise.resolve({ packageVersion: "0.1.0" });
+      },
+    } as unknown as FoundryClient;
+
+    const exact = await request(app).get("/api/integrations/trails-of-destiny/config");
+    assert.equal(exact.status, 200);
+    assert.deepEqual(exact.body, { packageVersion: "0.1.0" });
+    assert.deepEqual(calls, [{ command: "trails-of-destiny.get-config", payload: undefined }]);
+
+    const wrongNamespace = await request(app).get("/api/integrations/trails/config");
+    assert.equal(wrongNamespace.status, 404);
+    assert.equal(calls.length, 1);
   });
 
   void it("falls through (this router's own miss) for a path outside any registered integration's namespace", async () => {

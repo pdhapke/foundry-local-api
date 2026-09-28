@@ -25,6 +25,13 @@
           "description": "Battlemap-display control for the digital-tabletops module (see PLAN.md Phase 52): REST endpoints and MCP tools to pan/fit the connected \"TV\" user's battlemap view (dtt_pan_battlemap), scale it to 1 grid unit = 1 real-world inch/mm (dtt_scale_battlemap_to_physical), and a convenience status read (dtt_get_status: module active, TV user found/online, current settings). The module's own hideUI/lockPan/display-width/port-number world settings (namespace \"digital-tabletops\") need no dedicated endpoints — they're already reachable via the generic GET/PUT /api/settings/digital-tabletops/:key endpoints. Not yet smoke-tested against a live digital-tabletops session with a real or simulated TV client.",
           "source": "https://github.com/DigitalTableTops/digital-tabletops",
           "implemented": true
+        },
+        {
+          "id": "trails-of-destiny",
+          "kind": "system",
+          "detect": "game.system.id === 'trails-of-destiny'",
+          "description": "Optional read-only and preview integration for Trails of Destiny 0.1.0 or newer. Exposes sanitized configuration, actor summaries, inventory and creation readiness, allowlisted catalogs, action resolution, initiative/threat/damage/recovery previews, experience progression, and builder validation over REST and MCP. It is inactive in every other system, and core APIs remain available without Trails installed.",
+          "implemented": true
         }
       ]
     }
@@ -40,6 +47,14 @@
         "id": "digital-tabletops",
         "type": "module",
         "reason": "Not required. When the digital-tabletops module is active, this module exposes battlemap pan/scale-to-physical/status endpoints — see PLAN.md Phase 52. Not yet smoke-tested against a live digital-tabletops session with a real or simulated TV client."
+      },
+      {
+        "id": "trails-of-destiny",
+        "type": "system",
+        "compatibility": {
+          "minimum": "0.1.0"
+        },
+        "reason": "Not required. In Trails of Destiny 0.1.0 or newer worlds, this module exposes additional read-only and non-persisting preview REST/MCP operations. Core APIs start and remain available when Trails is not installed or active."
       }
     ]
   },

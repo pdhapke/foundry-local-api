@@ -5,16 +5,36 @@
 // `McpServer.registerTool()` returns a `RegisteredTool` handle with its own
 // `.remove()` (see node_modules/@modelcontextprotocol/sdk/dist/esm/server/
 // mcp.d.ts), so tools are added/removed incrementally instead, tracked per
-// integration id in a module-level map.
+// integration id for each McpServer independently.
 import type { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { registerMcpTools } from "../endpoints/registry.js";
 import type { FoundryEventBus } from "../events/event-bus.js";
+import type { IntegrationManager } from "./manager.js";
 import type { Integration } from "./types.js";
 
-/** Integration id -> the RegisteredTool handles currently registered for it. */
-const trackedTools = new Map<string, RegisteredTool[]>();
+interface TrackedServerTools {
+  /** Integration id -> the RegisteredTool handles registered on this server. */
+  integrations: Map<string, RegisteredTool[]>;
+  initialized: boolean;
+}
+
+/**
+ * Dynamic tool state belongs to the concrete MCP server that owns the
+ * registrations. Weak keys also ensure an abandoned server cannot be kept
+ * alive solely by this module.
+ */
+const trackedTools = new WeakMap<McpServer, TrackedServerTools>();
+
+function getTrackedServerTools(mcpServer: McpServer): TrackedServerTools {
+  let tracked = trackedTools.get(mcpServer);
+  if (!tracked) {
+    tracked = { integrations: new Map(), initialized: false };
+    trackedTools.set(mcpServer, tracked);
+  }
+  return tracked;
+}
 
 /**
  * Applies the given `active` integration set to `mcpServer`'s tool set:
@@ -30,29 +50,70 @@ export function applyActiveIntegrationTools(
   foundryClient: FoundryClient,
   eventBus?: FoundryEventBus,
 ): void {
+  const tracked = getTrackedServerTools(mcpServer);
   const activeIds = new Set(active.map((i) => i.id));
   let changed = false;
 
-  for (const [id, tools] of trackedTools) {
+  for (const [id, tools] of tracked.integrations) {
     if (!activeIds.has(id)) {
       for (const tool of tools) {
         tool.remove();
       }
-      trackedTools.delete(id);
+      tracked.integrations.delete(id);
       changed = true;
     }
   }
 
   for (const integration of active) {
-    if (trackedTools.has(integration.id)) {
+    if (tracked.integrations.has(integration.id)) {
       continue;
     }
     const tools = registerMcpTools(mcpServer, integration.endpoints, foundryClient, eventBus);
-    trackedTools.set(integration.id, tools);
+    tracked.integrations.set(integration.id, tools);
     changed = true;
   }
 
-  if (changed) {
+  // A server receives its initial catalog before it begins serving requests,
+  // so there is no connected client to refresh. Only real changes after that
+  // initialization need a list-changed notification.
+  if (tracked.initialized && changed) {
     mcpServer.sendToolListChanged();
   }
+  tracked.initialized = true;
+}
+
+/** Removes every dynamic integration tool owned by one MCP server. */
+export function cleanupActiveIntegrationTools(mcpServer: McpServer): void {
+  const tracked = trackedTools.get(mcpServer);
+  if (!tracked) {
+    return;
+  }
+
+  for (const tools of tracked.integrations.values()) {
+    for (const tool of tools) {
+      tool.remove();
+    }
+  }
+  trackedTools.delete(mcpServer);
+}
+
+/**
+ * Initializes one MCP server from the manager's current snapshot and keeps it
+ * synchronized until the returned disposer is called.
+ */
+export function bindActiveIntegrationTools(
+  mcpServer: McpServer,
+  integrationManager: IntegrationManager,
+  foundryClient: FoundryClient,
+  eventBus?: FoundryEventBus,
+): () => void {
+  applyActiveIntegrationTools(mcpServer, integrationManager.getActive(), foundryClient, eventBus);
+  const unsubscribe = integrationManager.onChange((active) => {
+    applyActiveIntegrationTools(mcpServer, active, foundryClient, eventBus);
+  });
+
+  return () => {
+    unsubscribe();
+    cleanupActiveIntegrationTools(mcpServer);
+  };
 }

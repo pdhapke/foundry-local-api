@@ -35,6 +35,29 @@ its own before moving to the next.
 
 ## Status
 
+The MCP requirements extension (MCP-REQ-001 through 013) is integrated in
+the `0.1.0` source and generated tool catalog. Independent QA still classifies
+every family as partial or implemented-but-not-live-verified; no requirement
+is considered complete until the dedicated live Foundry fixtures and separate
+GM/Izzy/TV clients satisfy its full ledger acceptance. See
+`campaign/reports/mcp-requirements-completion.md` at the workspace root.
+
+### Phase 0R — scoped player/TV enrollment
+
+The administrative key is now confined to the GM lane. Consenting player and
+TV clients receive a rotated, short-lived, one-time `/bridge` credential bound
+to their exact Foundry user, browser client ID, lane, protocol, and module
+version. The target browser supplies an ephemeral RSA-OAEP public key through
+Foundry's authenticated user query; only ciphertext crosses that query, and the
+non-extractable private key stays in browser memory. The gateway enforces
+advertised-capability/allowlist intersection, replay and duplicate rejection,
+disconnect/restart invalidation, and secrecy-safe diagnostics.
+
+Source tests and independent security review pass. Live Phase 0R remains
+blocked until the real GM, Izzy, and TV tabs reload the built bundle; no fixture
+work may begin before all three lanes appear in fresh REST and MCP capability
+reports.
+
 | Phase | Status | Commit |
 |---|---|---|
 | 0 — Repo & Tooling Foundation | ✅ Done | `607bc28` |

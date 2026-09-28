@@ -18,11 +18,13 @@
 //     real `FoundryClient` already exists.
 import type { NextFunction, Request, RequestHandler, Response, Router } from "express";
 import type { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ProtocolError } from "@foundry-local-api/shared";
 import { ZodObject, type ZodRawShape } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { FoundryBridgeError, foundryBridgeErrorToHttpError } from "../bridge/errors.js";
 import type { FoundryEventBus } from "../events/event-bus.js";
+import type { FoundationRuntime } from "../foundations/runtime.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import type { AnyEndpointDescriptor, EndpointContext, EndpointDescriptor } from "./types.js";
 
@@ -71,11 +73,16 @@ function registerRestRoute<TInput, TResult>(
     // is the only production wiring site), so descriptors that use it must
     // handle `undefined` gracefully rather than assume it's always there.
     const eventBus = req.app.locals["eventBus"] as FoundryEventBus | undefined;
-    const ctx: EndpointContext = { foundryClient, eventBus };
+    const foundations = req.app.locals["foundations"] as FoundationRuntime | undefined;
+    const ctx: EndpointContext = { foundryClient, eventBus, foundations };
 
     Promise.resolve(handler(input, ctx))
       .then((result) => res.json(result))
       .catch((err: unknown) => {
+        if (err instanceof ProtocolError) {
+          next(foundryBridgeErrorToHttpError(protocolToBridgeError(err)));
+          return;
+        }
         if (err instanceof FoundryBridgeError) {
           next(foundryBridgeErrorToHttpError(err));
           return;
@@ -118,8 +125,9 @@ export function registerMcpTools(
   descriptors: AnyEndpointDescriptor[],
   foundryClient: FoundryClient,
   eventBus?: FoundryEventBus,
+  foundations?: FoundationRuntime,
 ): RegisteredTool[] {
-  const ctx: EndpointContext = { foundryClient, eventBus };
+  const ctx: EndpointContext = { foundryClient, eventBus, foundations };
   return descriptors.map((descriptor) => registerMcpTool(descriptor, mcpServer, ctx));
 }
 
@@ -151,8 +159,14 @@ function registerMcpTool<TInput, TResult>(
         } catch (err) {
           if (err instanceof FoundryBridgeError) {
             return {
+              content: [{ type: "text" as const, text: formatMcpBridgeError(err) }],
+              isError: true,
+            };
+          }
+          if (err instanceof ProtocolError) {
+            return {
               content: [
-                { type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` },
+                { type: "text" as const, text: formatMcpBridgeError(protocolToBridgeError(err)) },
               ],
               isError: true,
             };
@@ -173,8 +187,14 @@ function registerMcpTool<TInput, TResult>(
       } catch (err) {
         if (err instanceof FoundryBridgeError) {
           return {
+            content: [{ type: "text" as const, text: formatMcpBridgeError(err) }],
+            isError: true,
+          };
+        }
+        if (err instanceof ProtocolError) {
+          return {
             content: [
-              { type: "text" as const, text: `Foundry error (${err.code}): ${err.message}` },
+              { type: "text" as const, text: formatMcpBridgeError(protocolToBridgeError(err)) },
             ],
             isError: true,
           };
@@ -183,4 +203,27 @@ function registerMcpTool<TInput, TResult>(
       }
     },
   );
+}
+
+function formatMcpBridgeError(error: FoundryBridgeError): string {
+  return JSON.stringify({
+    error: {
+      code: error.code,
+      message:
+        error.code === "HANDLER_ERROR" ? "The Foundry command failed unexpectedly." : error.message,
+      retryable: error.retryable,
+      ...(error.fieldPath ? { fieldPath: error.fieldPath } : {}),
+      ...(error.correlationId ? { correlationId: error.correlationId } : {}),
+      ...(error.details ? { details: error.details } : {}),
+    },
+  });
+}
+
+function protocolToBridgeError(error: ProtocolError): FoundryBridgeError {
+  return new FoundryBridgeError(error.code, error.message, {
+    retryable: error.retryable,
+    fieldPath: error.fieldPath,
+    correlationId: error.correlationId,
+    details: error.details,
+  });
 }

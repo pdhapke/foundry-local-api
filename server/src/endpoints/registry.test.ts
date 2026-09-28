@@ -20,6 +20,7 @@ import express from "express";
 import request from "supertest";
 import { z } from "zod";
 
+import { ProtocolError } from "@foundry-local-api/shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { HttpError } from "../app.js";
@@ -392,7 +393,39 @@ void describe("registerMcpTools", () => {
     const result = await tools.get("foundry_will_fail")?.callback();
 
     assert.equal(result?.isError, true);
-    assert.equal(result?.content[0]?.text, "Foundry error (TIMEOUT): took too long");
+    assert.deepEqual(JSON.parse(result?.content[0]?.text ?? "{}"), {
+      error: { code: "TIMEOUT", message: "took too long", retryable: true },
+    });
+  });
+
+  void it("normalizes a shared ProtocolError as a structured MCP error", async () => {
+    const descriptor: AnyEndpointDescriptor = {
+      name: "foundry_protocol_fail",
+      description: "test",
+      handler: () =>
+        Promise.reject(
+          new ProtocolError({
+            code: "NOT_FOUND",
+            message: "missing transaction",
+            retryable: false,
+            fieldPath: "transactionId",
+          }),
+        ),
+    };
+    const { mcpServer, tools } = makeFakeMcpServer();
+    registerMcpTools(mcpServer, [descriptor], FAKE_CLIENT);
+
+    const result = await tools.get("foundry_protocol_fail")?.callback();
+
+    assert.equal(result?.isError, true);
+    assert.deepEqual(JSON.parse(result?.content[0]?.text ?? "{}"), {
+      error: {
+        code: "NOT_FOUND",
+        message: "missing transaction",
+        retryable: false,
+        fieldPath: "transactionId",
+      },
+    });
   });
 
   void it("a non-bridge error thrown by the handler propagates as a rejected promise, not swallowed", async () => {

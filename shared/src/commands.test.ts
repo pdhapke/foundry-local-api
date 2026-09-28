@@ -23,6 +23,7 @@ import {
   CHAT_COMMANDS,
   COMBAT_COMMANDS,
   DOCUMENT_COMMANDS,
+  EFFECTIVE_USER_COMMANDS,
   EMBEDDED_EFFECT_COMMANDS,
   EMBEDDED_ITEM_COMMANDS,
   EMBEDDED_PLACEABLE_COMMANDS,
@@ -39,9 +40,13 @@ import {
   ROLL_COMMANDS,
   ROLL_TABLE_COMMANDS,
   SCENE_COMMANDS,
+  SCHEMA_DISCOVERY_COMMANDS,
   SETTINGS_COMMANDS,
   SHARED_PACKAGE_NAME,
   TOKEN_COMMANDS,
+  TRACK0_COMMANDS,
+  TRANSACTION_COMMANDS,
+  TRAILS_COMMANDS,
   USER_COMMANDS,
   WORLD_TIME_COMMANDS,
 } from "./index.js";
@@ -55,6 +60,7 @@ const ALL_COMMAND_MAPS: Record<string, Record<string, string>> = {
   CHAT_COMMANDS,
   COMBAT_COMMANDS,
   DOCUMENT_COMMANDS,
+  EFFECTIVE_USER_COMMANDS,
   EMBEDDED_EFFECT_COMMANDS,
   EMBEDDED_ITEM_COMMANDS,
   EMBEDDED_PLACEABLE_COMMANDS,
@@ -71,8 +77,12 @@ const ALL_COMMAND_MAPS: Record<string, Record<string, string>> = {
   ROLL_COMMANDS,
   ROLL_TABLE_COMMANDS,
   SCENE_COMMANDS,
+  SCHEMA_DISCOVERY_COMMANDS,
   SETTINGS_COMMANDS,
   TOKEN_COMMANDS,
+  TRACK0_COMMANDS,
+  TRANSACTION_COMMANDS,
+  TRAILS_COMMANDS,
   USER_COMMANDS,
   WORLD_TIME_COMMANDS,
 };
@@ -121,5 +131,14 @@ void describe("shared command constant maps", () => {
 
   void it("SHARED_PACKAGE_NAME matches the actual package.json name", () => {
     assert.equal(SHARED_PACKAGE_NAME, "@foundry-local-api/shared");
+  });
+
+  void it("Trails commands are unique and use the optional system namespace", () => {
+    const values = Object.values(TRAILS_COMMANDS);
+    assert.equal(values.length, 13);
+    assert.equal(new Set(values).size, values.length);
+    for (const value of values) {
+      assert.match(value, /^trails-of-destiny\.[a-z][a-z-]*$/);
+    }
   });
 });

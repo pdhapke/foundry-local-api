@@ -8,7 +8,65 @@ export type {
   BridgeError,
   CommandHandler,
   BridgeEventMessage,
+  BridgeEventDelivery,
+  BridgeEventSenderIdentity,
+  BridgeEventAcknowledgement,
 } from "./protocol.js";
+
+export { BRIDGE_PROTOCOL_VERSION, ProtocolError, assertIdempotencyKey } from "./foundations.js";
+export type {
+  BridgeClientLane,
+  BridgeClientIdentity,
+  BridgeVersionInfo,
+  BridgeHelloMessage,
+  ConnectedBridgeClient,
+  ProtocolErrorCode,
+  StructuredProtocolError,
+  RevisionExpectation,
+  IdempotencyOptions,
+  CapabilityState,
+  CapabilityReportEntry,
+  CapabilityReport,
+  MutationAuditRecord,
+  RecordFixtureFileInput,
+  TestFixtureDocumentRef,
+  TestFixtureRun,
+} from "./foundations.js";
+
+export { TRACK0_COMMANDS, withTestRunFlag } from "./track0.js";
+export type { TestRunIdInput, RecordFixtureDocumentInput } from "./track0.js";
+export * from "./enrollment.js";
+
+export {
+  SCHEMA_DISCOVERY_COMMANDS,
+  cloneSchemaCandidate,
+  isPlainRecord,
+  stableSchemaValue,
+  validateDiscoveredFields,
+} from "./schema-discovery.js";
+
+export * from "./effective-user.js";
+export * from "./transactions.js";
+export * from "./collision-topology.js";
+export * from "./dnd5e-simulation.js";
+export * from "./movement-events.js";
+export * from "./fog-exploration.js";
+export * from "./scene-render.js";
+export * from "./client-readiness.js";
+export * from "./embedded-children.js";
+export * from "./asset-lifecycle.js";
+export * from "./reference-audit.js";
+export type {
+  DiscoveredSchemaField,
+  SchemaDiscoveryResult,
+  SchemaRuntimeContext,
+  SchemaTargetInput,
+  SchemaValidationInput,
+  SchemaValidationBatchResult,
+  SchemaValidationIssue,
+  SchemaValidationMode,
+  SchemaValidationResult,
+} from "./schema-discovery.js";
 
 export { META_COMMANDS } from "./meta.js";
 export type {
@@ -221,3 +279,83 @@ export type {
 
 export { DTT_COMMANDS } from "./digital-tabletops.js";
 export type { DttPanInput, DttAckResult, DttStatusResult } from "./digital-tabletops.js";
+
+export { TRAILS_COMMANDS } from "./trails-of-destiny.js";
+export type {
+  TrailsGetConfigInput,
+  TrailsListCatalogsInput,
+  TrailsJsonPrimitive,
+  TrailsJsonValue,
+  TrailsJsonObject,
+  TrailsContractVersions,
+  TrailsSourceCitation,
+  TrailsIssueSeverity,
+  TrailsIssue,
+  TrailsUnmappedValue,
+  TrailsRuleStatus,
+  TrailsActorType,
+  TrailsItemType,
+  TrailsResourceId,
+  TrailsConfigEntry,
+  TrailsThreatClassification,
+  TrailsCatalogDescriptor,
+  TrailsCapabilities,
+  TrailsConfigResult,
+  TrailsActorIdInput,
+  TrailsPreparedAbility,
+  TrailsPreparedResource,
+  TrailsReadinessCounts,
+  TrailsReadinessSummary,
+  TrailsActorSheetResult,
+  TrailsItemOrigin,
+  TrailsTalentInventoryItem,
+  TrailsConnectionInventoryItem,
+  TrailsCraftInventoryItem,
+  TrailsEquipmentInventoryItem,
+  TrailsQuartzInventoryItem,
+  TrailsCoreInventoryItem,
+  TrailsInventoryItem,
+  TrailsActorInventoryResult,
+  TrailsCatalogSummary,
+  TrailsCatalogListResult,
+  TrailsCatalogInput,
+  TrailsCatalogEntry,
+  TrailsCatalogResult,
+  TrailsCreationLaneId,
+  TrailsCreationLaneResult,
+  TrailsCreationReadinessResult,
+  TrailsConditionalDieInput,
+  TrailsActionRollInput,
+  TrailsActionDieResult,
+  TrailsBonusDieResult,
+  TrailsDieRankResult,
+  TrailsActionRollResult,
+  TrailsInitiativeParticipantInput,
+  TrailsInitiativeInput,
+  TrailsInitiativeParticipantResult,
+  TrailsInitiativeGroup,
+  TrailsInitiativeResult,
+  TrailsThreatContestInput,
+  TrailsThreatContestResult,
+  TrailsLifeState,
+  TrailsDamagePreviewInput,
+  TrailsDamageState,
+  TrailsDamagePreviewResult,
+  TrailsRecoveryResourceInput,
+  TrailsRecoveryResourceMap,
+  TrailsRecoveryEligibility,
+  TrailsRecoveryPreviewInput,
+  TrailsRecoveryOperation,
+  TrailsRecoveryClaim,
+  TrailsRecoveryPreviewFailure,
+  TrailsRecoveryPreviewSuccess,
+  TrailsRecoveryPreviewResult,
+  TrailsExperienceProgressInput,
+  TrailsExperienceProgressFailure,
+  TrailsExperienceProgressSuccess,
+  TrailsExperienceProgressResult,
+  TrailsBuilderPreviewInput,
+  TrailsBuilderActorPreview,
+  TrailsBuilderItemPreview,
+  TrailsBuilderPreviewResult,
+} from "./trails-of-destiny.js";

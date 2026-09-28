@@ -11,6 +11,7 @@ import { META_COMMANDS, type ModuleInfo, type SystemInfo } from "@foundry-local-
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { IntegrationManager } from "./manager.js";
+import { trailsOfDestinyIntegration } from "./trails-of-destiny/index.js";
 import type { Integration } from "./types.js";
 
 function fakeClient(system: SystemInfo, modules: ModuleInfo[]): FoundryClient {
@@ -99,6 +100,49 @@ void describe("IntegrationManager", () => {
     await manager.refresh();
 
     assert.deepEqual(manager.getActive(), []);
+  });
+
+  void it("keeps the registered Trails system optional in a non-Trails world", async () => {
+    const manager = new IntegrationManager(fakeClient(SYSTEM, MODULES), [
+      trailsOfDestinyIntegration,
+    ]);
+
+    await manager.refresh();
+
+    assert.deepEqual(manager.getActive(), []);
+  });
+
+  void it("activates the real Trails integration only for its exact system id at or above 0.1.0", async () => {
+    const cases: Array<{ system: SystemInfo; active: boolean }> = [
+      {
+        system: { id: "trails-of-destiny", title: "Trails of Destiny", version: "0.1.0" },
+        active: true,
+      },
+      {
+        system: { id: "trails-of-destiny", title: "Trails of Destiny", version: "0.2.3" },
+        active: true,
+      },
+      {
+        system: { id: "trails-of-destiny", title: "Trails of Destiny", version: "0.0.9" },
+        active: false,
+      },
+      {
+        system: { id: "trails_of_destiny", title: "Wrong id", version: "99.0.0" },
+        active: false,
+      },
+    ];
+
+    for (const testCase of cases) {
+      const manager = new IntegrationManager(fakeClient(testCase.system, MODULES), [
+        trailsOfDestinyIntegration,
+      ]);
+      await manager.refresh();
+      assert.equal(
+        manager.getActive().includes(trailsOfDestinyIntegration),
+        testCase.active,
+        `${testCase.system.id}@${testCase.system.version}`,
+      );
+    }
   });
 
   void it("fires onChange exactly once when the active set actually changes, and not on a repeat refresh() with no change", async () => {

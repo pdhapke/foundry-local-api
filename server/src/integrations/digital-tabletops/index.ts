@@ -11,6 +11,7 @@ import { dttEndpointDescriptors } from "./endpoints.js";
 
 export const dttIntegration: Integration = {
   id: "digital-tabletops",
+  toolPrefix: "dtt_",
   kind: "module",
   detect: (_activeSystemId, activeModuleIds) => activeModuleIds.includes("digital-tabletops"),
   endpoints: dttEndpointDescriptors,

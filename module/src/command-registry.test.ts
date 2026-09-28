@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
-import type { BridgeRequest } from "@foundry-local-api/shared";
+import { ProtocolError, type BridgeRequest } from "@foundry-local-api/shared";
 
 import { dispatch, registerCommand, unregisterCommand } from "./command-registry.js";
 
@@ -82,6 +82,31 @@ void describe("command-registry dispatch()", () => {
       assert.equal(response.error.code, "HANDLER_ERROR");
       assert.equal(response.error.message, "just a string");
     }
+  });
+
+  void it("preserves safe typed protocol error metadata", async () => {
+    registerCommand("typed-error-test", () => {
+      throw new ProtocolError({
+        code: "STALE_REVISION",
+        message: "Revision changed.",
+        retryable: true,
+        fieldPath: "expectedRevision",
+        details: { expected: "1", actual: "2" },
+      });
+    });
+    const response = await dispatch({ id: "typed-1", type: "typed-error-test" });
+    assert.deepEqual(response, {
+      id: "typed-1",
+      ok: false,
+      error: {
+        message: "Revision changed.",
+        code: "STALE_REVISION",
+        retryable: true,
+        fieldPath: "expectedRevision",
+        details: { expected: "1", actual: "2" },
+      },
+    });
+    unregisterCommand("typed-error-test");
   });
 
   void it("unregisterCommand removes a handler so subsequent dispatches see it as unknown", async () => {

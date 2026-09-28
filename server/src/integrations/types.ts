@@ -9,12 +9,20 @@ import type { AnyEndpointDescriptor } from "../endpoints/types.js";
 
 export interface Integration {
   /**
-   * Also the REST namespace: every endpoint's `path` must start with
-   * `/${id}` (mounted under `/api/integrations` by ./router.ts, so the real
-   * path is `/api/integrations/<id>/...`), and every MCP tool name should be
-   * prefixed `${id}_` (e.g. "dnd5e" -> `dnd5e_get_config`).
+   * Stable package identity and REST namespace: every endpoint's `path`
+   * must start with `/${id}` (mounted under `/api/integrations` by
+   * ./router.ts, so the real path is `/api/integrations/<id>/...`). This is
+   * deliberately independent from `toolPrefix`, since package ids may use
+   * characters that are undesirable in portable MCP tool names.
    */
   id: string;
+  /**
+   * Optional MCP tool-name prefix. Defaults to `${id}_`; set it when the
+   * stable package id and the public MCP namespace must differ. Prefixes are
+   * validated with the integration registry before any production tools are
+   * served.
+   */
+  toolPrefix?: string;
   kind: "system" | "module";
   /**
    * Whether this integration's target is active in the currently connected
@@ -39,4 +47,9 @@ export interface Integration {
   minVersion?: string;
   /** Inclusive upper bound — see `minVersion` above. */
   maxVersion?: string;
+}
+
+/** Returns the MCP prefix declared by an integration, or its identity-based default. */
+export function getIntegrationToolPrefix(integration: Integration): string {
+  return integration.toolPrefix ?? `${integration.id}_`;
 }

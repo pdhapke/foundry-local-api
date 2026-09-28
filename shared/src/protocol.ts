@@ -26,6 +26,11 @@ export interface BridgeSuccessResponse<TResult = unknown> {
 export interface BridgeError {
   message: string;
   code?: string;
+  retryable?: boolean;
+  fieldPath?: string;
+  correlationId?: string;
+  /** Safe, redacted diagnostic details only. */
+  details?: Record<string, unknown>;
 }
 
 /** A failed reply to a {@link BridgeRequest} with the same `id`. */
@@ -62,4 +67,25 @@ export interface BridgeEventMessage<TPayload = unknown> {
   /** Foundry hook name, e.g. "createActor". */
   event: string;
   payload: TPayload;
+  /** Present only for durable event delivery requiring an exact server acknowledgement. */
+  delivery?: BridgeEventDelivery;
+}
+
+export interface BridgeEventSenderIdentity {
+  clientId: string;
+  userId: string;
+  lane: "gm" | "player" | "tv";
+}
+
+export interface BridgeEventDelivery {
+  deliveryId: string;
+  attempt: number;
+  sender: BridgeEventSenderIdentity;
+}
+
+export interface BridgeEventAcknowledgement {
+  kind: "event-ack";
+  deliveryId: string;
+  accepted: true;
+  clientId: string;
 }

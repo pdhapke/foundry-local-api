@@ -35,12 +35,24 @@ export default tseslint.config(
       "no-console": "off",
     },
   },
-  // Plain JS config files (this file, future *.config.js) aren't part of
-  // any tsconfig `include`, so they must not go through the type-aware
+  // Plain JS files (config and standalone operational scripts) aren't part
+  // of any tsconfig `include`, so they must not go through the type-aware
   // parser service.
   {
-    files: ["**/*.js"],
+    files: ["**/*.{js,mjs}"],
     ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+      },
+      globals: {
+        console: "readonly",
+        fetch: "readonly",
+        process: "readonly",
+        setTimeout: "readonly",
+        URL: "readonly",
+      },
+    },
   },
   eslintConfigPrettier,
 );

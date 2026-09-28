@@ -32,8 +32,9 @@ interface TemplateExampleResult {
 // /api/integrations, and 404s an inactive integration's own `/<id>/*`
 // namespace by convention) — this template deliberately uses `/_template`
 // so it's self-consistent even though it's never actually mounted anywhere.
-// MCP tool `name` should be prefixed `<your-id>_`, matching dnd5e's
-// `dnd5e_get_config`/etc.
+// MCP tool `name` must use the integration's effective prefix: `<your-id>_`
+// by default, or the explicit `toolPrefix` from index.ts when package
+// identity and the portable MCP namespace differ.
 const exampleDescriptor: EndpointDescriptor<TemplateExampleInput, TemplateExampleResult> = {
   name: "template_example",
   description: "TODO: describe what this endpoint does and when a caller would use it.",

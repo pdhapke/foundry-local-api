@@ -271,6 +271,11 @@ interface FoundryUser {
   delete(): Promise<FoundryUser>;
   /** The Token placeables this user currently has targeted (Phase 44) — distinct from canvas selection. */
   targets: Set<FoundryPlaceable>;
+  query(
+    queryName: string,
+    queryData: unknown,
+    queryOptions?: { timeout?: number },
+  ): Promise<unknown>;
 }
 
 /** The `game.users` collection — a Map of every User plus the Phase 50 `activeGM` lookup. */
@@ -291,7 +296,10 @@ interface FoundryModule {
 interface FoundryDocument {
   id: string;
   toObject(): Record<string, unknown>;
-  update(changes: Record<string, unknown>): Promise<FoundryDocument>;
+  update(
+    changes: Record<string, unknown>,
+    options?: Record<string, unknown>,
+  ): Promise<FoundryDocument>;
   delete(): Promise<FoundryDocument>;
 }
 

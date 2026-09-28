@@ -8,9 +8,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  BridgeClient,
+  buildBridgeHello,
   buildBridgeConnectionUrl,
   computeBackoffDelayMs,
   DEFAULT_BACKOFF_OPTIONS,
+  clearLegacyNonGmApiKey,
+  configureBridgeAdminSettingVisibility,
+  getConfiguredApiKey,
+  registerBridgeSettings,
 } from "./bridge-client.js";
 
 void describe("computeBackoffDelayMs", () => {
@@ -76,5 +82,190 @@ void describe("buildBridgeConnectionUrl", () => {
     assert.equal(parsed.pathname, "/bridge");
     assert.equal(parsed.searchParams.get("foo"), "bar");
     assert.equal(parsed.searchParams.get("apiKey"), "key1");
+  });
+});
+
+void describe("Track 0 bridge negotiation", () => {
+  void it("registers settings during Foundry 14 init without reading the null game.user", () => {
+    const registered = new Map<string, ClientSettings.RegisterOptions<unknown>>();
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: null,
+        settings: {
+          register: (
+            namespace: string,
+            key: string,
+            data: ClientSettings.RegisterOptions<unknown>,
+          ) => registered.set(`${namespace}.${key}`, data),
+        },
+      },
+    });
+
+    assert.doesNotThrow(() => registerBridgeSettings());
+    assert.equal(registered.size, 3);
+    assert.equal(registered.get("foundry-local-api.bridgeApiKey")?.config, false);
+  });
+
+  void it("reveals the administrative key setting only after a GM identity exists", () => {
+    const adminSetting: ClientSettings.RegisteredSetting = {
+      scope: "client",
+      config: false,
+    };
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "gm", name: "Gamemaster", isGM: true },
+        settings: {
+          settings: new Map([["foundry-local-api.bridgeApiKey", adminSetting]]),
+        },
+      },
+    });
+
+    configureBridgeAdminSettingVisibility();
+    assert.equal(adminSetting.config, true);
+
+    adminSetting.config = false;
+    game.user.isGM = false;
+    configureBridgeAdminSettingVisibility();
+    assert.equal(adminSetting.config, false);
+  });
+
+  void it("reports real user/version identity and requires player opt-in", () => {
+    const storage = new Map<string, string>();
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+      },
+    });
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "izzy", name: "Izzy", isGM: false },
+        release: { version: "14.368" },
+        system: { id: "dnd5e", version: "6.0.3" },
+        modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
+        settings: { get: () => false },
+      },
+    });
+    const message = buildBridgeHello();
+    assert.equal(message.identity.userId, "izzy");
+    assert.equal(message.identity.lane, "player");
+    assert.equal(message.identity.optedIn, false);
+    assert.equal(message.versions.foundryVersion, "14.368");
+    assert.ok(message.capabilities.includes("ping"));
+  });
+
+  void it("keeps consent diagnostics current when the client setting changes", () => {
+    let consent = false;
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "izzy", name: "Izzy", isGM: false },
+        release: { version: "14.368" },
+        system: { id: "dnd5e", version: "6.0.3" },
+        modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
+        settings: { get: () => consent },
+      },
+    });
+    const client = new BridgeClient(
+      () => "ws://127.0.0.1:3939/bridge",
+      () => "",
+    );
+    assert.equal(client.getDiagnostics().consentGranted, false);
+    consent = true;
+    client.handleSettingsChanged();
+    assert.equal(client.getDiagnostics().consentGranted, true);
+    consent = false;
+    client.handleSettingsChanged();
+    assert.equal(client.getDiagnostics().consentGranted, false);
+  });
+
+  void it("clears and verifies a legacy non-GM administrative key", async () => {
+    let stored = "legacy-master-key";
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "izzy", name: "Izzy", isGM: false },
+        settings: {
+          get: () => stored,
+          set: async (_namespace: string, _key: string, value: string) => (stored = value),
+        },
+      },
+    });
+    assert.equal(await clearLegacyNonGmApiKey(), true);
+    assert.equal(stored, "");
+  });
+
+  void it("keeps a Foundry GM assigned to TV on the bounded TV lane", async () => {
+    let stored = "legacy-master-key";
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: () => "tv-client",
+        setItem: () => undefined,
+      },
+    });
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "tv", name: "TV", isGM: true },
+        release: { version: "14.368" },
+        system: { id: "dnd5e", version: "6.0.3" },
+        modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
+        settings: {
+          get: (_namespace: string, key: string) => (key === "allowRemoteControl" ? true : stored),
+          set: async (_namespace: string, _key: string, value: string) => (stored = value),
+        },
+      },
+    });
+
+    const hello = buildBridgeHello();
+    assert.equal(hello.identity.lane, "tv");
+    assert.equal(hello.identity.isGM, false);
+    assert.equal(hello.identity.optedIn, true);
+    assert.equal(getConfiguredApiKey(), "");
+    assert.equal(await clearLegacyNonGmApiKey(), true);
+    assert.equal(stored, "");
+  });
+
+  void it("cannot change this browser's lane or identity during enrollment", () => {
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: () => "player-client",
+        setItem: () => undefined,
+      },
+    });
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "izzy", name: "Izzy", isGM: false },
+        release: { version: "14.368" },
+        system: { id: "dnd5e", version: "6.0.3" },
+        modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
+        settings: { get: () => true },
+      },
+    });
+    const client = new BridgeClient(
+      () => "ws://127.0.0.1:3939/bridge",
+      () => "",
+    );
+    assert.throws(
+      () =>
+        client.acceptEnrollment({
+          action: "deliver",
+          targetUserId: "izzy",
+          expectedLane: "tv",
+          expectedClientId: "player-client",
+          credential: "opaque",
+          expiresAt: "2026-09-28T02:00:00.000Z",
+          protocolVersion: 2,
+          moduleVersion: "0.1.0",
+        }),
+      /does not match this client/,
+    );
   });
 });

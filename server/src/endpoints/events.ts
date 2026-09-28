@@ -22,7 +22,7 @@ import { z } from "zod";
 
 import type { RecentEventsInput, RecentEventsResult } from "@foundry-local-api/shared";
 
-import { HttpError } from "../app.js";
+import { HttpError } from "../http-error.js";
 import type { AnyEndpointDescriptor, EndpointDescriptor } from "./types.js";
 
 const recentEventsSchema = z.object({

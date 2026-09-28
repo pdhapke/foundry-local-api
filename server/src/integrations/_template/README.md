@@ -31,13 +31,20 @@ the steps below in order.
      (`server/src/integrations/router.ts`) mounts every active integration
      under `/api/integrations`, so the real path becomes
      `/api/integrations/<your-id>/...`.
-   - MCP tool `name` should be prefixed `<your-id>_` (e.g. `dnd5e_get_config`).
+   - MCP tool `name` must use the integration's effective tool prefix. It
+     defaults to `<your-id>_` (e.g. `dnd5e_get_config`). If the exact package
+     id is not a suitable portable MCP namespace, set `toolPrefix` in
+     `index.ts` (e.g. package id `trails-of-destiny`, tool prefix `trails_`)
+     and use that prefix for every descriptor name. Prefixes use lowercase
+     letters, digits, and underscores, begin with a letter, and end in `_`.
 
-4. In your copied `index.ts`, fill in the real `id`, `kind`
+4. In your copied `index.ts`, fill in the real `id`, optional `toolPrefix`, `kind`
    (`"system"` for a game system like pf2e, `"module"` for a companion
    module), and `detect()` (for `kind: "module"`, check
    `activeModuleIds.includes("your-module-id")` instead of the system id).
-   Point `endpoints` at your real descriptors from step 3.
+   Point `endpoints` at your real descriptors from step 3. Registry startup
+   rejects invalid prefixes, descriptor-prefix mismatches, and duplicate tool
+   names before serving the integration.
 
 5. Write `module/src/commands/<your-id>.ts`: one `registerCommand()` call per
    command, reading Foundry's *live* `game`/document objects. If you don't

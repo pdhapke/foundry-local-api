@@ -13,6 +13,31 @@ log that documents every non-obvious design decision made along the way.
 
 ## [Unreleased]
 
+### MCP requirements extension — source integrated, acceptance open
+
+- Added explicit negotiated GM/player/TV bridge lanes, typed safe protocol
+  failures, durable structured audit/idempotency records, capability reporting,
+  and exact-ID fixture manifests.
+- Added typed REST/MCP families for per-user fog, bounded effective-user
+  execution, schema discovery/validation, compensating manifests, player-side
+  rendering/visibility, embedded child CRUD, contained asset lifecycle,
+  reference audit, path/topology validation, acknowledged readiness,
+  deterministic dnd5e projections, and durable movement cursors/transitions.
+- Added unit, module-command, endpoint, registration, and transport coverage;
+  generated OpenAPI and MCP catalog now include the new descriptors.
+- Independent QA keeps all thirteen requirements open pending the full ledger
+  criteria. Notable gaps include real multi-client live proof, true database
+  atomicity, full graph/reference coverage, swept-footprint collision,
+  dnd5e-engine-equivalent simulation, and disconnected movement capture.
+- Added Phase 0R GM-authorized player/TV enrollment: digest-only one-time
+  credentials, exact identity/lane/version/path binding, rotation and replay
+  rejection, server lane allowlists, safe diagnostics, and encrypted targeted
+  delivery using an ephemeral RSA-OAEP browser key. Player browsers no longer
+  require or read the administrative API key.
+- Phase 0R passed independent source/test security review but remains live
+  blocked until the actual GM, Izzy, and TV tabs reload the current module
+  bundle and complete three-client acceptance.
+
 ### Phase 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity
 - `foundry_get_canvas_viewport` (`GET /api/canvas/viewport`) reads the
   connected client's current camera position/zoom without moving it — a

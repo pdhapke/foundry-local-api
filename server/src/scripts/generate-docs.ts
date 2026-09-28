@@ -32,6 +32,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { format, resolveConfig } from "prettier";
 import { z, type ZodType } from "zod";
 
 // Side-effect-only import, and deliberately first: `../endpoints/index.js`
@@ -154,6 +155,7 @@ function buildOperation(
   descriptor: AnyEndpointDescriptor,
   method: string,
   path: string,
+  integration?: Integration,
 ): JsonSchemaObject {
   const pathParamNames = extractPathParamNames(path);
   const fullSchema = descriptor.inputSchema ? toInputJsonSchema(descriptor.inputSchema) : undefined;
@@ -203,11 +205,14 @@ function buildOperation(
   const dangerNote = descriptor.annotations?.destructiveHint
     ? "\n\n**Warning:** this operation is destructive/irreversible (see MCP tool annotations)."
     : "";
+  const integrationNote = integration
+    ? `\n\n**Optional integration:** available only while ${integration.kind} \`${integration.id}\` is active and satisfies its configured version range. When inactive, REST returns a 404 \`INTEGRATION_INACTIVE\` response and MCP omits this tool from its catalog.`
+    : "";
 
   return {
     operationId: descriptor.name,
     summary: descriptor.description.split(/(?<=[.!?])\s/)[0],
-    description: descriptor.description + dangerNote,
+    description: descriptor.description + dangerNote + integrationNote,
     tags: [tagFor(descriptor)],
     security: [{ apiKeyAuth: [] }],
     ...(parameters.length > 0 ? { parameters } : {}),
@@ -251,7 +256,7 @@ function buildOpenApiDocument(): JsonSchemaObject {
     const openApiPath = "/api/integrations" + toOpenApiPath(descriptor.path);
     const pathItem = (paths[openApiPath] ??= {});
     pathItem[descriptor.method] = {
-      ...buildOperation(descriptor, descriptor.method, descriptor.path),
+      ...buildOperation(descriptor, descriptor.method, descriptor.path, integration),
       "x-integration": { id: integration.id, kind: integration.kind },
     };
   }
@@ -318,10 +323,14 @@ function buildOpenApiDocument(): JsonSchemaObject {
       title: "Foundry Local API",
       version: readPackageVersion(),
       description:
-        "REST API for full remote control of a running Foundry VTT world, generated from the server's endpoint " +
-        "descriptors (server/src/endpoints/*.ts) by server/src/scripts/generate-docs.ts. Every operation here also " +
-        "exists as an MCP tool with an identical input shape — see docs/mcp-tools.md. See PLAN.md's Phase 29 for the " +
-        "current security posture (localhost-only bind by default, static API key, rate limiting).",
+        "REST API for remote access to a running Foundry VTT world, generated from the server's endpoint " +
+        "descriptors (server/src/endpoints/*.ts and server/src/integrations/*) by " +
+        "server/src/scripts/generate-docs.ts. Each descriptor-backed operation also exists as an MCP tool with an " +
+        "identical input shape; /health and the /api/events SSE stream are documented REST-only exceptions. " +
+        "Operations marked with " +
+        "x-integration are optional: their REST namespace returns INTEGRATION_INACTIVE and their MCP tools are absent " +
+        "unless the named system/module is active. See PLAN.md's Phase 29 for the current security posture " +
+        "(localhost-only bind by default, static API key, rate limiting).",
     },
     servers: [
       {
@@ -424,13 +433,16 @@ function buildMcpToolCatalogMarkdown(): string {
   const lines: string[] = [
     "# MCP Tool Catalog",
     "",
-    "Generated from `allEndpointDescriptors` (server/src/endpoints/index.ts) by " +
+    "Generated from core `allEndpointDescriptors` (server/src/endpoints/index.ts) and registered optional " +
+      "integration descriptors (server/src/integrations/registry.ts) by " +
       "`server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` " +
       "(from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. " +
-      "Every tool listed here is also a REST endpoint with the same input shape — see `docs/openapi.json` " +
-      "and the root README's Examples section.",
+      "Every tool listed here except the explicitly marked MCP-only status tool also has a REST endpoint with the " +
+      "same input shape — see `docs/openapi.json` and the root README's Examples section. Optional integration tools " +
+      "are included in this documented total but appear in a live catalog only while their integration is active.",
     "",
-    `Total tools: **${allEndpointDescriptors.length}**.`,
+    `Total tools: **${allEndpointDescriptors.length + integrationEndpointEntries().length}** ` +
+      `(${allEndpointDescriptors.length} core + ${integrationEndpointEntries().length} optional-integration).`,
     "",
     "## Contents",
     "",
@@ -460,7 +472,7 @@ function buildMcpToolCatalogMarkdown(): string {
     lines.push(
       `## Integration: ${integration.id} (${integration.kind})`,
       "",
-      `_These tools only appear when ${integration.kind} \`${integration.id}\` is active in the connected Foundry world — see PLAN.md's Phase 32._`,
+      `_These tools appear through in-process stdio, Streamable HTTP, and forwarding/remote stdio only when ${integration.kind} \`${integration.id}\` is active and satisfies its configured version range. While inactive, MCP omits them from the catalog and REST requests under \`/api/integrations/${integration.id}\` return 404 \`INTEGRATION_INACTIVE\`._`,
       "",
     );
     for (const descriptor of [...integration.endpoints].sort((a, b) =>
@@ -473,12 +485,17 @@ function buildMcpToolCatalogMarkdown(): string {
   return lines.join("\n") + "\n";
 }
 
-function main(): void {
+async function main(): Promise<void> {
   mkdirSync(DOCS_DIR, { recursive: true });
 
   const openApiDoc = buildOpenApiDocument();
   const openApiPath = join(DOCS_DIR, "openapi.json");
-  writeFileSync(openApiPath, JSON.stringify(openApiDoc, null, 2) + "\n", "utf8");
+  const prettierConfig = await resolveConfig(openApiPath);
+  const openApiJson = await format(JSON.stringify(openApiDoc), {
+    ...prettierConfig,
+    filepath: openApiPath,
+  });
+  writeFileSync(openApiPath, openApiJson, "utf8");
 
   const mcpDocsPath = join(DOCS_DIR, "mcp-tools.md");
   writeFileSync(mcpDocsPath, buildMcpToolCatalogMarkdown(), "utf8");
@@ -487,4 +504,4 @@ function main(): void {
   console.log(`Wrote ${mcpDocsPath}`);
 }
 
-main();
+await main();

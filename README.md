@@ -1,12 +1,12 @@
 # foundry-local-api
 
 A FoundryVTT module that exposes a local REST API and an MCP server for
-full remote control of a running Foundry world — document CRUD, tokens,
+remote access to a running Foundry world — document CRUD, tokens,
 combat, dice rolling, canvas placeables, compendium packs, permissions,
 file management, users, live event streaming, and more — plus a framework
-for optional integrations with companion systems/modules (e.g. dnd5e,
-planned for a future phase; not built yet — see
-[Status](#project-status--versioning) below).
+for optional integrations with companion systems/modules. The optional
+Trails of Destiny integration is deliberately read/resolve/preview-only;
+it does not add gameplay or document mutation operations.
 
 ## Why two processes
 
@@ -31,10 +31,9 @@ back through the same path to the HTTP/MCP response. A `shared/` package
 holds the protocol types (message envelope, command names, endpoint
 descriptors) referenced by both processes so they can't drift apart.
 
-Both surfaces — REST routes and MCP tools — are generated from the same
-**endpoint descriptor** list (`server/src/endpoints/*.ts`,
-`allEndpointDescriptors` in `server/src/endpoints/index.ts`), so they can
-never drift out of sync with each other. This is also what
+Both surfaces — REST routes and MCP tools — are generated from shared
+**endpoint descriptors**: core descriptors under `server/src/endpoints/`
+and optional descriptors under `server/src/integrations/`. This is also what
 [`docs/openapi.json`](./docs/openapi.json) and
 [`docs/mcp-tools.md`](./docs/mcp-tools.md) are generated from — see
 [Generated docs](#generated-docs-openapi--mcp-tool-catalog) below.
@@ -47,14 +46,26 @@ decision made along the way.
 
 ## Project status & versioning
 
-This project has **no public release yet**. Phases 0–30 (core API surface,
-security review, documentation) are complete; Phase 31 (automated test
-suite/CI) and Part 2 (Phases 32–36, the optional dnd5e integration) have
-not started. `module.json`'s `version` is `0.1.0` accordingly — pre-1.0,
-signaling "under active development, no stability guarantees" rather than
-a finished, versioned release. There is also no `download` URL in
-`module.json` yet (no hosting/release artifact exists); add one once this
-is actually published somewhere.
+This project has **no public release yet**. The core API and optional
+integration framework are implemented, including optional dnd5e,
+digital-tabletops, and Trails of Destiny support. `module.json`'s `version`
+is `0.1.0` accordingly — pre-1.0, signaling "under active development, no
+stability guarantees" rather than a finished, versioned release. There is
+also no `download` URL in `module.json` yet (no hosting/release artifact
+exists); add one once this is actually published somewhere.
+
+### Requirements-completion branch status
+
+The `0.1.0` source tree includes typed REST/MCP surfaces for MCP-REQ-001
+through MCP-REQ-013 plus explicit multi-client lanes, structured protocol
+errors, durable audit/idempotency journals, and exact-ID test-fixture
+manifests. This is not a claim that all thirteen ledger requirements are
+complete. The runtime capability report deliberately marks incomplete
+families as `partial`, and the campaign completion report records the exact
+remaining acceptance and live-client gates. In particular, Foundry's API
+does not provide database-isolated multi-document transactions; the current
+atomic manifest is strict verified compensation and rejects operations it
+cannot compensate.
 
 ## Workspace layout
 
@@ -116,7 +127,7 @@ variable is optional and documented inline in that file. The essentials:
 | `PORT` | `3939` | TCP port the HTTP server listens on. |
 | `HOST` | `127.0.0.1` | Bind address. Must be a loopback address unless `ALLOW_REMOTE_BIND=true`. |
 | `ALLOW_REMOTE_BIND` | `false` | Opt-in to bind to a non-loopback address (LAN/`0.0.0.0`). Logs a loud warning when used. |
-| `API_KEY` | *(auto-provisioned)* | Static key required on every `/api/*` request and `/bridge` connection. If left unset, the server generates one on first startup and writes it back into `server/.env` for you. |
+| `API_KEY` | *(auto-provisioned)* | Administrative key required on every `/api/*` and `/mcp` request and the GM `/bridge` lane. Player/TV browsers never receive it; they use GM-authorized scoped enrollment. If left unset, the server generates one on first startup and writes it back into `server/.env` for you. |
 | `CORS_ALLOWED_ORIGINS` | *(empty = deny all)* | Comma-separated list of origins allowed to make cross-origin browser requests to `/api/*`. |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window (ms) applied to `/api/*`. |
 | `RATE_LIMIT_MAX` | `100` | Max requests per window per client, applied to `/api/*`. |
@@ -150,20 +161,54 @@ With Foundry running and the module enabled, the in-client bridge connects
 out to the server automatically (default `ws://127.0.0.1:3939/bridge`). The
 server logs a startup banner with the health/API URLs once it's listening.
 
+The GM browser authenticates its administrative bridge lane with the master
+API key. A player or TV browser must separately enable **Allow bounded remote
+control**, then be enrolled by an authenticated GM call to
+`foundry_issue_bridge_enrollment`. The server rotates a short-lived,
+single-use `/bridge` credential bound to the exact user, browser client ID,
+lane, protocol, and module version. Delivery through Foundry's targeted user
+query is RSA-OAEP encrypted to an ephemeral, non-extractable browser key, so
+neither player storage nor Foundry query-debug logs contain the plaintext
+credential. Player and TV commands remain constrained by server allowlists.
+
+#### Foundry child-process startup
+
+A Foundry module runs in the browser and cannot launch an operating-system
+process itself. This local Foundry installation therefore imports
+`scripts/foundry-child-bootstrap.mjs` from `App/main.js`. The bootstrap starts
+the built local API server as a direct child of Foundry's Node process with
+inherited stdio. Foundry and the API consequently share one terminal, and a
+normal Foundry shutdown terminates the API child as well.
+
+The hook in `App/main.js` is installation-local and a Foundry core update may
+replace that file. If that happens, reapply the small bootstrap import before
+`App/main.mjs` is imported.
+
 ## Connecting an MCP client (e.g. Claude Desktop/Code)
 
-The server can also run its MCP interface over **stdio**, for MCP clients
-that spawn the server process directly rather than talking HTTP —
-controlled by the `MCP_STDIO` env var (see `server/src/mcp/index.ts` and
-`server/src/mcp/create-mcp-server.ts`). When `MCP_STDIO=true`, stdout is
-reserved exclusively for the MCP JSON-RPC stream, so the startup banner and
-request logger move to stderr instead (see `server/src/index.ts`). The
-underlying `McpServer` is the same one that would otherwise be reached over
-HTTP — every REST endpoint's descriptor also registers as an MCP tool (see
-[Generated docs](#generated-docs-openapi--mcp-tool-catalog)).
+The same tool catalog is available through three MCP transports. Core tools
+are always registered. Optional integration tools, including the 13
+`trails_*` tools, are listed only while the matching system/module is active
+and satisfies its configured version range; catalog changes are propagated
+to connected clients.
 
-Point an MCP client at the **built** server (`server/dist/index.js`), e.g.
-for Claude Desktop/Code's `mcpServers` config:
+1. **In-process stdio (`MCP_STDIO=true`).** The main server owns the HTTP,
+   bridge, and stdio connections in one process. This is convenient for one
+   MCP client that launches the server itself. Stdout is reserved for MCP
+   JSON-RPC; application logs move to stderr.
+2. **Streamable HTTP (`/mcp`).** A running server accepts MCP Streamable HTTP
+   sessions at `http://127.0.0.1:3939/mcp`. Requests use the same
+   `X-Api-Key` header as REST. Each session has an independent tool catalog
+   and follows activation/deactivation changes until the session closes.
+3. **Forwarding/remote stdio (`mcp-remote`).** An MCP client launches
+   `server/dist/mcp-remote.js`, which does not bind another HTTP port or own a
+   Foundry bridge. It forwards calls to an already-running local API server,
+   authenticates with that server's configured API key, and periodically
+   refreshes optional-integration availability. This is the appropriate
+   stdio mode for additional clients sharing one running server.
+
+For in-process stdio, point an MCP client at the **built** main server
+(`server/dist/index.js`), e.g. for Claude Desktop/Code's `mcpServers` config:
 
 ```json
 {
@@ -186,6 +231,10 @@ the built file's own location, so as long as you run the built
 set as above), it finds the same `.env`/API key the HTTP surface uses — no
 separate configuration needed for the MCP path. Run `npm run build` in
 `server/` first so `dist/index.js` exists.
+
+For forwarding stdio, use the same configuration but change `args` to
+`["dist/mcp-remote.js"]` and omit `MCP_STDIO`. Start the main local API server
+separately first. Both stdio modes read the same `server/.env` configuration.
 
 ## Examples
 
@@ -226,13 +275,31 @@ input shape — e.g. `foundry_get_status` (no input) and `foundry_roll_dice`
 [`docs/mcp-tools.md`](./docs/mcp-tools.md) for the authoritative, generated
 list of every tool name/description/input schema, grouped by resource.
 
+### Optional Trails of Destiny integration
+
+When the active Foundry system is `trails-of-destiny` version 0.1.0 or newer,
+13 additional REST operations are available below
+`/api/integrations/trails-of-destiny`, with matching `trails_*` tools on all
+three MCP transports. When the integration is inactive, those MCP tools are
+absent and REST requests to that namespace return 404 with code
+`INTEGRATION_INACTIVE`; core APIs continue to work.
+
+This first integration surface is intentionally bounded. It reads redacted
+configuration, actor, inventory, readiness, and allowlisted catalog data;
+resolves an action roll with the Trails runtime RNG; and calculates
+initiative, threat, damage, recovery, experience, and builder previews.
+Preview/manual-boundary evidence is returned to the caller, but no operation
+creates or updates Actors or Items, writes Combat initiative, spends
+resources, applies damage/recovery/effects, posts chat, or persists builder
+output. An issue-free preview is not authorization to mutate a world.
+
 ## Generated docs: OpenAPI + MCP tool catalog
 
 [`docs/openapi.json`](./docs/openapi.json) (OpenAPI 3.1) and
 [`docs/mcp-tools.md`](./docs/mcp-tools.md) are both generated straight from
-`allEndpointDescriptors` — the exact same descriptor list that
-`server/src/endpoints/registry.ts` uses to mount real Express routes and
-register real MCP tools — by
+the core descriptor list and registered optional-integration descriptor
+lists — the same sources used to mount Express routes and register MCP tools —
+by
 [`server/src/scripts/generate-docs.ts`](./server/src/scripts/generate-docs.ts).
 They are checked into the repo (not build artifacts you need to generate
 yourself to read them), but **must be regenerated whenever an endpoint
@@ -244,7 +311,9 @@ npm run generate:docs
 
 This walks every descriptor's zod `inputSchema` (converted to JSON Schema
 via zod v4's own built-in `z.toJSONSchema()` — no extra dependency needed)
-to build parameters/request bodies, groups operations by REST resource, and
+to build parameters/request bodies, marks optional OpenAPI operations with
+exact `x-integration` identity/kind metadata, groups operations by resource,
+and
 folds in the two hand-rolled REST routes that don't go through the
 descriptor pattern at all (`GET /health` and the `GET /api/events` SSE
 stream — see their own header comments in `server/src/app.ts` and
