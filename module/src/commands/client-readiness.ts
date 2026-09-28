@@ -2,6 +2,8 @@ import {
   CLIENT_READINESS_COMMANDS,
   ProtocolError,
   type ClientPreloadInput,
+  type ClientReloadInput,
+  type ClientReloadResult,
   type ClientReadinessInput,
   type ClientReadinessResult,
   type ClientViewportInput,
@@ -11,6 +13,7 @@ import { registerCommand } from "../command-registry.js";
 import { getClientId } from "../bridge-client.js";
 
 const acknowledgements = new Map<string, { input: string; result: ClientReadinessResult }>();
+const reloadAcknowledgements = new Map<string, { input: string; result: ClientReloadResult }>();
 const pendingCommands = new Map<string, { input: string; operation: "preload" | "viewport" }>();
 const loadedAssets = new Map<string, "loaded" | "failed">();
 let lastPreloadedSceneId: string | null = null;
@@ -364,6 +367,45 @@ export async function applyClientViewport(
   return value;
 }
 
+type ReloadScheduler = (callback: () => void, delayMs: number) => unknown;
+
+/**
+ * Acknowledges before scheduling the navigation so the bridge response can
+ * leave the browser before its WebSocket is torn down by the reload.
+ */
+export function requestClientReload(
+  input: ClientReloadInput,
+  schedule: ReloadScheduler = (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
+): ClientReloadResult {
+  const serialized = JSON.stringify(input);
+  const prior = reloadAcknowledgements.get(input.correlationId);
+  if (prior) {
+    if (prior.input !== serialized) {
+      throw new ProtocolError({
+        code: "IDEMPOTENCY_CONFLICT",
+        message: "A different client reload already used this correlation ID.",
+        retryable: false,
+        correlationId: input.correlationId,
+      });
+    }
+    return { ...structuredClone(prior.result), replayed: true };
+  }
+  const result: ClientReloadResult = {
+    correlationId: input.correlationId,
+    acknowledged: true,
+    replayed: false,
+    acknowledgedAt: new Date().toISOString(),
+    clientUserId: game.user.id,
+    executingClientId: getClientId(),
+    reloadScheduled: true,
+    reloadAfterMs: input.delayMs,
+  };
+  reloadAcknowledgements.set(input.correlationId, { input: serialized, result });
+  schedule(() => globalThis.location.reload(), input.delayMs);
+  return structuredClone(result);
+}
+
 registerCommand(CLIENT_READINESS_COMMANDS.PRELOAD, preloadClientScene);
 registerCommand(CLIENT_READINESS_COMMANDS.GET, getClientReadiness);
 registerCommand(CLIENT_READINESS_COMMANDS.APPLY_VIEWPORT, applyClientViewport);
+registerCommand(CLIENT_READINESS_COMMANDS.RELOAD, requestClientReload);

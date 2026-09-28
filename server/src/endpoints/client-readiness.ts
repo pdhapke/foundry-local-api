@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   CLIENT_READINESS_COMMANDS,
   type ClientPreloadInput,
+  type ClientReloadInput,
+  type ClientReloadResult,
   type ClientReadinessInput,
   type ClientReadinessResult,
   type ClientViewportInput,
@@ -48,6 +50,26 @@ const viewportSchema = z
       })
       .strict(),
     timeoutMs: z.number().int().min(100).max(60_000).optional(),
+  })
+  .strict();
+const reloadSchema = z
+  .object({
+    ...target,
+    correlationId,
+    minimumModuleVersion: z.string().max(32).optional(),
+    delayMs: z.number().int().min(500).max(5_000).default(1_000),
+  })
+  .strict();
+const reloadAcknowledgementSchema = z
+  .object({
+    correlationId,
+    acknowledged: z.literal(true),
+    replayed: z.boolean(),
+    acknowledgedAt: z.string().min(1).max(128),
+    clientUserId: id,
+    executingClientId: id,
+    reloadScheduled: z.literal(true),
+    reloadAfterMs: z.number().int().min(500).max(5_000),
   })
   .strict();
 const acknowledgementSchema = z
@@ -317,5 +339,58 @@ export const clientReadinessEndpointDescriptors: AnyEndpointDescriptor[] = [
       return result;
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  {
+    name: "foundry_reload_client",
+    description:
+      "Schedules a browser-page reload on one connected, opted-in Foundry client after returning an identity-bound acknowledgement. Success confirms scheduling only; callers must verify reconnection and re-enroll non-GM lanes.",
+    method: "post",
+    path: "/clients/reload",
+    inputSchema: reloadSchema,
+    handler: async (
+      input: TargetRequest & ClientReloadInput,
+      ctx,
+    ): Promise<ClientReloadResult & { client: Envelope["client"] }> => {
+      const { requester, selected } = route(input, ctx, CLIENT_READINESS_COMMANDS.RELOAD);
+      const payload: ClientReloadInput = {
+        correlationId: input.correlationId,
+        delayMs: input.delayMs,
+      };
+      const value = await ctx.foundryClient.call<ClientReloadInput, ClientReloadResult>(
+        CLIENT_READINESS_COMMANDS.RELOAD,
+        payload,
+        {
+          clientId: selected.clientId,
+          requestingUserId: requester.userId,
+          correlationId: input.correlationId,
+          timeoutMs: Math.max(250, input.delayMs - 100),
+        },
+      );
+      const parsed = reloadAcknowledgementSchema.safeParse(value);
+      if (
+        !parsed.success ||
+        parsed.data.correlationId !== input.correlationId ||
+        parsed.data.clientUserId !== selected.userId ||
+        parsed.data.executingClientId !== selected.clientId ||
+        parsed.data.reloadAfterMs !== input.delayMs
+      )
+        throw new FoundryBridgeError(
+          "INCOMPLETE_RESULT",
+          "The reload acknowledgement identity, correlation, or delay did not match the selected client.",
+        );
+      return {
+        ...parsed.data,
+        client: {
+          clientId: selected.clientId,
+          userId: selected.userId,
+          lane: selected.lane,
+          foundryVersion: selected.foundryVersion,
+          systemId: selected.systemId,
+          systemVersion: selected.systemVersion,
+          moduleVersion: selected.moduleVersion,
+        },
+      };
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   },
 ];

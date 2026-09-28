@@ -2,6 +2,7 @@ export const CLIENT_READINESS_COMMANDS = {
   PRELOAD: "clientPreloadScene",
   GET: "clientReadinessGet",
   APPLY_VIEWPORT: "clientViewportApply",
+  RELOAD: "clientReload",
 } as const;
 
 export interface ClientTargetInput {
@@ -49,4 +50,20 @@ export interface ClientViewportInput {
   correlationId: string;
   sceneId: string;
   viewport: { x: number; y: number; scale: number };
+}
+
+export interface ClientReloadInput {
+  correlationId: string;
+  delayMs: number;
+}
+
+export interface ClientReloadResult {
+  correlationId: string;
+  acknowledged: true;
+  replayed: boolean;
+  acknowledgedAt: string;
+  clientUserId: string;
+  executingClientId: string;
+  reloadScheduled: true;
+  reloadAfterMs: number;
 }

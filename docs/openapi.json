@@ -3779,6 +3779,45 @@
         }
       }
     },
+    "/api/clients/reload": {
+      "post": {
+        "operationId": "foundry_reload_client",
+        "summary": "Schedules a browser-page reload on one connected, opted-in Foundry client after returning an identity-bound acknowledgement.",
+        "description": "Schedules a browser-page reload on one connected, opted-in Foundry client after returning an identity-bound acknowledgement. Success confirms scheduling only; callers must verify reconnection and re-enroll non-GM lanes.",
+        "tags": ["clients"],
+        "security": [{ "apiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "userId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "correlationId": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]+$"
+                  },
+                  "minimumModuleVersion": { "type": "string", "maxLength": 32 },
+                  "delayMs": { "default": 1000, "type": "integer", "minimum": 500, "maximum": 5000 }
+                },
+                "required": ["correlationId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success.", "content": { "application/json": { "schema": {} } } },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
     "/api/embedded-children/list": {
       "get": {
         "operationId": "foundry_list_embedded_child",

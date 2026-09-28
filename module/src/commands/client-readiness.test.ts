@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { applyClientViewport, getClientReadiness, preloadClientScene } from "./client-readiness.js";
+import {
+  applyClientViewport,
+  getClientReadiness,
+  preloadClientScene,
+  requestClientReload,
+} from "./client-readiness.js";
 
 const savedGame = Object.getOwnPropertyDescriptor(globalThis, "game");
 const savedCanvas = Object.getOwnPropertyDescriptor(globalThis, "canvas");
@@ -83,6 +88,36 @@ afterEach(() => {
 });
 
 void describe("client readiness commands", () => {
+  void it("acknowledges a reload before scheduling it and deduplicates correlation replay", () => {
+    install();
+    let scheduledDelay: number | undefined;
+    let scheduled: (() => void) | undefined;
+    const schedule = (callback: () => void, delayMs: number) => {
+      scheduled = callback;
+      scheduledDelay = delayMs;
+    };
+    const input = { correlationId: "reload-client-0001", delayMs: 1_000 };
+    const first = requestClientReload(input, schedule);
+    const replay = requestClientReload(input, schedule);
+    assert.equal(first.acknowledged, true);
+    assert.equal(first.reloadScheduled, true);
+    assert.equal(first.replayed, false);
+    assert.equal(replay.replayed, true);
+    assert.equal(scheduledDelay, 1_000);
+    assert.equal(typeof scheduled, "function");
+  });
+
+  void it("rejects changed reload input under the same correlation ID", () => {
+    install();
+    const schedule = () => undefined;
+    requestClientReload({ correlationId: "reload-conflict-0001", delayMs: 1_000 }, schedule);
+    assert.throws(
+      () =>
+        requestClientReload({ correlationId: "reload-conflict-0001", delayMs: 2_000 }, schedule),
+      (error: unknown) => (error as { code?: string }).code === "IDEMPOTENCY_CONFLICT",
+    );
+  });
+
   void it("acknowledges preload with per-asset applied state", async () => {
     const state = install();
     Object.defineProperty(globalThis, "fetch", {

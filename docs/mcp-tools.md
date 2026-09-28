@@ -2,7 +2,7 @@
 
 Generated from core `allEndpointDescriptors` (server/src/endpoints/index.ts) and registered optional integration descriptors (server/src/integrations/registry.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here except the explicitly marked MCP-only status tool also has a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section. Optional integration tools are included in this documented total but appear in a live catalog only while their integration is active.
 
-Total tools: **263** (236 core + 27 optional-integration).
+Total tools: **264** (237 core + 27 optional-integration).
 
 ## Contents
 
@@ -895,6 +895,26 @@ REST: `POST /api/clients/preload-scene`
 | `sceneId` | string | yes |  |
 | `assetPaths` | array | yes |  |
 | `timeoutMs` | integer | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_reload_client`
+
+Schedules a browser-page reload on one connected, opted-in Foundry client after returning an identity-bound acknowledgement. Success confirms scheduling only; callers must verify reconnection and re-enroll non-GM lanes.
+
+REST: `POST /api/clients/reload`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `clientId` | string | no |  |
+| `userId` | string | no |  |
+| `correlationId` | string | yes |  |
+| `minimumModuleVersion` | string | no |  |
+| `delayMs` | integer | no |  |
 
 **Success output**
 

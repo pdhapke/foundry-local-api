@@ -60,8 +60,9 @@ function main(): void {
         "clientPreloadScene",
         "clientReadinessGet",
         "clientViewportApply",
+        "clientReload",
       ],
-      tv: ["clientPreloadScene", "clientReadinessGet", "clientViewportApply"],
+      tv: ["clientPreloadScene", "clientReadinessGet", "clientViewportApply", "clientReload"],
     },
   });
   const gateway = new BridgeGateway(server, { apiKey: config.apiKey, enrollmentStore });

@@ -14,7 +14,7 @@ const base = {
   transport: "websocket" as const,
   connectedAt: 1,
   lastSeenAt: 1,
-  capabilities: ["clientPreloadScene", "clientReadinessGet", "clientViewportApply"],
+  capabilities: ["clientPreloadScene", "clientReadinessGet", "clientViewportApply", "clientReload"],
 };
 const gm = { ...base, clientId: "gm-client", userId: "gm", isGM: true, lane: "gm" as const };
 const tv = { ...base, clientId: "tv-client", userId: "tv", isGM: false, lane: "tv" as const };
@@ -152,6 +152,65 @@ void describe("client readiness endpoints", () => {
         },
         {
           foundryClient: fake((() => Promise.resolve(reply)) as FoundryClient["call"]),
+        },
+      ),
+      (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
+    );
+  });
+
+  void it("routes a bounded reload and validates the receiver identity before success", async () => {
+    let captured: any;
+    const descriptor = clientReadinessEndpointDescriptors[3]!;
+    const result = (await descriptor.handler(
+      {
+        clientId: "tv-client",
+        correlationId: "reload-route-0001",
+        delayMs: 1_000,
+      },
+      {
+        foundryClient: fake(((type: string, payload: unknown, options: unknown) => {
+          captured = { type, payload, options };
+          return Promise.resolve({
+            correlationId: "reload-route-0001",
+            acknowledged: true,
+            replayed: false,
+            acknowledgedAt: "now",
+            clientUserId: "tv",
+            executingClientId: "tv-client",
+            reloadScheduled: true,
+            reloadAfterMs: 1_000,
+          });
+        }) as FoundryClient["call"]),
+      },
+    )) as any;
+    assert.equal(descriptor.name, "foundry_reload_client");
+    assert.equal(captured.type, "clientReload");
+    assert.equal(captured.options.clientId, "tv-client");
+    assert.equal(captured.options.requestingUserId, "gm");
+    assert.equal(result.client.clientId, "tv-client");
+    assert.equal(result.reloadScheduled, true);
+  });
+
+  void it("rejects a reload acknowledgement from a different client", async () => {
+    await assert.rejects(
+      clientReadinessEndpointDescriptors[3]!.handler(
+        {
+          clientId: "tv-client",
+          correlationId: "reload-mismatch-0001",
+          delayMs: 1_000,
+        },
+        {
+          foundryClient: fake((() =>
+            Promise.resolve({
+              correlationId: "reload-mismatch-0001",
+              acknowledged: true,
+              replayed: false,
+              acknowledgedAt: "now",
+              clientUserId: "tv",
+              executingClientId: "other-client",
+              reloadScheduled: true,
+              reloadAfterMs: 1_000,
+            })) as FoundryClient["call"]),
         },
       ),
       (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
