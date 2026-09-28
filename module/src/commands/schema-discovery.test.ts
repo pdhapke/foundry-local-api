@@ -516,6 +516,36 @@ void describe("MCP-REQ-003 module schema commands", () => {
     );
   });
 
+  void it("does not fail validation when the compatibility hook becomes read-only after capture", () => {
+    let current: (message: string) => void = (_message: string) => undefined;
+    let writes = 0;
+    const utils = {} as { logCompatibilityWarning: (message: string) => void };
+    Object.defineProperty(utils, "logCompatibilityWarning", {
+      configurable: true,
+      get: () => current,
+      set: (value: (message: string) => void) => {
+        writes += 1;
+        if (writes > 1) throw new TypeError("compatibility hook became read-only");
+        current = value;
+      },
+    });
+    setGlobal("foundry", { utils });
+    const result = validateDocumentSchema({
+      documentType: "Actor",
+      subtype: "character",
+      mode: "create",
+      data: { name: "Late Frozen Hook", type: "character", system: { hp: { value: 8 } } },
+      ...VERSION_LOCK,
+    });
+    assert.equal(result.results[0]?.valid, true);
+    assert.equal(writes, 2);
+    assert.ok(
+      result.results[0]?.errors.every(
+        ({ message }) => !message.includes("compatibility hook became read-only"),
+      ),
+    );
+  });
+
   void it("does not require caller-forged Foundry document statistics on create", () => {
     const result = validateDocumentSchema({
       documentType: "RegionBehavior",

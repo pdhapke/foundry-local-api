@@ -472,7 +472,15 @@ function withCompatibilityWarnings<T>(operation: () => T): { value: T; warnings:
   try {
     return { value: operation(), warnings };
   } finally {
-    if (utils && original && replaced) utils.logCompatibilityWarning = original;
+    if (utils && original && replaced) {
+      try {
+        utils.logCompatibilityWarning = original;
+      } catch {
+        // The live v14 client can make this property read-only while a DataModel
+        // operation is in progress. Restoration is best-effort warning plumbing
+        // and must never turn a successful no-persist validation into an error.
+      }
+    }
   }
 }
 
