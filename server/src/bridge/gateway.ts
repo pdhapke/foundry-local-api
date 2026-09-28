@@ -210,7 +210,11 @@ export class BridgeGateway {
         return;
       }
       const registered = this.clients.get(clientId);
-      if (!registered || !this.isClientCurrentlyAuthorized(registered.client)) {
+      if (!registered || registered.socket !== socket) {
+        socket.close(1008, "Client socket has been superseded");
+        return;
+      }
+      if (!this.isClientCurrentlyAuthorized(registered.client)) {
         socket.close(1008, "Enrollment authorization is no longer active");
         return;
       }

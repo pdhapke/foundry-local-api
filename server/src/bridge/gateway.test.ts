@@ -56,6 +56,18 @@ async function connect(
   return socket;
 }
 
+/** Keeps a superseded server-side socket alive long enough to exercise the replacement race. */
+function suppressRegisteredSocketClose(gateway: BridgeGateway, clientId: string): void {
+  const clients = (
+    gateway as unknown as {
+      clients: Map<string, { socket: WebSocket }>;
+    }
+  ).clients;
+  const registered = clients.get(clientId);
+  assert.ok(registered, `Expected ${clientId} to be registered`);
+  registered.socket.close = () => undefined;
+}
+
 afterEach(async () => {
   for (const socket of sockets.splice(0)) socket.terminate();
   for (const gateway of gateways.splice(0)) await gateway.close();
@@ -304,5 +316,83 @@ void describe("Track 0 multi-client BridgeGateway", () => {
       gateway.listClients().some((client) => client.clientId === "client-player"),
       false,
     );
+  });
+
+  void it("drops events from a superseded GM socket with the same stable client ID", async () => {
+    const server = http.createServer();
+    servers.push(server);
+    const gateway = new BridgeGateway(server, { apiKey: "test-key" });
+    gateways.push(gateway);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+
+    const stale = await connect(address.port, hello("client-gm", "user-gm", "gm"), true);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    suppressRegisteredSocketClose(gateway, "client-gm");
+    const current = await connect(address.port, hello("client-gm", "user-gm", "gm"), true);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const inbound: string[] = [];
+    gateway.onMessage((_clientId, raw) => inbound.push(raw));
+    const staleEvent = JSON.stringify({ kind: "event", event: "stale-gm-event", payload: {} });
+    const currentEvent = JSON.stringify({ kind: "event", event: "current-gm-event", payload: {} });
+    stale.send(staleEvent);
+    current.send(currentEvent);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    assert.deepEqual(inbound, [currentEvent]);
+  });
+
+  void it("drops responses from a superseded enrolled socket with the same stable client ID", async () => {
+    const server = http.createServer();
+    servers.push(server);
+    const enrollments = new EnrollmentStore({
+      laneCommandAllowlist: { player: ["playerStatus"] },
+    });
+    const gateway = new BridgeGateway(server, { apiKey: "test-key", enrollmentStore: enrollments });
+    gateways.push(gateway);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    await connect(address.port, hello("client-gm", "user-gm", "gm"), true);
+    const request = {
+      issuer: { userId: "user-gm", clientId: "client-gm", isGM: true, connected: true },
+      expectedUserId: "user-player",
+      expectedClientId: "client-player",
+      lane: "player" as const,
+      protocolVersion: BRIDGE_PROTOCOL_VERSION,
+      moduleVersion: { kind: "exact" as const, version: "0.1.0" },
+    };
+    const initial = enrollments.issue(request);
+    const stale = await connect(address.port, {
+      kind: "enrollment",
+      credential: initial.credential,
+      hello: hello("client-player", "user-player", "player"),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    suppressRegisteredSocketClose(gateway, "client-player");
+
+    const replacement = enrollments.rotate(request);
+    const current = await connect(address.port, {
+      kind: "enrollment",
+      credential: replacement.credential,
+      hello: hello("client-player", "user-player", "player"),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const inbound: string[] = [];
+    gateway.onMessage((_clientId, raw) => inbound.push(raw));
+    const staleResponse = JSON.stringify({ id: "stale-response", ok: true, result: "stale" });
+    const currentResponse = JSON.stringify({
+      id: "current-response",
+      ok: true,
+      result: "current",
+    });
+    stale.send(staleResponse);
+    current.send(currentResponse);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    assert.deepEqual(inbound, [currentResponse]);
   });
 });

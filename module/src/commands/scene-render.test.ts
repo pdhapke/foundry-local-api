@@ -25,6 +25,9 @@ function install(
     visionProvidingLight?: boolean;
     missingExactApi?: boolean;
     selectedDetection?: (x: number) => boolean;
+    specialPreparedMode?: boolean;
+    missingPreparedModes?: boolean;
+    rawSpecialMode?: boolean;
     assetFailure?: boolean;
   } = {},
 ) {
@@ -47,9 +50,21 @@ function install(
   };
   const selectedToken = document(
     "token-selected",
-    { sight: { enabled: true } },
+    {
+      sight: { enabled: true },
+      ...(options.rawSpecialMode
+        ? { detectionModes: { otherSense: { id: "otherSense", enabled: true, range: 100 } } }
+        : {}),
+    },
     options.tokenOwner !== false,
   );
+  if (!options.missingPreparedModes)
+    (selectedToken as any).detectionModes = {
+      basicSight: { id: "basicSight", enabled: true, range: 10 },
+      ...(options.specialPreparedMode
+        ? { otherSense: { id: "otherSense", enabled: true, range: 100 } }
+        : {}),
+    };
   const secretJournal = document("secret-journal", { hidden: true });
   Object.defineProperty(globalThis, "game", {
     configurable: true,
@@ -458,6 +473,75 @@ void describe("scene render commands", () => {
     assert.ok(calls.selectedDetection > 0);
     assert.equal(calls.unrelatedDetection, 0);
     assert.equal(calls.union, 0);
+  });
+
+  void it("applies special detection only to Token targets", async () => {
+    const { calls } = install({ specialPreparedMode: true });
+    const runtime = (globalThis as any).canvas;
+    runtime.tokens.placeables[1].visible = true;
+    runtime.notes.placeables.push({
+      id: "note-special-only",
+      center: { x: 8, y: 1 },
+      visible: true,
+      document: document("note-special-only"),
+    });
+    runtime.tiles.placeables.push({
+      id: "tile-special-only",
+      center: { x: 8, y: 1 },
+      visible: true,
+      document: document("tile-special-only"),
+    });
+    runtime.regions.placeables.push({
+      id: "region-special-only",
+      visible: true,
+      document: document("region-special-only"),
+      testPoint: ({ x }: { x: number }) => x > 7,
+    });
+    runtime.walls.placeables.push({
+      id: "exit-special-only",
+      visible: true,
+      doorControl: { visible: true, renderable: true },
+      document: document("exit-special-only", {
+        c: [8, 2, 8, 4],
+        door: 1,
+        ds: 1,
+        sight: 0,
+        flags: { "foundry-local-api": { exit: true, destination: "secret-destination" } },
+      }),
+    });
+    const result = await inspectSceneVisibility({
+      sceneId: "scene",
+      effectiveUserId: "player",
+      tokenId: "token-selected",
+      queryPoints: [{ id: "special-point", x: 8, y: 1 }],
+    });
+    assert.deepEqual(result.visible.tokens, ["token-occluded-secret-id", "token-selected"]);
+    assert.deepEqual(result.visible.notes, ["note-public"]);
+    assert.deepEqual(result.visible.tiles, ["tile-public"]);
+    assert.equal(result.queryPoints[0]?.visible, false);
+    assert.deepEqual(result.regions, [{ key: "region-1" }]);
+    assert.equal(result.visibleBarriers.length, 2);
+    assert.equal(
+      result.visibleBarriers.some(({ exit }) => exit),
+      true,
+    );
+    assert.equal(JSON.stringify(result).includes("secret-destination"), false);
+    assert.equal(calls.unrelatedDetection, 1);
+  });
+
+  void it("does not claim complete isolation from raw unprepared detection data", async () => {
+    const { calls } = install({ missingPreparedModes: true, rawSpecialMode: true });
+    const result = await inspectSceneVisibility({
+      sceneId: "scene",
+      effectiveUserId: "player",
+      tokenId: "token-selected",
+    });
+    assert.equal(result.status, "incomplete");
+    assert.equal(result.environment.vision, "incomplete");
+    assert.equal(result.isolation.status, "incomplete");
+    assert.equal(result.isolation.method, "selected-source-polygons");
+    assert.equal(calls.unrelatedDetection, 0);
+    assert.ok(result.issues.some(({ code }) => code === "SELECTED_VISION_ISOLATION_INCOMPLETE"));
   });
 
   void it("returns typed incomplete evidence when exact v14 detection evaluation is unavailable", async () => {

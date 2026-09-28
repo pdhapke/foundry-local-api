@@ -272,6 +272,63 @@ void describe("live collision commands", () => {
     assert.equal(sceneRead, 2);
     assert.equal(fogRead, 2);
   });
+  void it("retains changed malformed walls in bounded two-read evidence", () => {
+    let wallRead = 0;
+    const token = {
+      id: "t",
+      toObject: () => ({
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        _stats: { modifiedTime: 8 },
+      }),
+    };
+    const malformed = {
+      id: "malformed",
+      toObject: () => {
+        wallRead += 1;
+        return {
+          c: wallRead === 1 ? [] : [0, 0, 1],
+          move: 1,
+          _stats: { modifiedTime: 9 },
+        };
+      },
+    };
+    const scene = {
+      id: "s",
+      toObject: () => ({ _stats: { modifiedTime: 7 } }),
+      grid: { type: 1, size: 5, diagonalRule: "euclidean" },
+      testUserPermission: () => true,
+      getEmbeddedCollection: (type: string) =>
+        type === "Token" ? new Map([["t", token]]) : new Map([["malformed", malformed]]),
+    };
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        collections: new Map([["Scene", new Map([["s", scene]])]]),
+        user: { id: "gm", isGM: true },
+        settings: { get: () => "euclidean" },
+      },
+    });
+    const result = validateLiveTokenPath({
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 10, y: 0 }],
+      movementMode: "walk",
+    });
+    assert.equal(result.status, "incomplete");
+    assert.equal(result.reachable, false);
+    assert.equal(result.evidence.unchanged, false);
+    assert.deepEqual(Object.keys(result.evidence.before.malformedWalls), ["malformed"]);
+    assert.deepEqual(Object.keys(result.evidence.after.malformedWalls), ["malformed"]);
+    assert.notEqual(
+      result.evidence.before.malformedWalls["malformed"]?.shapeSignature,
+      result.evidence.after.malformedWalls["malformed"]?.shapeSignature,
+    );
+    assert.equal(result.evidence.before.malformedWalls["malformed"]?.revision, "9");
+    assert.equal(result.evidence.after.malformedWalls["malformed"]?.revision, "9");
+  });
   void it("refuses document ID revision fallbacks", () => {
     const token = { id: "t", toObject: () => ({ x: 0, y: 0, width: 1, height: 1 }) };
     const scene = {

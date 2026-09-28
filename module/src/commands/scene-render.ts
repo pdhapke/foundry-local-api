@@ -396,14 +396,29 @@ function hasExclusiveSelectedVision(runtime: any, selected: any): boolean {
   );
 }
 
-function configuredDetectionModes(
-  tokenSource: Record<string, unknown>,
-): Array<Record<string, unknown>> {
-  const raw = tokenSource["detectionModes"];
+interface PreparedDetectionModes {
+  all: Array<Record<string, unknown>>;
+  normal: Array<Record<string, unknown>>;
+  special: Array<Record<string, unknown>>;
+}
+
+const NORMAL_DETECTION_MODES = new Set(["basicSight", "lightPerception"]);
+
+function preparedDetectionModes(token: any): PreparedDetectionModes | null {
+  const raw = token?.document?.detectionModes;
+  if (!raw || (typeof raw !== "object" && !(raw instanceof Map))) return null;
   const result: Array<Record<string, unknown>> = [];
   const append = (id: string, value: unknown) => {
-    if (value && typeof value === "object" && !Array.isArray(value))
-      result.push({ id, ...(value as Record<string, unknown>) });
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const mode = value as Record<string, unknown>;
+    const preparedId = typeof mode["id"] === "string" ? mode["id"] : id;
+    if (
+      preparedId.length === 0 ||
+      typeof mode["enabled"] !== "boolean" ||
+      (typeof mode["range"] !== "number" && mode["range"] !== null)
+    )
+      return;
+    result.push({ id: preparedId, enabled: mode["enabled"], range: mode["range"] });
   };
   if (raw instanceof Map) for (const [id, value] of raw) append(String(id), value);
   else if (Array.isArray(raw))
@@ -414,14 +429,13 @@ function configuredDetectionModes(
     }
   else if (raw && typeof raw === "object")
     for (const [id, value] of Object.entries(raw as Record<string, unknown>)) append(id, value);
-  const sight = tokenSource["sight"] as Record<string, unknown> | undefined;
-  if (sight?.["enabled"] === true && !result.some(({ id }) => id === "basicSight"))
-    result.unshift({
-      id: "basicSight",
-      enabled: true,
-      ...(typeof sight["range"] === "number" ? { range: sight["range"] } : {}),
-    });
-  return result.filter(({ enabled }) => enabled !== false);
+  const all = result.filter(({ enabled }) => enabled === true);
+  if (!all.length) return null;
+  return {
+    all,
+    normal: all.filter(({ id }) => NORMAL_DETECTION_MODES.has(String(id))),
+    special: all.filter(({ id }) => !NORMAL_DETECTION_MODES.has(String(id))),
+  };
 }
 
 function detectionModeRegistry(): Record<string, any> | Map<string, any> | null {
@@ -438,7 +452,6 @@ function registryValue(registry: Record<string, any> | Map<string, any>, id: str
 function createSelectedVisionIsolation(
   runtime: any,
   token: any,
-  tokenSource: Record<string, unknown>,
   issues: SceneRenderIssue[],
 ): SelectedVisionIsolation {
   const source = selectedVision(token);
@@ -492,7 +505,8 @@ function createSelectedVisionIsolation(
       test: () => false,
     };
   }
-  const modes = configuredDetectionModes(tokenSource);
+  const preparedModes = preparedDetectionModes(token);
+  const modes = preparedModes?.all ?? [];
   const registry = detectionModeRegistry();
   const createConfig = runtime.visibility?._createVisibilityTestConfig;
   const definitions = registry
@@ -500,13 +514,15 @@ function createSelectedVisionIsolation(
     : [];
   const exact =
     typeof createConfig === "function" &&
+    preparedModes !== null &&
+    preparedModes.normal.length > 0 &&
     modes.length > 0 &&
     definitions.every(({ definition }) => typeof definition?.testVisibility === "function");
   if (!exact) {
     issues.push({
       code: "SELECTED_VISION_ISOLATION_INCOMPLETE",
       message:
-        "Foundry v14 detection-mode evaluation is unavailable; selected-source polygon evidence is incomplete.",
+        "Prepared Foundry v14 Token detection modes or exact evaluation are unavailable; selected-source polygon evidence is incomplete.",
       retryable: true,
       subjectId: token.document?.id ?? token.id,
     });
@@ -530,7 +546,11 @@ function createSelectedVisionIsolation(
     test: (point, target, subjectId) => {
       try {
         const config = createConfig.call(runtime.visibility, [point], { object: target ?? null });
-        return definitions.some(({ mode, definition }) =>
+        const targetIsToken = runtime.tokens?.placeables?.includes?.(target) === true;
+        const applicable = targetIsToken
+          ? definitions
+          : definitions.filter(({ mode }) => NORMAL_DETECTION_MODES.has(String(mode["id"])));
+        return applicable.some(({ mode, definition }) =>
           definition.testVisibility(source, mode, config),
         );
       } catch {
@@ -691,7 +711,7 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
   const issues: SceneRenderIssue[] = [];
   const tokenSource = sourceOf(tokenDocument);
   const sceneSource = sourceOf(scene);
-  const isolation = createSelectedVisionIsolation(runtime, token, tokenSource, issues);
+  const isolation = createSelectedVisionIsolation(runtime, token, issues);
   const selected = isolation.source;
   const tokenCenter = placeableCenter(token);
   if (!tokenCenter)

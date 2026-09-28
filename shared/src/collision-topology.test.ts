@@ -240,6 +240,18 @@ void describe("collision and topology geometry", () => {
     assert.equal(result.gridFit.valid, false);
     assert.match(result.gridFit.errors[0]!, /not aligned/);
   });
+  void it("classifies an off-grid starting Token position as incomplete", () => {
+    const result = validatePathGeometry(
+      { sceneId: "s", tokenId: "t", waypoints: [{ x: 10, y: 0 }], movementMode: "walk" },
+      { x: 1, y: 0, revision: "t1", sceneRevision: "s1", width: 5, height: 5 },
+      [],
+      { type: 1, size: 5 },
+    );
+    assert.equal(result.status, "incomplete");
+    assert.equal(result.reachable, false);
+    assert.equal(result.gridFit.valid, false);
+    assert.ok(result.gridFit.errors.some((message) => message.includes("starting position")));
+  });
   void it("fails closed instead of throwing for non-array coordinates and invalid elevation bounds", () => {
     const malformedWalls = [
       { id: "not-an-array", c: null },

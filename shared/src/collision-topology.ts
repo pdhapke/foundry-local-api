@@ -82,6 +82,7 @@ export interface CollisionReadSnapshot {
       top: number | null;
     }
   >;
+  malformedWalls: Record<string, { revision: string; shapeSignature: string }>;
   fog?: {
     userId: string;
     exists: boolean;
@@ -414,6 +415,16 @@ function topologySignature(sceneRevision: string, walls: CollisionWall[]): strin
   });
 }
 
+function boundedShapeSignature(value: unknown): string {
+  const text = JSON.stringify(value) ?? "undefined";
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
 export function validatePathGeometry(
   input: ValidateTokenPathInput,
   token: {
@@ -446,6 +457,11 @@ export function validatePathGeometry(
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0)
     gridErrors.push("Token footprint must have positive finite width and height.");
   if (grid.type !== 0 && gridErrors.length === 0) {
+    if (
+      Math.abs(token.x / grid.size - Math.round(token.x / grid.size)) > EPSILON ||
+      Math.abs(token.y / grid.size - Math.round(token.y / grid.size)) > EPSILON
+    )
+      gridErrors.push("Token starting position is not aligned to the Scene grid.");
     for (const [index, p] of points.slice(1).entries())
       if (
         Math.abs(p.x / grid.size - Math.round(p.x / grid.size)) > EPSILON ||
@@ -545,8 +561,8 @@ export function validatePathGeometry(
   const snapshot: CollisionReadSnapshot = {
     tokenRevision: token.revision,
     sceneRevision,
-    wallRevisions: Object.fromEntries(validWalls.map((w) => [w.id, w.revision ?? "unavailable"])),
-    topologySignature: topologySignature(sceneRevision, validWalls),
+    wallRevisions: Object.fromEntries(walls.map((w) => [w.id, w.revision ?? "unavailable"])),
+    topologySignature: topologySignature(sceneRevision, walls),
     token: {
       x: token.x,
       y: token.y,
@@ -569,6 +585,17 @@ export function validatePathGeometry(
           top: wall.top ?? null,
         },
       ]),
+    ),
+    malformedWalls: Object.fromEntries(
+      walls
+        .filter((wall) => malformedWallIds.includes(wall.id))
+        .map((wall) => [
+          wall.id,
+          {
+            revision: wall.revision ?? "unavailable",
+            shapeSignature: boundedShapeSignature(wall.c),
+          },
+        ]),
     ),
   };
   return {

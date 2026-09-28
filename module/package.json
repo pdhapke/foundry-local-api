@@ -7,7 +7,7 @@
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --test --test-concurrency=1 \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@foundry-local-api/shared": "*"
