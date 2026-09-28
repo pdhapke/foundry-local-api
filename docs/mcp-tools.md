@@ -2,7 +2,7 @@
 
 Generated from core `allEndpointDescriptors` (server/src/endpoints/index.ts) and registered optional integration descriptors (server/src/integrations/registry.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here except the explicitly marked MCP-only status tool also has a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section. Optional integration tools are included in this documented total but appear in a live catalog only while their integration is active.
 
-Total tools: **264** (237 core + 27 optional-integration).
+Total tools: **265** (238 core + 27 optional-integration).
 
 ## Contents
 
@@ -2920,6 +2920,37 @@ REST: `POST /api/scenes/:id/activate`
 **Success output**
 
 _No concrete success schema declared._
+
+### `foundry_align_scene_grid` ⚠️ **destructive**
+
+Revision-checks and updates only one Scene's grid size, distance, and offsets through the GM lane. It independently verifies that unrelated Scene fields and embedded documents remain unchanged and returns an exact rollback payload.
+
+REST: `PUT /api/scenes/:id/grid-alignment`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `expectedModifiedTime` | integer | yes |  |
+| `size` | integer | yes |  |
+| `distance` | number | yes |  |
+| `shiftX` | integer | yes |  |
+| `shiftY` | integer | yes |  |
+| `dryRun` | boolean | no |  |
+
+**Success output**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `persisted` | boolean | yes |  |
+| `before` | object | yes |  |
+| `after` | object | yes |  |
+| `rollback` | object | yes |  |
+| `spatialDocumentCounts` | object | yes |  |
+| `unrelatedSceneFieldsUnchanged` | boolean | yes |  |
+| `embeddedDocumentsUnchanged` | boolean | yes |  |
 
 ### `foundry_create_scene`
 

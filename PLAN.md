@@ -37,7 +37,7 @@ its own before moving to the next.
 
 The MCP requirements extension (MCP-REQ-001 through 013) is integrated in
 the `0.1.0` source and generated tool catalog. The repaired automated gate
-passes 44 shared, 473 server, and 229 module tests plus typecheck, lint,
+passes 44 shared, 477 server, and 235 module tests plus typecheck, lint,
 formatting, build, manifest synchronization, and diff checks. The running
 catalog exposes the required concrete output contracts and enforces complete
 input refinements. No requirement is considered live-complete until the
@@ -63,6 +63,13 @@ Source tests and independent security review pass. After the rebuilt bridge
 restart the GM lane is connected, while Izzy and TV remain absent. Live Phase
 0R and fixture mutation stay blocked until those tabs reload the built bundle
 and all three lanes appear in fresh REST and MCP capability reports.
+
+The pending bundle also adds `clientReload` and a GM-only `sceneAlignGrid`
+command. Reload acknowledges before scheduling navigation and remains confined
+to identity-bound lane allowlists. Grid alignment compare-and-swaps the Scene
+revision, changes only size/distance/offsets, verifies unrelated state, and
+returns a revision-bound rollback payload. Neither command may be sent to the
+currently connected prior bundle.
 
 | Phase | Status | Commit |
 |---|---|---|

@@ -17,6 +17,8 @@ import type {
   DocumentData,
   DocumentTypeInput,
   SceneDimensions,
+  SceneGridAlignmentInput,
+  SceneGridAlignmentResult,
   SceneIdInput,
   SceneResetFogResult,
 } from "@foundry-local-api/shared";
@@ -107,6 +109,84 @@ void describe("Phase 11 scenes", () => {
       sceneHeight: 3400,
       sceneX: -200,
       sceneY: -200,
+    });
+  });
+
+  void it("PUT /api/scenes/:id/grid-alignment routes a revision-checked bounded update", async () => {
+    const app = buildApp(((type: string, payload: SceneGridAlignmentInput) => {
+      assert.equal(type, "sceneAlignGrid");
+      assert.deepEqual(payload, {
+        id: "s1",
+        expectedModifiedTime: 12,
+        size: 80,
+        distance: 10,
+        shiftX: 33,
+        shiftY: 30,
+        dryRun: true,
+      });
+      const grid = {
+        type: 1,
+        size: 50,
+        distance: 5,
+        units: "ft",
+        style: "solidLines",
+        thickness: 1,
+        color: "#000000",
+        alpha: 0.12,
+      };
+      const result: SceneGridAlignmentResult = {
+        id: "s1",
+        persisted: false,
+        before: { grid, shiftX: 0, shiftY: 0, modifiedTime: 12 },
+        after: {
+          grid: { ...grid, size: 80, distance: 10 },
+          shiftX: 33,
+          shiftY: 30,
+          modifiedTime: 12,
+        },
+        rollback: {
+          id: "s1",
+          expectedModifiedTime: 12,
+          size: 50,
+          distance: 5,
+          shiftX: 0,
+          shiftY: 0,
+        },
+        spatialDocumentCounts: {
+          tokens: 3,
+          walls: 6,
+          regions: 0,
+          tiles: 0,
+          notes: 5,
+          lights: 1,
+          sounds: 0,
+        },
+        unrelatedSceneFieldsUnchanged: true,
+        embeddedDocumentsUnchanged: true,
+      };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .put("/api/scenes/s1/grid-alignment")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({
+        expectedModifiedTime: 12,
+        size: 80,
+        distance: 10,
+        shiftX: 33,
+        shiftY: 30,
+        dryRun: true,
+      });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.persisted, false);
+    assert.deepEqual(res.body.rollback, {
+      id: "s1",
+      expectedModifiedTime: 12,
+      size: 50,
+      distance: 5,
+      shiftX: 0,
+      shiftY: 0,
     });
   });
 

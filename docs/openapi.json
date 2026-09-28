@@ -7595,6 +7595,203 @@
         }
       }
     },
+    "/api/scenes/{id}/grid-alignment": {
+      "put": {
+        "operationId": "foundry_align_scene_grid",
+        "summary": "Revision-checks and updates only one Scene's grid size, distance, and offsets through the GM lane.",
+        "description": "Revision-checks and updates only one Scene's grid size, distance, and offsets through the GM lane. It independently verifies that unrelated Scene fields and embedded documents remain unchanged and returns an exact rollback payload.\n\n**Warning:** this operation is destructive/irreversible (see MCP tool annotations).",
+        "tags": ["scenes"],
+        "security": [{ "apiKeyAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedModifiedTime": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "size": { "type": "integer", "minimum": 50, "maximum": 9007199254740991 },
+                  "distance": { "type": "number", "exclusiveMinimum": 0 },
+                  "shiftX": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "shiftY": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "dryRun": { "type": "boolean" }
+                },
+                "required": ["expectedModifiedTime", "size", "distance", "shiftX", "shiftY"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "persisted": { "type": "boolean" },
+                    "before": {
+                      "type": "object",
+                      "properties": {
+                        "grid": {
+                          "type": "object",
+                          "properties": {
+                            "type": { "type": "number" },
+                            "size": { "type": "number" },
+                            "distance": { "type": "number" },
+                            "units": { "type": "string" },
+                            "style": { "type": "string" },
+                            "thickness": { "type": "number" },
+                            "color": { "type": "string" },
+                            "alpha": { "type": "number" }
+                          },
+                          "required": [
+                            "type",
+                            "size",
+                            "distance",
+                            "units",
+                            "style",
+                            "thickness",
+                            "color",
+                            "alpha"
+                          ]
+                        },
+                        "shiftX": { "type": "number" },
+                        "shiftY": { "type": "number" },
+                        "modifiedTime": { "type": "number" }
+                      },
+                      "required": ["grid", "shiftX", "shiftY", "modifiedTime"]
+                    },
+                    "after": {
+                      "type": "object",
+                      "properties": {
+                        "grid": {
+                          "type": "object",
+                          "properties": {
+                            "type": { "type": "number" },
+                            "size": { "type": "number" },
+                            "distance": { "type": "number" },
+                            "units": { "type": "string" },
+                            "style": { "type": "string" },
+                            "thickness": { "type": "number" },
+                            "color": { "type": "string" },
+                            "alpha": { "type": "number" }
+                          },
+                          "required": [
+                            "type",
+                            "size",
+                            "distance",
+                            "units",
+                            "style",
+                            "thickness",
+                            "color",
+                            "alpha"
+                          ]
+                        },
+                        "shiftX": { "type": "number" },
+                        "shiftY": { "type": "number" },
+                        "modifiedTime": { "type": "number" }
+                      },
+                      "required": ["grid", "shiftX", "shiftY", "modifiedTime"]
+                    },
+                    "rollback": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "minLength": 1 },
+                        "expectedModifiedTime": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "size": { "type": "integer", "minimum": 50, "maximum": 9007199254740991 },
+                        "distance": { "type": "number", "exclusiveMinimum": 0 },
+                        "shiftX": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "shiftY": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "expectedModifiedTime",
+                        "size",
+                        "distance",
+                        "shiftX",
+                        "shiftY"
+                      ]
+                    },
+                    "spatialDocumentCounts": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                        "walls": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                        "regions": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                        "tiles": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                        "notes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                        "lights": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                        "sounds": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                      },
+                      "required": [
+                        "tokens",
+                        "walls",
+                        "regions",
+                        "tiles",
+                        "notes",
+                        "lights",
+                        "sounds"
+                      ]
+                    },
+                    "unrelatedSceneFieldsUnchanged": { "type": "boolean", "const": true },
+                    "embeddedDocumentsUnchanged": { "type": "boolean", "const": true }
+                  },
+                  "required": [
+                    "id",
+                    "persisted",
+                    "before",
+                    "after",
+                    "rollback",
+                    "spatialDocumentCounts",
+                    "unrelatedSceneFieldsUnchanged",
+                    "embeddedDocumentsUnchanged"
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
     "/api/scenes/{id}/dimensions": {
       "get": {
         "operationId": "foundry_get_scene_dimensions",

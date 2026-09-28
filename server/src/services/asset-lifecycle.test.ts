@@ -69,6 +69,20 @@ function wav(sampleRate = 8_000, channels = 1, samples = 8): Buffer {
   return result;
 }
 
+function webp(width: number, height: number): Buffer {
+  const payload = Buffer.alloc(10);
+  payload.set([0x9d, 0x01, 0x2a], 3);
+  payload.writeUInt16LE(width, 6);
+  payload.writeUInt16LE(height, 8);
+  const result = Buffer.alloc(12 + 8 + payload.length);
+  result.write("RIFF", 0, "ascii");
+  result.writeUInt32LE(result.length - 8, 4);
+  result.write("WEBPVP8 ", 8, "ascii");
+  result.writeUInt32LE(payload.length, 16);
+  payload.copy(result, 20);
+  return result;
+}
+
 function opusOgg(granule = 48_000): Buffer {
   const payload = Buffer.alloc(19);
   payload.write("OpusHead", 0, "ascii");
@@ -252,15 +266,17 @@ void describe("asset lifecycle", () => {
     assert.equal(result.size, bytes.length);
     assert.equal(result.sha256, createHash("sha256").update(bytes).digest("hex"));
   });
-  void it("validates supported PNG, JPEG, WAV, and OGG structures with safe metadata", async () => {
+  void it("validates supported PNG, JPEG, WebP, WAV, and OGG structures with safe metadata", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "asset-life-"));
     await writeFile(path.join(root, "valid.png"), png(3, 2));
     await writeFile(path.join(root, "valid.jpg"), jpeg(7, 5));
+    await writeFile(path.join(root, "valid.webp"), webp(11, 9));
     await writeFile(path.join(root, "valid.wav"), wav());
     await writeFile(path.join(root, "valid.ogg"), opusOgg());
     const service = new AssetLifecycleService({ roots: { data: root } });
     const pngInfo = await service.inspect({ root: "data", path: "valid.png" });
     const jpegInfo = await service.inspect({ root: "data", path: "valid.jpg" });
+    const webpInfo = await service.inspect({ root: "data", path: "valid.webp" });
     const wavInfo = await service.inspect({ root: "data", path: "valid.wav" });
     const oggInfo = await service.inspect({ root: "data", path: "valid.ogg" });
     assert.deepEqual(pngInfo.metadata, {
@@ -279,6 +295,15 @@ void describe("asset lifecycle", () => {
     });
     assert.equal(jpegInfo.decodable, false);
     assert.equal(jpegInfo.structurallyValid, true);
+    assert.deepEqual(webpInfo.metadata, {
+      format: "webp",
+      codec: "vp8",
+      width: 11,
+      height: 9,
+    });
+    assert.equal(webpInfo.mediaType, "image/webp");
+    assert.equal(webpInfo.decodable, false);
+    assert.equal(webpInfo.structurallyValid, true);
     assert.equal(wavInfo.metadata?.codec, "pcm");
     assert.equal(wavInfo.metadata?.sampleRate, 8_000);
     assert.equal(wavInfo.metadata?.durationSeconds, 0.001);
@@ -303,6 +328,7 @@ void describe("asset lifecycle", () => {
       ["malformed.png", malformedPng],
       ["truncated.jpg", malformedJpeg],
       ["malformed.wav", malformedWav],
+      ["truncated.webp", webp(11, 9).subarray(0, -1)],
       ["truncated.ogg", malformedOgg.subarray(0, -1)],
     ];
     for (const [name, bytes] of fixtures) await writeFile(path.join(root, name), bytes);

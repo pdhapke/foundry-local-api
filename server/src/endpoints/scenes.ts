@@ -13,6 +13,8 @@ import { z } from "zod";
 import {
   SCENE_COMMANDS,
   type DocumentData,
+  type SceneGridAlignmentInput,
+  type SceneGridAlignmentResult,
   type SceneDimensions,
   type SceneIdInput,
   type SceneResetFogResult,
@@ -22,6 +24,51 @@ import { makeDocumentEndpoints } from "./documents.js";
 import type { AnyEndpointDescriptor, EndpointDescriptor } from "./types.js";
 
 const idSchema = z.object({ id: z.string().min(1) });
+
+const alignGridSchema = z.object({
+  id: z.string().min(1),
+  expectedModifiedTime: z.number().int().nonnegative(),
+  size: z.number().int().min(50),
+  distance: z.number().positive(),
+  shiftX: z.number().int(),
+  shiftY: z.number().int(),
+  dryRun: z.boolean().optional(),
+});
+
+const gridStateSchema = z.object({
+  grid: z.object({
+    type: z.number(),
+    size: z.number(),
+    distance: z.number(),
+    units: z.string(),
+    style: z.string(),
+    thickness: z.number(),
+    color: z.string(),
+    alpha: z.number(),
+  }),
+  shiftX: z.number(),
+  shiftY: z.number(),
+  modifiedTime: z.number(),
+});
+
+const alignGridResultSchema = z.object({
+  id: z.string(),
+  persisted: z.boolean(),
+  before: gridStateSchema,
+  after: gridStateSchema,
+  rollback: alignGridSchema.omit({ dryRun: true }),
+  spatialDocumentCounts: z.object({
+    tokens: z.number().int().nonnegative(),
+    walls: z.number().int().nonnegative(),
+    regions: z.number().int().nonnegative(),
+    tiles: z.number().int().nonnegative(),
+    notes: z.number().int().nonnegative(),
+    lights: z.number().int().nonnegative(),
+    sounds: z.number().int().nonnegative(),
+  }),
+  unrelatedSceneFieldsUnchanged: z.literal(true),
+  embeddedDocumentsUnchanged: z.literal(true),
+});
 
 const activateDescriptor: EndpointDescriptor<SceneIdInput, DocumentData> = {
   name: "foundry_activate_scene",
@@ -44,6 +91,22 @@ const getDimensionsDescriptor: EndpointDescriptor<SceneIdInput, SceneDimensions>
     foundryClient.call<SceneIdInput, SceneDimensions>(SCENE_COMMANDS.GET_DIMENSIONS, { id }),
 };
 
+const alignGridDescriptor: EndpointDescriptor<SceneGridAlignmentInput, SceneGridAlignmentResult> = {
+  name: "foundry_align_scene_grid",
+  description:
+    "Revision-checks and updates only one Scene's grid size, distance, and offsets through the GM lane. It independently verifies that unrelated Scene fields and embedded documents remain unchanged and returns an exact rollback payload.",
+  method: "put",
+  path: "/scenes/:id/grid-alignment",
+  inputSchema: alignGridSchema,
+  outputSchema: alignGridResultSchema,
+  annotations: { destructiveHint: true, idempotentHint: false },
+  handler: (input, { foundryClient }) =>
+    foundryClient.call<SceneGridAlignmentInput, SceneGridAlignmentResult>(
+      SCENE_COMMANDS.ALIGN_GRID,
+      input,
+    ),
+};
+
 const resetFogDescriptor: EndpointDescriptor<SceneIdInput, SceneResetFogResult> = {
   name: "foundry_reset_scene_fog",
   description: "Clears a scene's explored fog-of-war for every connected client.",
@@ -62,6 +125,7 @@ export const sceneEndpointDescriptors: AnyEndpointDescriptor[] = [
     toolPlural: "scenes",
   }),
   activateDescriptor,
+  alignGridDescriptor,
   getDimensionsDescriptor,
   resetFogDescriptor,
 ];

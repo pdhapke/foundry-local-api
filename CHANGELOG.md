@@ -29,7 +29,7 @@ log that documents every non-obvious design decision made along the way.
 - Closed the outstanding source defects in asset/reference integrity, continuous
   collision evidence, Foundry-14 waypoint/Region handling, durable movement and
   readiness state, effective-user response binding, and deterministic dnd5e
-  projection. The final automated gate passes 44 shared, 473 server, and 229
+  projection. The final automated gate passes 44 shared, 477 server, and 235
   module tests plus typecheck, lint, formatting, build, manifest-sync, and diff
   checks.
 - Live acceptance remains open because only the GM lane is connected after the
@@ -45,6 +45,15 @@ log that documents every non-obvious design decision made along the way.
 - Phase 0R passed independent source/test security review but remains live
   blocked until the actual Izzy and TV tabs reload the current module bundle and
   all three clients complete acceptance; the GM lane is connected.
+- Added `foundry_reload_client` with identity/correlation/delay-bound
+  acknowledgement before a scheduled page reload. Player and TV access remains
+  limited to their explicit server allowlists and requires fresh enrollment
+  after reload.
+- Added `foundry_align_scene_grid`, a GM-only revision-checked operation that
+  updates only grid size, distance, and offsets, verifies unrelated Scene and
+  embedded state, and returns an exact rollback payload.
+- Corrected RIFF media detection so structurally valid WebP files are reported
+  as `image/webp` with bounded VP8/VP8L/VP8X dimensions instead of WAV.
 
 ### Phase 54 — Canvas Viewport Read & Digital TableTops TV2GM Parity
 - `foundry_get_canvas_viewport` (`GET /api/canvas/viewport`) reads the

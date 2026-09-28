@@ -13,9 +13,55 @@
 // above — no "must be the active scene" restriction was needed.
 export const SCENE_COMMANDS = {
   ACTIVATE: "sceneActivate",
+  ALIGN_GRID: "sceneAlignGrid",
   GET_DIMENSIONS: "sceneGetDimensions",
   RESET_FOG: "sceneResetFog",
 } as const;
+
+export interface SceneGridState {
+  grid: {
+    type: number;
+    size: number;
+    distance: number;
+    units: string;
+    style: string;
+    thickness: number;
+    color: string;
+    alpha: number;
+  };
+  shiftX: number;
+  shiftY: number;
+  modifiedTime: number;
+}
+
+export interface SceneGridAlignmentInput {
+  id: string;
+  expectedModifiedTime: number;
+  size: number;
+  distance: number;
+  shiftX: number;
+  shiftY: number;
+  dryRun?: boolean | undefined;
+}
+
+export interface SceneGridAlignmentResult {
+  id: string;
+  persisted: boolean;
+  before: SceneGridState;
+  after: SceneGridState;
+  rollback: SceneGridAlignmentInput;
+  spatialDocumentCounts: {
+    tokens: number;
+    walls: number;
+    regions: number;
+    tiles: number;
+    notes: number;
+    lights: number;
+    sounds: number;
+  };
+  unrelatedSceneFieldsUnchanged: true;
+  embeddedDocumentsUnchanged: true;
+}
 
 export interface SceneIdInput {
   id: string;

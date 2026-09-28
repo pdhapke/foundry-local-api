@@ -216,4 +216,32 @@ void describe("client readiness endpoints", () => {
       (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
     );
   });
+
+  void it("never dispatches reload to a client that does not advertise it", async () => {
+    let calls = 0;
+    const priorBundleTv = {
+      ...tv,
+      capabilities: tv.capabilities.filter((command) => command !== "clientReload"),
+    };
+    await assert.rejects(
+      clientReadinessEndpointDescriptors[3]!.handler(
+        {
+          clientId: "tv-client",
+          correlationId: "reload-unsupported-0001",
+          delayMs: 1_000,
+        },
+        {
+          foundryClient: fake(
+            (() => {
+              calls += 1;
+              return Promise.resolve({});
+            }) as FoundryClient["call"],
+            [gm, priorBundleTv],
+          ),
+        },
+      ),
+      (error: unknown) => (error as { code?: string }).code === "UNSUPPORTED_VERSION",
+    );
+    assert.equal(calls, 0);
+  });
 });

@@ -112,7 +112,14 @@ export type {
 } from "./items.js";
 
 export { SCENE_COMMANDS } from "./scenes.js";
-export type { SceneIdInput, SceneDimensions, SceneResetFogResult } from "./scenes.js";
+export type {
+  SceneIdInput,
+  SceneDimensions,
+  SceneGridAlignmentInput,
+  SceneGridAlignmentResult,
+  SceneGridState,
+  SceneResetFogResult,
+} from "./scenes.js";
 
 export { TOKEN_COMMANDS } from "./tokens.js";
 export type {

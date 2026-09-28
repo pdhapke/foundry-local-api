@@ -63,10 +63,16 @@ manifests. This is not a claim that all thirteen ledger requirements are
 complete. The runtime capability report deliberately marks incomplete
 families as `partial`, and the campaign completion report records the exact
 remaining acceptance and live-client gates. The complete automated source gate
-currently passes 44 shared, 473 server, and 229 module tests. In particular,
+currently passes 44 shared, 477 server, and 235 module tests. In particular,
 Foundry's API does not provide database-isolated multi-document transactions;
 the manifest reports `atomic: false`, identifies its semantics as strict
 verified compensation, and rejects operations it cannot compensate.
+
+The current source also includes an identity-bound remote client reload and a
+GM-only, revision-checked Scene grid-alignment operation. Neither is proof of a
+live activation: the selected browser must advertise the exact command before
+dispatch, and a grid write verifies that unrelated Scene fields and every
+embedded collection remain unchanged.
 
 ## Workspace layout
 

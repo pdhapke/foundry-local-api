@@ -26,7 +26,7 @@ export interface AssetLifecycleOptions {
 }
 
 interface SafeMediaMetadata {
-  format: "png" | "jpeg" | "wav" | "ogg";
+  format: "png" | "jpeg" | "webp" | "wav" | "ogg";
   codec: string;
   width?: number;
   height?: number;
@@ -441,11 +441,95 @@ async function inspectMedia(
   if (signature.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")))
     return inspectPng(handle, size, observe);
   if (signature[0] === 0xff && signature[1] === 0xd8) return inspectJpeg(handle, size, observe);
-  if (signature.subarray(0, 4).toString("ascii") === "RIFF")
-    return inspectWav(handle, size, observe);
+  if (signature.subarray(0, 4).toString("ascii") === "RIFF") {
+    const formType = signature.subarray(8, 12).toString("ascii");
+    if (formType === "WEBP") return inspectWebp(handle, size, observe);
+    if (formType === "WAVE") return inspectWav(handle, size, observe);
+    return { decodable: false };
+  }
   if (signature.subarray(0, 4).toString("ascii") === "OggS")
     return inspectOgg(handle, size, observe);
   return { decodable: false };
+}
+
+function readUInt24LE(value: Buffer, offset: number): number {
+  return (value[offset] ?? 0) | ((value[offset + 1] ?? 0) << 8) | ((value[offset + 2] ?? 0) << 16);
+}
+
+async function inspectWebp(
+  handle: OpenFile,
+  size: number,
+  observe?: (requestedBytes: number) => void,
+): Promise<MediaInspection> {
+  const failed: MediaInspection = { mediaType: "image/webp", decodable: false };
+  const riff = await readBounded(handle, 0, 12, observe);
+  if (!riff || riff.subarray(8, 12).toString("ascii") !== "WEBP") return failed;
+  if (riff.readUInt32LE(4) + 8 !== size) return failed;
+
+  let offset = 12;
+  let width = 0;
+  let height = 0;
+  let codec: string | undefined;
+  let sawImagePayload = false;
+  let sawAnimation = false;
+  for (let count = 0; count < MAX_MEDIA_CHUNKS && offset + 8 <= size; count++) {
+    const header = await readBounded(handle, offset, 8, observe);
+    if (!header) return failed;
+    const type = header.subarray(0, 4).toString("ascii");
+    const length = header.readUInt32LE(4);
+    const end = offset + 8 + length + (length % 2);
+    if (!Number.isSafeInteger(end) || end > size) return failed;
+
+    if (type === "VP8X") {
+      if (length !== 10 || width !== 0 || height !== 0) return failed;
+      const extended = await readBounded(handle, offset + 8, 10, observe);
+      if (!extended || extended[1] !== 0 || extended[2] !== 0 || extended[3] !== 0) return failed;
+      width = readUInt24LE(extended, 4) + 1;
+      height = readUInt24LE(extended, 7) + 1;
+      codec = (extended[0]! & 0x02) !== 0 ? "webp-animation" : "webp-container";
+    } else if (type === "VP8 ") {
+      if (length < 10 || sawImagePayload) return failed;
+      const frame = await readBounded(handle, offset + 8, 10, observe);
+      if (!frame || !frame.subarray(3, 6).equals(Buffer.from([0x9d, 0x01, 0x2a]))) return failed;
+      const frameWidth = frame.readUInt16LE(6) & 0x3fff;
+      const frameHeight = frame.readUInt16LE(8) & 0x3fff;
+      if (frameWidth === 0 || frameHeight === 0) return failed;
+      if ((width !== 0 && width !== frameWidth) || (height !== 0 && height !== frameHeight))
+        return failed;
+      width = frameWidth;
+      height = frameHeight;
+      codec = "vp8";
+      sawImagePayload = true;
+    } else if (type === "VP8L") {
+      if (length < 5 || sawImagePayload) return failed;
+      const frame = await readBounded(handle, offset + 8, 5, observe);
+      if (!frame || frame[0] !== 0x2f) return failed;
+      const bits = frame.readUInt32LE(1);
+      if (bits >>> 28 !== 0) return failed;
+      const frameWidth = (bits & 0x3fff) + 1;
+      const frameHeight = ((bits >>> 14) & 0x3fff) + 1;
+      if ((width !== 0 && width !== frameWidth) || (height !== 0 && height !== frameHeight))
+        return failed;
+      width = frameWidth;
+      height = frameHeight;
+      codec = "vp8l";
+      sawImagePayload = true;
+    } else if (type === "ANIM") {
+      if (length !== 6) return failed;
+      sawAnimation = true;
+    } else if (type === "ANMF") {
+      if (length < 16 || !sawAnimation) return failed;
+      sawImagePayload = true;
+    }
+    offset = end;
+  }
+  if (offset !== size || !sawImagePayload || width === 0 || height === 0 || !codec) return failed;
+  return {
+    mediaType: "image/webp",
+    decodable: false,
+    structurallyValid: true,
+    metadata: { format: "webp", codec, width, height },
+  };
 }
 
 async function inspectPng(
