@@ -26,6 +26,7 @@ import {
 } from "@foundry-local-api/shared";
 
 import { timingSafeEqualStrings } from "../security/api-key.js";
+import { requestHasProxyHeaders } from "../security/remote-access.js";
 import { EnrollmentStore, type EnrollmentRejectionCode } from "./enrollment-store.js";
 import type {
   FoundrySessionIdentity,
@@ -143,6 +144,11 @@ export class BridgeGateway {
   }
 
   private isUpgradeAllowed(req: IncomingMessage): boolean {
+    // An HTTP tunnel to the main port would otherwise look like loopback and
+    // could open the GM bridge. Proxy headers fail closed. A raw TCP tunnel
+    // does not set them; that is why `/bridge` is not mounted on the public
+    // MCP listener at all.
+    if (requestHasProxyHeaders(req.headers)) return false;
     const url = new URL(req.url ?? "", "http://localhost");
     return url.pathname === "/bridge" && url.search === "";
   }

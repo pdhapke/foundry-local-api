@@ -807,4 +807,42 @@ void describe("Track 0 multi-client BridgeGateway", () => {
     assert.equal(status, 403);
     assert.equal(gateway.listClients().length, 0);
   });
+
+  void it("rejects a tunneled WebSocket upgrade before session verification", async () => {
+    let verifications = 0;
+    const verifier: FoundrySessionVerifier = {
+      async verify() {
+        verifications += 1;
+        return { ok: false, code: "unauthenticated" };
+      },
+    };
+    const server = http.createServer();
+    servers.push(server);
+    const gateway = new BridgeGateway(server, {
+      foundrySessionVerifier: verifier,
+      bindHost: "127.0.0.1",
+      allowedFoundryOrigins: ["http://localhost:30000"],
+    });
+    gateways.push(gateway);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/bridge`, {
+      origin: "http://localhost:30000",
+      headers: {
+        Cookie: "session=user-gm.world-1",
+        "X-Forwarded-For": "203.0.113.10",
+      },
+    });
+    sockets.push(socket);
+    const status = await new Promise<number>((resolve, reject) => {
+      socket.once("unexpected-response", (_request, response) => resolve(response.statusCode ?? 0));
+      socket.once("open", () => reject(new Error("tunneled upgrade opened the bridge")));
+      socket.once("error", () => undefined);
+    });
+    assert.equal(status, 403);
+    assert.equal(verifications, 0);
+    assert.equal(gateway.listClients().length, 0);
+  });
 });

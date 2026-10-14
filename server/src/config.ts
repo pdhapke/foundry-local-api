@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 
 import { config as loadDotenv } from "dotenv";
 import { readManagedCredential } from "../../scripts/foundry-managed-credential.mjs";
+import { timingSafeEqualStrings } from "./security/api-key.js";
+import { isValidAllowedHostPattern } from "./security/remote-access.js";
 
 // Resolve `.env` explicitly relative to this module's own location rather
 // than `process.cwd()`. `dotenv`'s default path resolution is
@@ -36,8 +38,22 @@ const DEFAULT_HOST = "127.0.0.1";
 const MIN_API_KEY_LENGTH = 16;
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 const DEFAULT_RATE_LIMIT_MAX = 100;
+const DEFAULT_PUBLIC_MCP_PORT = 3940;
+const DEFAULT_REMOTE_RATE_LIMIT_WINDOW_MS = 60_000;
+const DEFAULT_REMOTE_RATE_LIMIT_MAX = 120;
 
 export type NodeEnv = "development" | "production" | "test";
+
+/**
+ * Set only when `MCP_REMOTE_API_KEY` is configured. The public listener binds
+ * to 127.0.0.1 on `port` and accepts this key on `/mcp` alone.
+ */
+export interface McpRemoteConfig {
+  apiKey: string;
+  port: number;
+  rateLimitWindowMs: number;
+  rateLimitMax: number;
+}
 
 export interface AppConfig {
   /** TCP port the HTTP server listens on. */
@@ -53,9 +69,10 @@ export interface AppConfig {
   /** Default milliseconds `FoundryClient.call` waits for a bridge response before rejecting with a timeout error. */
   bridgeTimeoutMs: number;
   /**
-   * Static administrative API key required on every `/api/*` and `/mcp`
+   * Static administrative API key required on every `/api/*` and local `/mcp`
    * request. It is deliberately separate from Foundry-session authentication
-   * for the GM `/bridge` lane. Auto-provisioned on first startup if unset.
+   * for the GM `/bridge` lane, and it is not accepted on the public MCP
+   * listener. Auto-provisioned on first startup if unset.
    */
   apiKey: string;
   /** Origins allowed to make cross-origin requests to `/api/*`. Empty = deny all cross-origin requests. */
@@ -73,6 +90,23 @@ export interface AppConfig {
    * respect that.
    */
   mcpStdio: boolean;
+  /**
+   * Remote MCP listener settings, or `null` when `MCP_REMOTE_API_KEY` is unset
+   * (the public port is not opened).
+   */
+  mcpRemote: McpRemoteConfig | null;
+  /**
+   * Host patterns permitted on the public MCP listener. Empty leaves that
+   * check off. Non-empty also turns on loopback Host enforcement on the main
+   * listener, as does enabling `mcpRemote`.
+   */
+  mcpAllowedHosts: readonly string[];
+  /** When true, the main listener rejects non-loopback `Host` values. */
+  enforceLoopbackHost: boolean;
+  /** `0` means no cap. Applies independently to each MCP listener. */
+  mcpMaxSessions: number;
+  /** `0` means sessions do not expire for idleness. */
+  mcpSessionIdleMs: number;
 }
 
 /** Thrown when the environment describes an invalid or unsafe configuration. */
@@ -269,6 +303,100 @@ function parseRateLimitMax(raw: string | undefined): number {
   return parsed;
 }
 
+function parseOptionalPositiveInt(raw: string | undefined, name: string): number {
+  if (raw === undefined || raw.trim() === "") return 0;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ConfigError(`Invalid ${name} "${raw}": must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function parseRemoteRateLimitWindowMs(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_REMOTE_RATE_LIMIT_WINDOW_MS;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ConfigError(
+      `Invalid MCP_REMOTE_RATE_LIMIT_WINDOW_MS "${raw}": must be a positive integer.`,
+    );
+  }
+  return parsed;
+}
+
+function parseRemoteRateLimitMax(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_REMOTE_RATE_LIMIT_MAX;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ConfigError(
+      `Invalid MCP_REMOTE_RATE_LIMIT_MAX "${raw}": must be a positive integer.`,
+    );
+  }
+  return parsed;
+}
+
+/**
+ * Opt-in remote credential. Unset disables the public listener. A value that
+ * matches `API_KEY` is rejected so the administrative key cannot be reused as
+ * the credential a cloud client stores.
+ */
+function parseRemoteApiKey(raw: string | undefined, adminKey: string): string | null {
+  const key = raw?.trim() ?? "";
+  if (key === "") return null;
+  if (key.length < MIN_API_KEY_LENGTH) {
+    throw new ConfigError(
+      `MCP_REMOTE_API_KEY is too short (${key.length} chars, minimum ${MIN_API_KEY_LENGTH}). ` +
+        "Generate one with: " +
+        `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`,
+    );
+  }
+  if (timingSafeEqualStrings(key, adminKey)) {
+    throw new ConfigError(
+      "MCP_REMOTE_API_KEY must be different from API_KEY. The administrative key stays on this machine; the remote key is the only credential a tunnel client should hold.",
+    );
+  }
+  return key;
+}
+
+function parsePublicMcpPort(raw: string | undefined, mainPort: number, enabled: boolean): number {
+  if (raw !== undefined && raw.trim() !== "") {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+      throw new ConfigError(
+        `Invalid MCP_PUBLIC_PORT "${raw}": must be an integer between 1 and 65535.`,
+      );
+    }
+    if (enabled && parsed === mainPort) {
+      throw new ConfigError(
+        `MCP_PUBLIC_PORT (${parsed}) must be different from PORT so the tunnel cannot reach the main listener.`,
+      );
+    }
+    return parsed;
+  }
+  if (!enabled) return 0;
+  if (mainPort === DEFAULT_PUBLIC_MCP_PORT) {
+    throw new ConfigError(
+      `PORT is ${DEFAULT_PUBLIC_MCP_PORT}, which is the default public MCP port. Set MCP_PUBLIC_PORT to a different port.`,
+    );
+  }
+  return DEFAULT_PUBLIC_MCP_PORT;
+}
+
+function parseMcpAllowedHosts(raw: string | undefined): string[] {
+  if (raw === undefined || raw.trim() === "") return [];
+  const hosts = raw
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+  for (const host of hosts) {
+    if (!isValidAllowedHostPattern(host)) {
+      throw new ConfigError(
+        `Invalid MCP_ALLOWED_HOSTS entry "${host}". Use a hostname, an IP, or a single-label wildcard such as *.trycloudflare.com.`,
+      );
+    }
+  }
+  return hosts;
+}
+
 /**
  * Loads and validates configuration from the environment. Throws
  * {@link ConfigError} on anything invalid or unsafe rather than silently
@@ -278,17 +406,47 @@ export function loadConfig(): AppConfig {
   const managed = readManagedCredential();
   if (!managed) ensureApiKeyProvisioned();
   const nodeEnv = parseNodeEnv(process.env["NODE_ENV"]);
+  const port = parsePort(process.env["PORT"]);
+  const apiKey = parseApiKey(managed?.key ?? process.env["API_KEY"]);
+  const remoteApiKey = parseRemoteApiKey(process.env["MCP_REMOTE_API_KEY"], apiKey);
+  const mcpAllowedHosts = parseMcpAllowedHosts(process.env["MCP_ALLOWED_HOSTS"]);
+  const remoteRateLimitWindowMs = parseRemoteRateLimitWindowMs(
+    process.env["MCP_REMOTE_RATE_LIMIT_WINDOW_MS"],
+  );
+  const remoteRateLimitMax = parseRemoteRateLimitMax(process.env["MCP_REMOTE_RATE_LIMIT_MAX"]);
+  const mcpRemote =
+    remoteApiKey === null
+      ? null
+      : {
+          apiKey: remoteApiKey,
+          port: parsePublicMcpPort(process.env["MCP_PUBLIC_PORT"], port, true),
+          rateLimitWindowMs: remoteRateLimitWindowMs,
+          rateLimitMax: remoteRateLimitMax,
+        };
+  if (remoteApiKey === null && process.env["MCP_PUBLIC_PORT"]?.trim()) {
+    // Validate a stray port even when the listener stays off, so a typo is
+    // not silent until the key is added later.
+    parsePublicMcpPort(process.env["MCP_PUBLIC_PORT"], port, false);
+  }
   return {
-    port: parsePort(process.env["PORT"]),
+    port,
     host: parseHost(process.env["HOST"]),
     nodeEnv,
     isDevelopment: nodeEnv === "development",
     shutdownTimeoutMs: parseShutdownTimeout(process.env["SHUTDOWN_TIMEOUT_MS"]),
     bridgeTimeoutMs: parseBridgeTimeout(process.env["BRIDGE_TIMEOUT_MS"]),
-    apiKey: parseApiKey(managed?.key ?? process.env["API_KEY"]),
+    apiKey,
     corsAllowedOrigins: parseCorsAllowedOrigins(process.env["CORS_ALLOWED_ORIGINS"]),
     rateLimitWindowMs: parseRateLimitWindowMs(process.env["RATE_LIMIT_WINDOW_MS"]),
     rateLimitMax: parseRateLimitMax(process.env["RATE_LIMIT_MAX"]),
     mcpStdio: parseBoolean(process.env["MCP_STDIO"]),
+    mcpRemote,
+    mcpAllowedHosts,
+    enforceLoopbackHost: mcpRemote !== null || mcpAllowedHosts.length > 0,
+    mcpMaxSessions: parseOptionalPositiveInt(process.env["MCP_MAX_SESSIONS"], "MCP_MAX_SESSIONS"),
+    mcpSessionIdleMs: parseOptionalPositiveInt(
+      process.env["MCP_SESSION_IDLE_MS"],
+      "MCP_SESSION_IDLE_MS",
+    ),
   };
 }

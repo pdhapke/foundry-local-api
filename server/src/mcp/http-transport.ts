@@ -38,6 +38,23 @@ export interface McpHttpOptions {
   integrationManager: IntegrationManager;
   eventBus?: FoundryEventBus;
   foundations?: FoundationRuntime;
+  /**
+   * Maximum concurrent Streamable HTTP sessions on this listener.
+   * `0` or omitted disables the cap.
+   */
+  maxSessions?: number;
+  /**
+   * Close a session that has no in-flight request and has not been touched
+   * for this many milliseconds. A held SSE GET counts as in flight, so an
+   * actively connected client is not expired. `0` or omitted disables expiry.
+   */
+  sessionIdleMs?: number;
+}
+
+interface TrackedSession {
+  transport: StreamableHTTPServerTransport;
+  lastSeenMs: number;
+  inFlight: number;
 }
 
 const SESSION_ID_HEADER = "mcp-session-id";
@@ -51,15 +68,50 @@ const SESSION_ID_HEADER = "mcp-session-id";
  */
 export function mountMcpHttp(app: Express, options: McpHttpOptions): void {
   const { foundryClient, integrationManager, eventBus, foundations } = options;
-  const transports = new Map<string, StreamableHTTPServerTransport>();
+  const maxSessions = options.maxSessions ?? 0;
+  const sessionIdleMs = options.sessionIdleMs ?? 0;
+  const transports = new Map<string, TrackedSession>();
+  let pendingInitializations = 0;
+
+  function noteActivity(tracked: TrackedSession, res: Response): void {
+    tracked.inFlight += 1;
+    tracked.lastSeenMs = Date.now();
+    let settled = false;
+    const done = (): void => {
+      if (settled) return;
+      settled = true;
+      tracked.inFlight = Math.max(0, tracked.inFlight - 1);
+      tracked.lastSeenMs = Date.now();
+    };
+    res.on("finish", done);
+    res.on("close", done);
+  }
+
+  if (sessionIdleMs > 0) {
+    const intervalMs = Math.min(Math.max(sessionIdleMs, 50), 30_000);
+    const timer = setInterval(() => {
+      const cutoff = Date.now() - sessionIdleMs;
+      const expired: StreamableHTTPServerTransport[] = [];
+      for (const tracked of transports.values()) {
+        if (tracked.inFlight === 0 && tracked.lastSeenMs <= cutoff) {
+          expired.push(tracked.transport);
+        }
+      }
+      for (const transport of expired) {
+        void transport.close().catch(() => undefined);
+      }
+    }, intervalMs);
+    timer.unref();
+  }
 
   async function handleSessionRequest(req: Request, res: Response): Promise<void> {
     const sessionId = req.header(SESSION_ID_HEADER);
-    const transport = sessionId ? transports.get(sessionId) : undefined;
-    if (!transport) {
+    const tracked = sessionId ? transports.get(sessionId) : undefined;
+    if (!tracked) {
       throw new HttpError(400, "Missing or unknown Mcp-Session-Id header.", "BAD_REQUEST");
     }
-    await transport.handleRequest(req, res);
+    noteActivity(tracked, res);
+    await tracked.transport.handleRequest(req, res);
   }
 
   app.post("/mcp", (req: Request, res: Response, next: NextFunction) => {
@@ -68,7 +120,8 @@ export function mountMcpHttp(app: Express, options: McpHttpOptions): void {
       const existing = sessionId ? transports.get(sessionId) : undefined;
 
       if (existing) {
-        await existing.handleRequest(req, res, req.body as unknown);
+        noteActivity(existing, res);
+        await existing.transport.handleRequest(req, res, req.body as unknown);
         return;
       }
 
@@ -80,34 +133,49 @@ export function mountMcpHttp(app: Express, options: McpHttpOptions): void {
         );
       }
 
-      const mcpServer = createMcpServer(foundryClient, integrationManager, eventBus, foundations);
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (newSessionId) => {
-          transports.set(newSessionId, transport);
-        },
-      });
-      transport.onclose = () => {
-        if (transport.sessionId) {
-          transports.delete(transport.sessionId);
-        }
-      };
-
-      // StreamableHTTPServerTransport declares `onclose`/`onerror`/`onmessage`
-      // as accessor pairs typed `X | undefined`, which the `Transport`
-      // interface's `exactOptionalPropertyTypes`-sensitive `onclose?: () =>
-      // void` field shape rejects on structural grounds alone — the class
-      // does implement `Transport` (per its own `implements` clause), this
-      // is a tsconfig-strictness/SDK-typings mismatch, not an actual runtime
-      // incompatibility.
-      try {
-        await mcpServer.connect(transport as unknown as Transport);
-      } catch (error) {
-        // A failed connect never reaches the SDK's normal close callback.
-        disposeMcpServerIntegrations(mcpServer);
-        throw error;
+      if (maxSessions > 0 && transports.size + pendingInitializations >= maxSessions) {
+        throw new HttpError(503, "MCP session limit reached.", "MCP_SESSION_LIMIT");
       }
-      await transport.handleRequest(req, res, req.body as unknown);
+
+      pendingInitializations += 1;
+      try {
+        const mcpServer = createMcpServer(foundryClient, integrationManager, eventBus, foundations);
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (newSessionId) => {
+            const tracked: TrackedSession = {
+              transport,
+              lastSeenMs: Date.now(),
+              inFlight: 0,
+            };
+            transports.set(newSessionId, tracked);
+            noteActivity(tracked, res);
+          },
+        });
+        transport.onclose = () => {
+          if (transport.sessionId) {
+            transports.delete(transport.sessionId);
+          }
+        };
+
+        // StreamableHTTPServerTransport declares `onclose`/`onerror`/`onmessage`
+        // as accessor pairs typed `X | undefined`, which the `Transport`
+        // interface's `exactOptionalPropertyTypes`-sensitive `onclose?: () =>
+        // void` field shape rejects on structural grounds alone — the class
+        // does implement `Transport` (per its own `implements` clause), this
+        // is a tsconfig-strictness/SDK-typings mismatch, not an actual runtime
+        // incompatibility.
+        try {
+          await mcpServer.connect(transport as unknown as Transport);
+        } catch (error) {
+          // A failed connect never reaches the SDK's normal close callback.
+          disposeMcpServerIntegrations(mcpServer);
+          throw error;
+        }
+        await transport.handleRequest(req, res, req.body as unknown);
+      } finally {
+        pendingInitializations -= 1;
+      }
     })().catch(next);
   });
 

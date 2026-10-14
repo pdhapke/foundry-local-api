@@ -32,18 +32,29 @@ function extractProvidedKey(req: Request): string | undefined {
 }
 
 /**
- * Builds the auth middleware for a fixed `apiKey`. Records the outcome on
+ * Builds the auth middleware for one or more accepted keys. Every provided
+ * key is compared (no early return) so a second key does not change the
+ * timing of a mismatch against the first. Records the outcome on
  * `res.locals["authenticated"]` (before succeeding or failing) so the
  * request logger in app.ts can include it in the audit line regardless of
  * whether the request is ultimately allowed through.
+ *
+ * Pass only the keys that are valid for the mount. `/api` receives the
+ * administrative key alone. `/mcp` may also receive `MCP_REMOTE_API_KEY`.
+ * The public MCP listener receives the remote key alone.
  */
-export function createApiKeyAuth(apiKey: string) {
+export function createApiKeyAuth(apiKey: string | readonly string[]) {
+  const acceptedKeys = (typeof apiKey === "string" ? [apiKey] : apiKey).filter(
+    (key) => key.length > 0,
+  );
   return function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
     const provided = extractProvidedKey(req);
-    const authenticated =
-      typeof provided === "string" &&
-      provided.length > 0 &&
-      timingSafeEqualStrings(provided, apiKey);
+    let authenticated = false;
+    if (typeof provided === "string" && provided.length > 0) {
+      for (const key of acceptedKeys) {
+        if (timingSafeEqualStrings(provided, key)) authenticated = true;
+      }
+    }
 
     res.locals["authenticated"] = authenticated;
 
