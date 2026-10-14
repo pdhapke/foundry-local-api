@@ -113,8 +113,8 @@ registerCommand(CANVAS_COMMANDS.PAN, async (input: CanvasPanInput): Promise<Canv
   if (!canvas) {
     throw new Error("No active canvas — no scene is currently being viewed");
   }
-  await canvas.animatePan(input);
-  return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
+  canvas.pan(input);
+  return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.stage.scale.x };
 });
 
 registerCommand(
@@ -129,8 +129,8 @@ registerCommand(
     // *other* client's listener picks up.
     const message: CanvasPushViewMessage = { type: "pushView", view: input };
     game.socket.emit(MODULE_SOCKET_EVENT, message);
-    await canvas.animatePan(input);
-    return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
+    canvas.pan(input);
+    return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.stage.scale.x };
   },
 );
 
@@ -140,5 +140,5 @@ registerCommand(CANVAS_COMMANDS.GET_VIEWPORT, (): CanvasPanResult => {
   if (!canvas) {
     throw new Error("No active canvas — no scene is currently being viewed");
   }
-  return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.scale };
+  return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.stage.scale.x };
 });

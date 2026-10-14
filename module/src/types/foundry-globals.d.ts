@@ -684,6 +684,8 @@ declare const canvas:
       };
       /** Current zoom factor. */
       scale: number;
+      /** Applies an immediate view without relying on the renderer animation ticker. */
+      pan(view: { x?: number | undefined; y?: number | undefined; scale?: number | undefined }): void;
       /** Pans/zooms the view; omitted fields keep their current value. */
       animatePan(view: {
         x?: number | undefined;

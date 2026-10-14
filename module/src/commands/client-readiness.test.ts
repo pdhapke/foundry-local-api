@@ -64,7 +64,7 @@ function install(clientId = "client-player") {
   const canvasValue = {
     scene: { id: "scene" },
     stage: { pivot: { x: 0, y: 0 }, scale: { x: 1, y: 1 } },
-    animatePan: ({ x, y, scale }: { x?: number; y?: number; scale?: number }) => {
+    pan: ({ x, y, scale }: { x?: number; y?: number; scale?: number }) => {
       applications += 1;
       if (x !== undefined) canvasValue.stage.pivot.x = x;
       if (y !== undefined) canvasValue.stage.pivot.y = y;
@@ -284,7 +284,7 @@ void describe("client readiness commands", () => {
 
   void it("marks acknowledgement incomplete when viewport readback does not match", async () => {
     install();
-    (globalThis as any).canvas.animatePan = () => Promise.resolve();
+    (globalThis as any).canvas.pan = () => {};
     const value = await applyClientViewport({
       sceneId: "scene",
       correlationId: "viewport-mismatch-0001",
@@ -450,4 +450,15 @@ void describe("client readiness commands", () => {
       (error: unknown) => (error as { code?: string }).code === "INCOMPLETE_RESULT",
     );
   });
+});
+
+void it("explicit viewport placement completes without waiting for canvas animation", async () => {
+  const state = install("immediate-viewport-client");
+  (globalThis as any).canvas.animatePan = () => { throw new Error("Animation must not be used for verified viewport placement"); };
+  const view = { x: 425, y: 675, scale: 1 };
+  const result = await applyClientViewport({ sceneId: "scene", correlationId: "immediate-viewport-regression", viewport: view });
+  assert.deepEqual(result.viewport, view);
+  assert.equal(result.applied.viewport, true);
+  assert.equal(result.incomplete, false);
+  assert.equal(state.applications(), 1);
 });

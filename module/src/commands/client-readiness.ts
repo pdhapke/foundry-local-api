@@ -375,7 +375,7 @@ export async function applyClientViewport(
   }
   begin(input.correlationId, input, "viewport");
   if (input.digitalTabletop) dtt!.api!.applyPhysicalViewport({x:input.viewport.x,y:input.viewport.y,expectedScale:input.viewport.scale}, true);
-  else await canvas.animatePan(input.viewport);
+  else canvas.pan(input.viewport);
   const actual = currentViewport();
   const viewportMatches =
     actual !== null &&
