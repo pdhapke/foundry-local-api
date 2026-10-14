@@ -67,7 +67,7 @@ void describe("remote MCP configuration", { concurrency: 1 }, () => {
       const config = loadConfig();
       assert.ok(config.mcpRemote);
       assert.equal(config.mcpRemote?.apiKey, REMOTE);
-      assert.equal(config.mcpRemote?.port, 3940);
+      assert.equal(config.mcpRemote?.port, 3945);
       assert.equal(config.mcpRemote?.rateLimitWindowMs, 60_000);
       assert.equal(config.mcpRemote?.rateLimitMax, 120);
       assert.equal(config.enforceLoopbackHost, true);

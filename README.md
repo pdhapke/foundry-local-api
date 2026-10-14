@@ -140,7 +140,7 @@ variable is optional and documented inline in that file. The essentials:
 | `RATE_LIMIT_MAX` | `100` | Max requests per window per client, applied to `/api/*`. |
 | `MCP_STDIO` | `false` | Also start an MCP server on the process's own stdio — set this via your MCP client's server config, not by hand in `.env` (see [Connecting an MCP client](#connecting-an-mcp-client-eg-claude-desktopcode) below). |
 | `MCP_REMOTE_API_KEY` | *(unset)* | Opens a second loopback listener that serves only `/mcp`. This key is accepted on `/mcp` and rejected on `/api`. It must differ from `API_KEY`. Leave unset to keep the public listener off. |
-| `MCP_PUBLIC_PORT` | `3940` | Port for that `/mcp`-only listener. Always bound to `127.0.0.1`. Must differ from `PORT`. |
+| `MCP_PUBLIC_PORT` | `3945` | Port for that `/mcp`-only listener. Always bound to `127.0.0.1`. Must differ from `PORT`. `3945` leaves `3940` and `3941` for the AI Dungeon Master companion. |
 | `MCP_ALLOWED_HOSTS` | *(unset)* | Host allowlist for the public listener (`*.trycloudflare.com` style wildcards allowed). Also turns on loopback `Host` checks on the main listener. |
 | `MCP_REMOTE_RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window for the public `/mcp` listener only. |
 | `MCP_REMOTE_RATE_LIMIT_MAX` | `120` | Max public `/mcp` requests per window per forwarded client. |
@@ -271,22 +271,24 @@ server does not launch a tunnel — installation and UI for that stay with
 is a second listener you can point an existing tunnel at.
 
 Set `MCP_REMOTE_API_KEY` to a new secret (not `API_KEY`). The server then
-listens on `127.0.0.1:3940` (`MCP_PUBLIC_PORT`) and serves **only** `POST`,
-`GET`, and `DELETE /mcp`. `/api`, `/health`, extension routes, and any
+listens on `127.0.0.1:3945` (`MCP_PUBLIC_PORT`) and serves **only** `POST`,
+`GET`, and `DELETE /mcp`. That default stays clear of the AI Dungeon Master
+companion, which already binds `127.0.0.1:3940` (`AI_DM_PORT`) and
+`127.0.0.1:3941` (`AI_DM_CHATKIT_PORT`). `/api`, `/health`, extension routes, and any
 WebSocket upgrade are rejected there. Authenticate with
 `Authorization: Bearer <MCP_REMOTE_API_KEY>` or `X-Api-Key`. The
 administrative `API_KEY` is not accepted on this listener, so it never has
 to be copied into a cloud MCP client. The remote key is also accepted on
 local `/mcp`, and it is rejected on `/api`.
 
-Point the tunnel at `http://127.0.0.1:3940`, not at port 3939:
+Point the tunnel at `http://127.0.0.1:3945`, not at port 3939:
 
 ```sh
 # Quick Cloudflare tunnel. The printed https://*.trycloudflare.com URL is the MCP host.
-cloudflared tunnel --url http://127.0.0.1:3940
+cloudflared tunnel --url http://127.0.0.1:3945
 
 # Or ngrok, HTTP only, same target.
-ngrok http 127.0.0.1:3940
+ngrok http 127.0.0.1:3945
 ```
 
 A named cloudflared tunnel should ingress only that origin:
@@ -294,7 +296,7 @@ A named cloudflared tunnel should ingress only that origin:
 ```yaml
 ingress:
   - hostname: foundry-mcp.example.com
-    service: http://127.0.0.1:3940
+    service: http://127.0.0.1:3945
   - service: http_status:404
 ```
 
@@ -327,7 +329,7 @@ turning on Express `trust proxy`. The bucket is the rightmost
 that header. `CF-Connecting-IP` is used only when `X-Forwarded-For` is
 absent. A raw TCP tunnel adds neither header and shares one bucket. Do not
 TCP-forward port 3939: a raw tunnel to the main port is indistinguishable
-from a local client. Forwarding port 3940 is safe even as raw TCP, because
+from a local client. Forwarding port 3945 is safe even as raw TCP, because
 that listener has no other routes.
 
 `MCP_MAX_SESSIONS` and `MCP_SESSION_IDLE_MS` are optional caps. Each listener
