@@ -139,6 +139,13 @@ variable is optional and documented inline in that file. The essentials:
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window (ms) applied to `/api/*`. |
 | `RATE_LIMIT_MAX` | `100` | Max requests per window per client, applied to `/api/*`. |
 | `MCP_STDIO` | `false` | Also start an MCP server on the process's own stdio — set this via your MCP client's server config, not by hand in `.env` (see [Connecting an MCP client](#connecting-an-mcp-client-eg-claude-desktopcode) below). |
+| `MCP_REMOTE_API_KEY` | *(unset)* | Opens a second loopback listener that serves only `/mcp`. This key is accepted on `/mcp` and rejected on `/api`. It must differ from `API_KEY`. Leave unset to keep the public listener off. |
+| `MCP_PUBLIC_PORT` | `3945` | Port for that `/mcp`-only listener. Always bound to `127.0.0.1`. Must differ from `PORT`. `3945` leaves `3940` and `3941` for the AI Dungeon Master companion. |
+| `MCP_ALLOWED_HOSTS` | *(unset)* | Host allowlist for the public listener (`*.trycloudflare.com` style wildcards allowed). Also turns on loopback `Host` checks on the main listener. |
+| `MCP_REMOTE_RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window for the public `/mcp` listener only. |
+| `MCP_REMOTE_RATE_LIMIT_MAX` | `120` | Max public `/mcp` requests per window per forwarded client. |
+| `MCP_MAX_SESSIONS` | *(unset)* | Cap on concurrent MCP sessions, per listener. |
+| `MCP_SESSION_IDLE_MS` | *(unset)* | Close MCP sessions that have been idle this long. A held SSE stream counts as active. |
 | `NODE_ENV` | `development` | `development` \| `production` \| `test`. |
 | `SHUTDOWN_TIMEOUT_MS` | `10000` | Grace period for in-flight requests during SIGINT/SIGTERM shutdown. |
 | `BRIDGE_TIMEOUT_MS` | `10000` | How long the server waits for a response over the `/bridge` WebSocket before timing out. |
@@ -214,8 +221,10 @@ to connected clients.
    JSON-RPC; application logs move to stderr.
 2. **Streamable HTTP (`/mcp`).** A running server accepts MCP Streamable HTTP
    sessions at `http://127.0.0.1:3939/mcp`. Requests use the same
-   `X-Api-Key` header as REST. Each session has an independent tool catalog
-   and follows activation/deactivation changes until the session closes.
+   `X-Api-Key` header as REST, or `Authorization: Bearer`. Each session has
+   an independent tool catalog and follows activation/deactivation changes
+   until the session closes. A separate public listener can expose this one
+   path through a tunnel; see [Exposing `/mcp` through a tunnel](#exposing-mcp-through-a-tunnel).
 3. **Forwarding/remote stdio (`mcp-remote`).** An MCP client launches
    `server/dist/mcp-remote.js`, which does not bind another HTTP port or own a
    Foundry bridge. It forwards calls to an already-running local API server,
@@ -251,6 +260,85 @@ separate configuration needed for the MCP path. Run `npm run build` in
 For forwarding stdio, use the same configuration but change `args` to
 `["dist/mcp-remote.js"]` and omit `MCP_STDIO`. Start the main local API server
 separately first. Both stdio modes read the same `server/.env` configuration.
+
+### Exposing `/mcp` through a tunnel
+
+The administrative API key controls the whole game. A tunnel pointed at
+`PORT` (3939) would also publish `/api`, `/health`, and the GM `/bridge`
+WebSocket, and every proxied connection would look like loopback. This
+server does not launch a tunnel — installation and UI for that stay with
+[AI Dungeon Master](./docs/dot-private-tunnel-setup.md). What it does provide
+is a second listener you can point an existing tunnel at.
+
+Set `MCP_REMOTE_API_KEY` to a new secret (not `API_KEY`). The server then
+listens on `127.0.0.1:3945` (`MCP_PUBLIC_PORT`) and serves **only** `POST`,
+`GET`, and `DELETE /mcp`. That default stays clear of the AI Dungeon Master
+companion, which already binds `127.0.0.1:3940` (`AI_DM_PORT`) and
+`127.0.0.1:3941` (`AI_DM_CHATKIT_PORT`). `/api`, `/health`, extension routes, and any
+WebSocket upgrade are rejected there. Authenticate with
+`Authorization: Bearer <MCP_REMOTE_API_KEY>` or `X-Api-Key`. The
+administrative `API_KEY` is not accepted on this listener, so it never has
+to be copied into a cloud MCP client. The remote key is also accepted on
+local `/mcp`, and it is rejected on `/api`.
+
+Point the tunnel at `http://127.0.0.1:3945`, not at port 3939:
+
+```sh
+# Quick Cloudflare tunnel. The printed https://*.trycloudflare.com URL is the MCP host.
+cloudflared tunnel --url http://127.0.0.1:3945
+
+# Or ngrok, HTTP only, same target.
+ngrok http 127.0.0.1:3945
+```
+
+A named cloudflared tunnel should ingress only that origin:
+
+```yaml
+ingress:
+  - hostname: foundry-mcp.example.com
+    service: http://127.0.0.1:3945
+  - service: http_status:404
+```
+
+Then set `MCP_ALLOWED_HOSTS=foundry-mcp.example.com` (or
+`*.trycloudflare.com` for quick tunnels). Requests whose `Host` or
+`X-Forwarded-Host` is not on that list are rejected. Enabling remote MCP
+or this list also makes the main listener refuse non-loopback `Host`
+values, which blocks DNS rebinding against port 3939. `localhost`,
+`127.0.0.1`, `::1`, and `*.localhost` keep working, including the Foundry
+bridge.
+
+Example cloud client (Bearer):
+
+```json
+{
+  "mcpServers": {
+    "foundry-local-api": {
+      "url": "https://foundry-mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer <MCP_REMOTE_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+Remote `/mcp` requests are rate limited (`MCP_REMOTE_RATE_LIMIT_*`) without
+turning on Express `trust proxy`. The bucket is the rightmost
+`X-Forwarded-For` address, so a client cannot pick a new bucket by prefixing
+that header. `CF-Connecting-IP` is used only when `X-Forwarded-For` is
+absent. A raw TCP tunnel adds neither header and shares one bucket. Do not
+TCP-forward port 3939: a raw tunnel to the main port is indistinguishable
+from a local client. Forwarding port 3945 is safe even as raw TCP, because
+that listener has no other routes.
+
+`MCP_MAX_SESSIONS` and `MCP_SESSION_IDLE_MS` are optional caps. Each listener
+counts sessions separately. An open SSE stream counts as active, so idle
+expiry does not drop a connected client.
+
+Direct use of `http://127.0.0.1:3939` is unchanged when those proxy headers
+are absent: `/api` still requires `API_KEY`, local `/mcp` still accepts it,
+and `/health` stays unauthenticated.
 
 ## Examples
 
@@ -347,12 +435,18 @@ for the full write-up):
   a non-loopback `HOST` unless `ALLOW_REMOTE_BIND=true` is explicitly set
   (and logs a loud warning when it is).
 - **Separated authentication lanes.** The administrative API key is required
-  on every `/api/*` and `/mcp` request and is never sent to a Foundry browser.
-  The GM `/bridge` lane instead revalidates the browser's existing Foundry
-  session against the allowlisted loopback Foundry server. API-key query
-  authentication on `/bridge` is rejected.
+  on every `/api/*` and local `/mcp` request and is never sent to a Foundry
+  browser. It is not accepted on the public MCP listener. The GM `/bridge`
+  lane instead revalidates the browser's existing Foundry session against
+  the allowlisted loopback Foundry server. API-key query authentication on
+  `/bridge` is rejected.
+- **Remote MCP is a separate listener.** When `MCP_REMOTE_API_KEY` is set,
+  `127.0.0.1:MCP_PUBLIC_PORT` serves only `/mcp` and only that key. HTTP
+  tunnels aimed at the main port are rejected (proxy headers fail closed,
+  including WebSocket upgrades to `/bridge`). `trust proxy` is not enabled.
 - **Rate limiting** (`express-rate-limit`) covers the entire `/api/*`
-  chain — nothing is mounted around it.
+  chain, and separately the public `/mcp` listener. Nothing on `/api` is
+  mounted around its limiter.
 - **CORS deny-by-default**: cross-origin browser requests to `/api/*` are
   rejected unless the origin is explicitly listed in
   `CORS_ALLOWED_ORIGINS`.
@@ -372,8 +466,10 @@ for the full write-up):
   MCP tool annotations, plus an explicit warning in its description (MCP
   annotations are advisory only, not server-enforced).
 
-Given all of the above, only expose this beyond localhost on a network you
-fully trust, and treat the API key like any other high-privilege credential.
+Given all of the above, treat both API keys like high-privilege credentials.
+The remote key is still full MCP control of the game; it only avoids
+publishing the admin key and the non-MCP routes. Prefer a named tunnel
+hostname in `MCP_ALLOWED_HOSTS` over leaving the Host check off.
 
 ## CHANGELOG
 

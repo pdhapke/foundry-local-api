@@ -13,7 +13,9 @@ import type { IntegrationManager } from "./integrations/manager.js";
 import type { FoundationRuntime } from "./foundations/runtime.js";
 import { mountMcpHttp } from "./mcp/http-transport.js";
 import type { ExtensionRoute } from "./extensions/host.js";
+import { installErrorHandler, installNotFoundHandler } from "./http-response.js";
 import { createApiKeyAuth } from "./middleware/auth.js";
+import { createLoopbackHostGuard, createTunnelGuard } from "./middleware/remote-access.js";
 import { apiRouter } from "./routes/api.js";
 import { readPackageVersion } from "./version.js";
 import { HttpError } from "./http-error.js";
@@ -56,18 +58,6 @@ export function createDefaultRequestLogger(sink: (line: string) => void): Reques
 /** Default logger: writes to stdout. Not used when `MCP_STDIO=true` — see index.ts. */
 const defaultRequestLogger: RequestLogger = createDefaultRequestLogger(console.log);
 
-/** Normalized shape every error response body uses. */
-interface ErrorResponseBody {
-  error: {
-    message: string;
-    code?: string;
-    retryable?: boolean;
-    fieldPath?: string;
-    correlationId?: string;
-    details?: Record<string, unknown>;
-  };
-}
-
 export interface CreateAppOptions {
   /** Explicit extension routes own their authentication and bounded parsing. */
   extensionRoutes?: readonly ExtensionRoute[];
@@ -75,6 +65,22 @@ export interface CreateAppOptions {
   requestLogger?: RequestLogger;
   /** Static API key required on every `/api/*` request (Phase 4). */
   apiKey: string;
+  /**
+   * Extra keys accepted on `/mcp` only (never on `/api`). Used for
+   * `MCP_REMOTE_API_KEY` so a cloud client can call local `/mcp` without
+   * the administrative key, while `/api` still requires `apiKey`.
+   */
+  mcpApiKeys?: readonly string[];
+  /**
+   * When true, reject `Host` values that are not loopback (or `*.localhost`).
+   * Turned on with remote MCP or `MCP_ALLOWED_HOSTS`. Default false so a
+   * stock local install is unchanged.
+   */
+  enforceLoopbackHost?: boolean;
+  /** `0` or omitted disables the cap. See `mountMcpHttp`. */
+  mcpMaxSessions?: number;
+  /** `0` or omitted disables idle expiry. See `mountMcpHttp`. */
+  mcpSessionIdleMs?: number;
   /** Origins allowed to make cross-origin requests to `/api/*`. Empty = deny all cross-origin requests. */
   corsAllowedOrigins: string[];
   /** Rate-limit window (milliseconds) applied to `/api/*`. */
@@ -110,6 +116,13 @@ export function createApp(options: CreateAppOptions): Express {
   const app = express();
 
   app.disable("x-powered-by");
+  // Structural complement to the public MCP listener: an HTTP tunnel pointed
+  // at this port adds proxy headers, and those requests are rejected for every
+  // path before extensions, parsers, or auth run. Direct local requests do
+  // not carry the headers and fall through unchanged. A raw TCP tunnel does
+  // not add headers; that case is why remote access has its own listener.
+  app.use(createTunnelGuard());
+  if (options.enforceLoopbackHost) app.use(createLoopbackHostGuard());
   // Extensions must enforce their own authorization and bounded parsing. Their
   // routes run before shared parsers and request logging to protect private data.
   for (const route of options.extensionRoutes ?? []) {
@@ -207,13 +220,13 @@ export function createApp(options: CreateAppOptions): Express {
   );
 
   // --- `/mcp` mount (Streamable HTTP MCP transport) --------------------
-  // Same CORS/API-key gate as `/api`, minus the rate limiter — MCP
-  // sessions hold a long-lived GET stream open rather than making bursts
-  // of discrete requests, so the REST rate limiter's request-count model
-  // doesn't fit it. Must be mounted here, before the catch-all 404 below
-  // (Express dispatches middleware in registration order), which is why
-  // this whole block is conditional on `mcp` rather than something index.ts
-  // bolts on after the fact.
+  // Same CORS gate as `/api`. Local `/mcp` accepts the administrative key
+  // and, when configured, `MCP_REMOTE_API_KEY`. It is not rate limited:
+  // sessions hold a long-lived GET stream, and remote abuse is limited on
+  // the separate public listener instead. Must be mounted here, before the
+  // catch-all 404 below (Express dispatches middleware in registration
+  // order), which is why this whole block is conditional on `mcp` rather
+  // than something index.ts bolts on after the fact.
   if (mcp) {
     app.use(
       "/mcp",
@@ -222,58 +235,21 @@ export function createApp(options: CreateAppOptions): Express {
         res.locals["authenticated"] = false;
         next();
       },
-      createApiKeyAuth(apiKey),
+      createApiKeyAuth([apiKey, ...(options.mcpApiKeys ?? [])]),
     );
-    mountMcpHttp(app, mcp);
+    mountMcpHttp(app, {
+      ...mcp,
+      ...(options.mcpMaxSessions !== undefined ? { maxSessions: options.mcpMaxSessions } : {}),
+      ...(options.mcpSessionIdleMs !== undefined
+        ? { sessionIdleMs: options.mcpSessionIdleMs }
+        : {}),
+    });
   }
 
   if (mcp?.foundations) app.locals["foundations"] = mcp.foundations;
 
-  // 404 for anything unmatched by a route above.
-  app.use((req: Request, res: Response) => {
-    const body: ErrorResponseBody = {
-      error: { message: `Not found: ${req.method} ${req.originalUrl}`, code: "NOT_FOUND" },
-    };
-    res.status(404).json(body);
-  });
-
-  // Centralized error handler — must be last, and must keep all four
-  // parameters (including unused `_next`) for Express to recognize it as an
-  // error-handling middleware.
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err instanceof HttpError ? err.status : 500;
-    const code = err instanceof HttpError ? err.code : undefined;
-    const message =
-      err instanceof HttpError || status < 500 ? (err as Error).message : "Internal server error";
-
-    if (err instanceof HttpError) {
-      // Keep the user-owned HTTP-error audit signal, but never echo an
-      // endpoint's message: validation failures can be derived from
-      // caller-controlled input and may contain an API key or one-time
-      // enrollment credential.
-      console.error(`${status} ${code ?? "HTTP_ERROR"}`);
-    } else if (isDevelopment) {
-      console.error(err instanceof Error ? err.name : "Unknown error");
-    } else {
-      console.error("Internal server error");
-    }
-
-    const body: ErrorResponseBody = {
-      error: {
-        message,
-        ...(code ? { code } : {}),
-        ...(err instanceof HttpError && err.retryable !== undefined
-          ? { retryable: err.retryable }
-          : {}),
-        ...(err instanceof HttpError && err.fieldPath ? { fieldPath: err.fieldPath } : {}),
-        ...(err instanceof HttpError && err.correlationId
-          ? { correlationId: err.correlationId }
-          : {}),
-        ...(err instanceof HttpError && err.details ? { details: err.details } : {}),
-      },
-    };
-    res.status(status).json(body);
-  });
+  installNotFoundHandler(app);
+  installErrorHandler(app, isDevelopment);
 
   return app;
 }

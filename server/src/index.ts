@@ -26,6 +26,7 @@ import { IntegrationManager } from "./integrations/manager.js";
 import { integrations } from "./integrations/registry.js";
 import { applyActiveIntegrations } from "./integrations/router.js";
 import { connectMcpStdio } from "./mcp/index.js";
+import { createPublicMcpServer, PUBLIC_MCP_BIND_HOST } from "./mcp/public-app.js";
 import { readPackageVersion } from "./version.js";
 import { createHash } from "node:crypto";
 import { ApiExtensionHost } from "./extensions/host.js";
@@ -210,6 +211,10 @@ export async function main(): Promise<void> {
     corsAllowedOrigins: config.corsAllowedOrigins,
     rateLimitWindowMs: config.rateLimitWindowMs,
     rateLimitMax: config.rateLimitMax,
+    ...(config.mcpRemote ? { mcpApiKeys: [config.mcpRemote.apiKey] } : {}),
+    enforceLoopbackHost: config.enforceLoopbackHost,
+    mcpMaxSessions: config.mcpMaxSessions,
+    mcpSessionIdleMs: config.mcpSessionIdleMs,
     mcp: { foundryClient, integrationManager, eventBus, foundations },
     ...(config.mcpStdio ? { requestLogger: createDefaultRequestLogger(console.error) } : {}),
   });
@@ -240,6 +245,39 @@ export async function main(): Promise<void> {
   // stderr too when MCP_STDIO=true, for the same stdout-hygiene reason as
   // the request logger above.
   const lifecycleLog = config.mcpStdio ? console.error : console.log;
+
+  let publicHttpServer: http.Server | undefined;
+  if (config.mcpRemote) {
+    const remote = config.mcpRemote;
+    publicHttpServer = createPublicMcpServer({
+      isDevelopment: config.isDevelopment,
+      remoteApiKey: remote.apiKey,
+      corsAllowedOrigins: config.corsAllowedOrigins,
+      allowedHosts: config.mcpAllowedHosts,
+      rateLimitWindowMs: remote.rateLimitWindowMs,
+      rateLimitMax: remote.rateLimitMax,
+      foundryClient,
+      integrationManager,
+      eventBus,
+      foundations,
+      maxSessions: config.mcpMaxSessions,
+      sessionIdleMs: config.mcpSessionIdleMs,
+      ...(config.mcpStdio ? { requestLogger: createDefaultRequestLogger(console.error) } : {}),
+    });
+    publicHttpServer.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`Public MCP port ${remote.port} is already in use.`);
+      } else {
+        console.error("Public MCP server error:", err);
+      }
+      process.exit(1);
+    });
+    publicHttpServer.listen(remote.port, PUBLIC_MCP_BIND_HOST, () => {
+      lifecycleLog(
+        `  public mcp: http://${PUBLIC_MCP_BIND_HOST}:${remote.port}/mcp (tunnel target; /mcp only)`,
+      );
+    });
+  }
 
   server.listen(config.port, config.host, () => {
     lifecycleLog(
@@ -294,20 +332,38 @@ export async function main(): Promise<void> {
         console.error("Error closing bridge gateway:", err);
       })
       .finally(() => {
-        server.close((err) => {
-          clearTimeout(forceExitTimer);
-          if (err) {
+        const serversToClose = [server, publicHttpServer].filter(
+          (candidate): candidate is http.Server => candidate !== undefined,
+        );
+        return Promise.all(serversToClose.map((candidate) => closeListeningServer(candidate)))
+          .then(() => {
+            clearTimeout(forceExitTimer);
+            lifecycleLog("Shutdown complete.");
+            process.exit(0);
+          })
+          .catch((err: unknown) => {
+            clearTimeout(forceExitTimer);
             console.error("Error during shutdown:", err);
             process.exit(1);
-          }
-          lifecycleLog("Shutdown complete.");
-          process.exit(0);
-        });
+          });
       });
   }
 
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
+function closeListeningServer(target: http.Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!target.listening) {
+      resolve();
+      return;
+    }
+    target.close((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
 }
 
 function isPotentialLoopbackOrigin(origin: string): boolean {
