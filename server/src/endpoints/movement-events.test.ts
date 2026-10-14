@@ -10,7 +10,9 @@ import {
   movementEventEndpointDescriptors,
 } from "./movement-events.js";
 import type { EndpointContext } from "./types.js";
-afterEach(() => configureMovementEventStore(undefined));
+afterEach(() => {
+  configureMovementEventStore(undefined);
+});
 void describe("movement endpoints", () => {
   void it("rejects spoofable manual ingestion and leaves the durable store unchanged", async () => {
     const store = new MovementEventStore(
@@ -36,5 +38,9 @@ void describe("movement endpoints", () => {
     );
     const page = (await movementEventEndpointDescriptors[1]!.handler({}, ctx)) as MovementEventPage;
     assert.deepEqual(page.events, []);
+  });
+
+  void it("keeps the generic movement catalog independent of AI delivery recovery", () => {
+    assert.deepEqual(movementEventEndpointDescriptors.map(({name})=>name),["foundry_record_movement_event","foundry_get_movement_events"]);
   });
 });

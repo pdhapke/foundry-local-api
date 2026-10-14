@@ -84,12 +84,18 @@ function schemaFields(model: RuntimeModelClass): Array<[string, RuntimeDataField
   return ownEntries(schema);
 }
 
-function enumChoices(value: unknown): Array<string | number | boolean> | undefined {
+function enumChoices(value: unknown, fieldType: string): Array<string | number | boolean> | undefined {
   let raw: unknown[];
   if (Array.isArray(value)) raw = value;
   else if (value instanceof Set) raw = [...value];
   else if (value instanceof Map) raw = [...value.keys()];
-  else if (value && typeof value === "object") raw = Object.keys(value as object);
+  else if (value && typeof value === "object") {
+    // Foundry NumberField validates object-backed choices using String(value) as the key.
+    // Return numeric choices for the portable comparison, without coercing StringField enums.
+    raw = Object.keys(value as object).map((key) =>
+      fieldType.toLowerCase().includes("number") && Number.isFinite(Number(key)) ? Number(key) : key,
+    );
+  }
   else return undefined;
   const choices = raw.filter(
     (choice): choice is string | number | boolean =>
@@ -132,10 +138,21 @@ function inspectFields(
       ...(initial !== undefined ? { defaultValue: initial } : {}),
       ...(typeof configuredInitial === "function" ? { dynamicDefault: true } : {}),
       ...(typeof configuredChoices === "function" ? { dynamicChoices: true } : {}),
-      ...(enumChoices(configuredChoices) ? { choices: enumChoices(configuredChoices) } : {}),
+      ...(enumChoices(configuredChoices, type) ? { choices: enumChoices(configuredChoices, type) } : {}),
     };
     result.push(descriptor);
     if (nested.length > 0) result.push(...inspectFields(nested, path));
+  }
+  return result;
+}
+
+/** Native ownership is an ObjectField map, not a schema with statically named user fields. */
+function nativeOwnershipPaths(entries: Array<[string, RuntimeDataField]>, prefix = ""): string[] {
+  const result: string[] = [];
+  for (const [name, field] of entries) {
+    const path = prefix ? `${prefix}.${name}` : name;
+    if (field.constructor?.name === "DocumentOwnershipField" && typeof field.validate === "function") result.push(path);
+    result.push(...nativeOwnershipPaths(ownEntries(field.fields), path));
   }
   return result;
 }
@@ -352,11 +369,17 @@ function applyPortableDefaults(
     if (!field.hasDefault || field.dynamicDefault || field.defaultValue === undefined) continue;
     const parts = field.path.split(".");
     let target = normalized;
+    let absentParent = false;
     for (const part of parts.slice(0, -1)) {
       const child = target[part];
-      if (!child || typeof child !== "object" || Array.isArray(child)) target[part] = {};
+      // A native nullable/absent schema node is not a request to materialize its children.
+      if (!child || typeof child !== "object" || Array.isArray(child)) {
+        absentParent = true;
+        break;
+      }
       target = target[part] as Record<string, unknown>;
     }
+    if (absentParent) continue;
     const key = parts.at(-1)!;
     if (!(key in target)) target[key] = cloneSchemaCandidate({ value: field.defaultValue }).value;
   }
@@ -581,6 +604,15 @@ function hasValueAtPath(data: Record<string, unknown>, path: string): boolean {
   return current !== undefined;
 }
 
+function valueAtCandidatePath(data: Record<string, unknown>, path: string): unknown {
+  let value: unknown = data;
+  for (const part of path.split(".")) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    value = (value as Record<string, unknown>)[part];
+  }
+  return value;
+}
+
 function isCompleteCandidate(
   data: Record<string, unknown>,
   fields: DiscoveredSchemaField[],
@@ -612,6 +644,7 @@ function validateOneCandidate(
   );
   const original = cloneSchemaCandidate(data);
   const originalInspection = validateDiscoveredFields(original, callerFields, input.mode);
+  const ownershipPaths = nativeOwnershipPaths(schemaFields(documentModel));
   let normalized = cloneSchemaCandidate(data);
   const partial = input.mode === "update";
   let migrationWarnings: string[] = [];
@@ -655,7 +688,13 @@ function validateOneCandidate(
   }
 
   // Type/enum/required checks happen after native cleaning so coercible input is accepted.
-  const normalizedInspection = validateDiscoveredFields(normalized, callerFields, input.mode);
+  const normalizedFields = callerFields.filter((field) =>
+    !callerFields.some((parent) =>
+      parent.nullable && field.path.startsWith(`${parent.path}.`) &&
+      valueAtCandidatePath(normalized, parent.path) === null,
+    ),
+  );
+  const normalizedInspection = validateDiscoveredFields(normalized, normalizedFields, input.mode);
   const errors = [...normalizedInspection.errors, ...nativeErrors];
   return {
     index,
@@ -665,7 +704,9 @@ function validateOneCandidate(
     normalized,
     errors,
     // Unknown fields are intentionally derived from the original clone, before cleaners can drop them.
-    warnings: originalInspection.warnings,
+    warnings: originalInspection.warnings.filter((warning) =>
+      !ownershipPaths.some((path) => warning.path.startsWith(`${path}.`)),
+    ),
     inputUnchanged: before === stableSchemaValue(data),
     persisted: false,
     migrationWarnings,

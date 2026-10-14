@@ -333,6 +333,10 @@ export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
       source["flags"] && typeof source["flags"] === "object"
         ? (source["flags"] as Record<string, unknown>)
         : {};
+    const localApiFlags =
+      allFlags["foundry-local-api"] && typeof allFlags["foundry-local-api"] === "object"
+        ? (allFlags["foundry-local-api"] as Record<string, unknown>)
+        : {};
     const metadata =
       Object.values(allFlags).find(
         (value): value is Record<string, unknown> =>
@@ -425,6 +429,7 @@ export function sceneMovementRegions(scene: FoundryScene): MovementRegion[] {
         ...(parsedTop !== undefined ? { top: parsedTop } : {}),
         ...(typeof topInclusive === "boolean" ? { topInclusive } : {}),
         ...(metadata["stopOnEnter"] === true ? { stopOnEnter: true } : {}),
+        ...(localApiFlags["burrowSurface"] === true ? { burrowSurface: true as const } : {}),
       },
     ];
   });

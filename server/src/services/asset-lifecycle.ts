@@ -280,6 +280,18 @@ export class AssetLifecycleService {
       throw error;
     }
   }
+
+  /** Bounded reference-audit check that avoids hashing and media parsing. */
+  async exists(input: AssetLocation): Promise<boolean> {
+    const file = this.resolve(input);
+    await this.assertSafePath(input);
+    try {
+      return (await stat(file)).isFile();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
+    }
+  }
   async move(
     input: AssetMoveInput,
     references: AssetReferenceResult,

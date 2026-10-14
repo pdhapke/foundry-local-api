@@ -267,7 +267,7 @@ interface FoundryUser {
   active: boolean;
   toObject(): Record<string, unknown>;
   /** Updates this user document's fields (e.g. `{ role }`) — a User is itself a Document. */
-  update(changes: Record<string, unknown>): Promise<FoundryUser>;
+  update(changes: Record<string, unknown>, options?: Record<string, unknown>): Promise<FoundryUser>;
   delete(): Promise<FoundryUser>;
   /** The Token placeables this user currently has targeted (Phase 44) — distinct from canvas selection. */
   targets: Set<FoundryPlaceable>;
@@ -657,7 +657,11 @@ declare class TextEditor {
 declare const ui: {
   notifications: {
     /** Shows a toast/banner on this client only — never propagated to other connected clients. */
-    notify(message: string, type?: "info" | "warning" | "error"): void;
+    notify(
+      message: string,
+      type?: "info" | "warning" | "error",
+      options?: { permanent?: boolean; localize?: boolean; console?: boolean },
+    ): void;
   };
 };
 
@@ -672,6 +676,7 @@ interface FoundryPlaceable {
 /** The currently-rendered game canvas, `null` before a scene has been activated/viewed. */
 declare const canvas:
   | {
+      ready?: boolean;
       stage: {
         pivot: { x: number; y: number };
         /** The render stage's current scale factor (Phase 54: `.x` matches the uniform `canvas.scale` zoom). */

@@ -1,6 +1,7 @@
 // Builds the McpServer instance shared by every MCP transport (stdio now,
 // SSE later — see PLAN.md Phase 5), wired to the same FoundryClient the REST
 // side uses.
+import { extensionEndpoints } from "../extensions/endpoints.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
@@ -47,6 +48,12 @@ export function createMcpServer(
   // then keep this concrete server synchronized for its whole connection.
   // This is deliberately per McpServer: every Streamable HTTP session owns an
   // independent catalog and subscription.
+  const unbindExtensions = extensionEndpoints.bindMcp(
+    mcpServer,
+    foundryClient,
+    eventBus,
+    foundations,
+  );
   const unbind = bindActiveIntegrationTools(mcpServer, integrationManager, foundryClient, eventBus);
   let disposed = false;
   const dispose = (): void => {
@@ -56,6 +63,7 @@ export function createMcpServer(
     disposed = true;
     integrationDisposers.delete(mcpServer);
     unbind();
+    unbindExtensions();
   };
   integrationDisposers.set(mcpServer, dispose);
 

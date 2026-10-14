@@ -1,17 +1,13 @@
 // Entrypoint for the Foundry module's client-side esmodule.
 //
-// Registers the bridge URL setting on `init`, then starts the WebSocket
-// bridge client on `ready`, per PLAN.md Phase 2 (Foundry Module Bridge
+// Registers the bounded player/TV opt-in on `init`, then starts the WebSocket
+// bridge client automatically on `ready`, per PLAN.md Phase 2 (Foundry Module Bridge
 // Client). Real Foundry API command handlers beyond the `ping` proof-of-life
 // start with Phase 6's core meta/introspection handlers (./commands/meta.ts).
 
 import {
   BridgeClient,
-  clearLegacyNonGmApiKey,
-  configureBridgeAdminSettingVisibility,
-  MODULE_ID,
-  getConfiguredApiKey,
-  getConfiguredBridgeUrl,
+  getBridgeUrlForCurrentPage,
   registerBridgeSettings,
 } from "./bridge-client.js";
 import { registerBridgeEnrollmentQuery } from "./bridge-enrollment.js";
@@ -56,6 +52,7 @@ import "./commands/transactions.js";
 import "./commands/fog-exploration.js";
 import "./commands/scene-render.js";
 import "./commands/client-readiness.js";
+import "./commands/client-identity.js";
 import "./commands/embedded-children.js";
 import "./commands/asset-lifecycle.js";
 import "./commands/reference-audit.js";
@@ -76,15 +73,34 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
-  configureBridgeAdminSettingVisibility();
-  void clearLegacyNonGmApiKey().then((cleared) => {
-    if (!cleared) console.error(`[${MODULE_ID}] failed to clear legacy client API key`);
-  });
-  client = new BridgeClient(getConfiguredBridgeUrl, getConfiguredApiKey);
-  client.connect();
-  registerHookForwarding(client);
-  registerMovementEventHooks(client);
-  // Registered unconditionally — must fire on every client (including
-  // players, who never open a bridge connection) per PLAN.md's Phase 47/42.
   registerModuleSocketListener();
+  try {
+    const bridgeUrl = getBridgeUrlForCurrentPage();
+    client = new BridgeClient(() => bridgeUrl);
+    const installedModule = game.modules.get("foundry-local-api") as unknown as
+      { api?: Record<string, unknown> } | undefined;
+    const bridge = client.extensionApi();
+    if (installedModule) installedModule.api = { ...installedModule.api, bridge };
+    (Hooks as typeof Hooks & { callAll(hook: string, value: unknown): void }).callAll(
+      "foundry-local-api.bridgeReady",
+      bridge,
+    );
+    // Both ready callbacks finish before negotiation captures command capabilities.
+    const readyClient = client;
+    queueMicrotask(() => readyClient.connect());
+    registerHookForwarding(client);
+    registerMovementEventHooks(client);
+  } catch {
+    console.error("[foundry-local-api] failed to initialize the bridge client");
+  }
 });
+import "./commands/session-actions.js";
+import "./commands/attack-actions.js";
+import "./commands/attack-sequences.js";
+import "./commands/world-documents.js";
+import "./commands/gm-combat.js";
+import "./commands/gm-activities.js";
+import "./commands/gm-character.js";
+import "./commands/gm-tv.js";
+import "./commands/gm-receipts.js";
+import "./commands/gm-scene.js";

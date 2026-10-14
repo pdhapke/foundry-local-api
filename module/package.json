@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js",
+    "build": "node ../scripts/generate-latency-build.mjs && esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test --test-concurrency=1 \"src/**/*.test.ts\""
   },

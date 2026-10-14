@@ -8,6 +8,7 @@ export const SCENE_RENDER_LIMITS = {
   maxQueryPoints: 500,
   maxVisiblePerKind: 500,
   maxRegions: 250,
+  maxRegionCandidates: 1_000,
   maxBarriers: 500,
   maxCoverageSources: 100,
   maxCoveragePointsPerSource: 512,
@@ -21,7 +22,7 @@ export interface SceneRenderInput {
   tokenId: string;
   includeImage?: boolean | undefined;
   maxImageBytes?: number | undefined;
-  queryPoints?: Array<{ id: string; x: number; y: number }> | undefined;
+  queryPoints?: Array<{ id: string; x: number; y: number; elevation?: number }> | undefined;
 }
 
 export type SceneRenderStatus = "complete" | "incomplete" | "asset_error" | "unsupported";
@@ -37,6 +38,7 @@ export type SceneRenderIssueCode =
   | "LIGHTING_UNAVAILABLE"
   | "PERSISTENCE_CHANGED"
   | "QUERY_FAILED"
+  | "REGION_EVIDENCE_INCOMPLETE"
   | "REGION_LIMIT_REACHED"
   | "REGION_SUPPORT_UNAVAILABLE"
   | "SELECTED_VISION_EVALUATION_FAILED"
@@ -54,6 +56,13 @@ export interface SceneRenderIssue {
 }
 
 export interface SceneVisibilityResult {
+  capturedAt: string;
+  observation: {
+    version: 1; id: string; worldId: string; sceneId: string; userId: string; tokenId: string;
+    actorId: string | null; clientId: string | null; isGM: false; optedIn: true;
+    capturedAt: string; stateRevision: string; readiness: "ready" | "stale" | "unavailable";
+    basis: "request-local-native-render-flags"; pendingRenderFlags: number | null;
+  };
   sceneId: string;
   effectiveUserId: string;
   tokenId: string;
@@ -104,8 +113,14 @@ export interface SceneVisibilityResult {
     globalLight: boolean | null;
     darknessLevel: number | null;
   };
-  /** Player-visible Regions use response-local opaque keys; names and document IDs are never sent. */
-  regions: Array<{ key: string }>;
+  /** Player-visible Regions use response-local opaque keys; names, IDs, and behavior details are never sent. */
+  regions: Array<{
+    key: string;
+    /** Foundry's prepared Region membership for the selected owned Token. */
+    containsSelectedToken: boolean;
+    /** Only a bounded presence bit is disclosed; behavior identities, types, and configuration stay redacted. */
+    effects: "active" | "none" | "redacted";
+  }>;
   /** Player-visible doors/barriers use response-local opaque keys and never include coordinates or destinations. */
   visibleBarriers: Array<{
     key: string;

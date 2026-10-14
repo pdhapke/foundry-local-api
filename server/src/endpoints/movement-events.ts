@@ -5,15 +5,39 @@ import {
   type MovementEventInput,
   type MovementEventPage,
 } from "@foundry-local-api/shared";
-import type { MovementEventStore } from "../events/movement-event-store.js";
+import type {
+  MovementEventStore,
+  MovementStoreDiagnostics,
+} from "../events/movement-event-store.js";
 import {
   movementEventOutputSchema,
   movementPageOutputSchema,
 } from "./requirement-output-schemas.js";
 import type { AnyEndpointDescriptor } from "./types.js";
 let store: MovementEventStore | undefined;
+let diagnostics: (() => MovementStoreDiagnostics) | undefined;
 export function configureMovementEventStore(value: MovementEventStore | undefined) {
   store = value;
+}
+export function configureMovementEventStoreDiagnostics(
+  value: (() => MovementStoreDiagnostics) | undefined,
+) {
+  diagnostics = value;
+}
+export function getMovementEventStoreDiagnostics(): MovementStoreDiagnostics {
+  return (
+    diagnostics?.() ?? {
+      configured: false,
+      runtimeAvailable: false,
+      readable: false,
+      valid: false,
+      version: null,
+      generation: null,
+      eventCount: null,
+      nextSequence: null,
+      issueCodes: ["STORE_NOT_CONFIGURED"],
+    }
+  );
 }
 function requireStore() {
   if (!store)

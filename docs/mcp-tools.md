@@ -2,13 +2,14 @@
 
 Generated from core `allEndpointDescriptors` (server/src/endpoints/index.ts) and registered optional integration descriptors (server/src/integrations/registry.ts) by `server/src/scripts/generate-docs.ts` — do not hand-edit; run `npm run generate:docs` (from `server/`, or `npm run generate:docs --workspace=server` from the repo root) to regenerate. Every tool listed here except the explicitly marked MCP-only status tool also has a REST endpoint with the same input shape — see `docs/openapi.json` and the root README's Examples section. Optional integration tools are included in this documented total but appear in a live catalog only while their integration is active.
 
-Total tools: **265** (238 core + 27 optional-integration).
+Total tools: **292** (265 core + 27 optional-integration).
 
 ## Contents
 
+- [acceptance](#acceptance)
 - [actors](#actors)
-- [ai-gm](#ai-gm)
 - [assets](#assets)
+- [attacks](#attacks)
 - [bridge](#bridge)
 - [canvas](#canvas)
 - [capabilities](#capabilities)
@@ -26,6 +27,7 @@ Total tools: **265** (238 core + 27 optional-integration).
 - [fixtures](#fixtures)
 - [folders](#folders)
 - [game](#game)
+- [gm](#gm)
 - [items](#items)
 - [journal-entries](#journal-entries)
 - [localize](#localize)
@@ -42,17 +44,56 @@ Total tools: **265** (238 core + 27 optional-integration).
 - [scenes](#scenes)
 - [schemas](#schemas)
 - [search](#search)
+- [session-actions](#session-actions)
 - [settings](#settings)
 - [status](#status)
 - [system](#system)
 - [transactions](#transactions)
+- [tv](#tv)
 - [user](#user)
 - [users](#users)
 - [world](#world)
+- [world-documents](#world-documents)
 - [world-time](#world-time)
 - [Integration: dnd5e](#integration-dnd5e-system)
 - [Integration: digital-tabletops](#integration-digital-tabletops-module)
 - [Integration: trails-of-destiny](#integration-trails-of-destiny-system)
+
+## acceptance
+
+### `foundry_validate_acceptance_failures`
+
+Runs a read-only, failure-isolated acceptance diagnostic for the exact player client and Scene. It validates the connected client matrix, player readiness, fog/visibility, campaign references, wall topology and optional path cases, durable movement storage. It never impersonates a user, substitutes a GM render, moves a Token, changes fog, or mutates campaign documents.
+
+REST: `POST /api/acceptance/validate-failures`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `sceneId` | string | yes |  |
+| `playerUserId` | string | yes |  |
+| `playerTokenId` | string | yes |  |
+| `playerClientId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `queryPoints` | array | no |  |
+| `pathCases` | array | no |  |
+| `referenceAudit` | object | no |  |
+
+**Success output**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `generatedAt` | string | yes |  |
+| `readOnly` | boolean | yes |  |
+| `correlationId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `playerUserId` | string | yes |  |
+| `playerTokenId` | string | yes |  |
+| `playerClientId` | string | yes |  |
+| `overall` | string | yes |  |
+| `summary` | object | yes |  |
+| `checks` | array | yes |  |
 
 ## actors
 
@@ -321,62 +362,6 @@ REST: `PUT /api/actors/:actorId/items/:itemId`
 
 _No concrete success schema declared._
 
-## ai-gm
-
-### `foundry_get_ai_gm_delivery`
-
-Reads one durable AI-GM movement delivery item by its stable delivery ID, including event/cursor linkage, attempt history, acknowledgement, failure, and pending-adjudication state.
-
-REST: `GET /api/ai-gm/deliveries/:deliveryId`
-
-**Input**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `deliveryId` | string | yes |  |
-
-**Success output**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `id` | string | yes |  |
-| `consumerId` | string | yes |  |
-| `eventId` | string | yes |  |
-| `eventSequence` | integer | yes |  |
-| `eventCursor` | string | yes |  |
-| `event` | object | yes |  |
-| `state` | string | yes |  |
-| `adjudication` | object | yes |  |
-| `attemptHistory` | array | yes |  |
-| `createdAt` | number | yes |  |
-| `updatedAt` | number | yes |  |
-| `nextAttemptAt` | number | no |  |
-| `acknowledgementId` | string | no |  |
-| `acknowledgedAt` | number | no |  |
-| `deadLetteredAt` | number | no |  |
-| `lastFailure` | object | no |  |
-
-### `foundry_list_ai_gm_deliveries`
-
-Lists durable AI-GM movement work, acknowledgement, retry, dead-letter, and pending-adjudication state. Host wake capability and its precise limitation are reported without claiming polling is automatic delivery.
-
-REST: `GET /api/ai-gm/deliveries`
-
-**Input**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `states` | array | no |  |
-
-**Success output**
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `consumerId` | string | yes |  |
-| `hostCapability` | string | yes |  |
-| `hostLimitation` | string | no |  |
-| `items` | array | yes |  |
-
 ## assets
 
 ### `foundry_delete_asset` ⚠️ **destructive**
@@ -431,6 +416,72 @@ REST: `GET /api/assets/stat`
 |---|---|---|---|
 | `root` | string | yes |  |
 | `path` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+## attacks
+
+### `foundry_attack_confirmed`
+
+Durably deduplicated single native dnd5e attack. Roll and apply are separate; apply references prior evidence. Genuine reaction tickets require explicit human adjudication. Reconcile uncertain outcomes; never retry with a new ID.
+
+REST: `POST /api/attacks/confirmed`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `requestId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `origin` | string | yes |  |
+| `action` | any | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_attack_sequence_confirmed`
+
+Bounded explicit GM-authorized attack list, durable per-step roll/apply evidence and clean deadline continuation. No inferred Multiattack entitlement. Reactions and uncertainty need manual reconciliation. Budget is soft between native stages.
+
+REST: `POST /api/attacks/sequence`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `requestId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `origin` | string | yes |  |
+| `action` | any | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_attack_state`
+
+Read current GM-only dnd5e attack identifiers, native choice options and unsupported workflows. Player knowledge is separate.
+
+REST: `POST /api/attacks/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | no |  |
+| `actorId` | string | no |  |
 
 **Success output**
 
@@ -837,6 +888,64 @@ _No concrete success schema declared._
 
 ## clients
 
+### `foundry_adopt_enrolled_client_identity`
+
+One-time recovery of an absent exact UUID for an already enrolled, consenting player or TV client, initiated only through the authenticated GM command lane. Binds the exact client, user, and lane; reserves the target through bounded reconnect; exposes no credentials.
+
+REST: `POST /api/clients/adopt-enrolled-identity`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `correlationId` | string | yes |  |
+| `expectedClientId` | string | yes |  |
+| `desiredClientId` | string | yes |  |
+| `timeoutMs` | integer | no |  |
+| `expectedUserId` | string | yes |  |
+| `expectedLane` | string | yes |  |
+
+**Success output**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `correlationId` | string | yes |  |
+| `acknowledged` | boolean | yes |  |
+| `replayed` | boolean | yes |  |
+| `acknowledgedAt` | string | yes |  |
+| `clientUserId` | string | yes |  |
+| `executingClientId` | string | yes |  |
+| `adoptedClientId` | string | yes |  |
+| `reloadRequired` | boolean | yes |  |
+
+### `foundry_adopt_gm_client_identity`
+
+One-time recovery of an absent exact GM client UUID on the currently authenticated exact GM command lane. Refuses connected or reserved target identities, compare-and-set mismatches, changed correlation replay, and non-GM/TV lanes. Persists the identity but never exposes credentials; reload is required before it becomes the negotiated identity.
+
+REST: `POST /api/clients/adopt-gm-identity`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `correlationId` | string | yes |  |
+| `expectedClientId` | string | yes |  |
+| `desiredClientId` | string | yes |  |
+| `timeoutMs` | integer | no |  |
+
+**Success output**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `correlationId` | string | yes |  |
+| `acknowledged` | boolean | yes |  |
+| `replayed` | boolean | yes |  |
+| `acknowledgedAt` | string | yes |  |
+| `clientUserId` | string | yes |  |
+| `executingClientId` | string | yes |  |
+| `adoptedClientId` | string | yes |  |
+| `reloadRequired` | boolean | yes |  |
+
 ### `foundry_apply_client_viewport`
 
 Applies and reads back a viewport on one opted-in receiver. Correlation replay returns the original acknowledgement without applying the command twice.
@@ -852,6 +961,8 @@ REST: `POST /api/clients/apply-viewport`
 | `correlationId` | string | yes |  |
 | `minimumModuleVersion` | string | no |  |
 | `sceneId` | string | yes |  |
+| `viewScene` | boolean | no |  |
+| `digitalTabletop` | boolean | no |  |
 | `viewport` | object | yes |  |
 | `timeoutMs` | integer | no |  |
 
@@ -1804,6 +1915,292 @@ REST: `POST /api/game/paused`
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `paused` | boolean | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_set_game_paused_confirmed`
+
+Set explicit world pause state for the exact authenticated live GM. Serialized, deduplicated and read back on the canonical GM; uncertain results must not be retried. Confirmation covers canonical GM state and broadcast dispatch, not receipt by every client.
+
+REST: `POST /api/game/paused/confirmed`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `paused` | boolean | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `requestId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `origin` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+## gm
+
+### `foundry_gm_activity_apply`
+
+Activate native dnd5e activity with native slots/upcasting/charges/uses/concentration, explicit targets and awaited native attack. Optional damage:true awaits native typed damage/healing linked to original critical/ability/mode/ammunition; typed application and saves require separate explicit decisions. Durable exact-state reservation and turn budgets prevent duplicate spends. Range/reach/cover need per-target human rulings. Explicit template placements persist native geometry; exact owned unlinked world Actor summon profiles use native modifiers/count, with optional native CR/type filters. Held phase ready casts now under native concentration and action budget; phase release binds original confirmed cast and consumes only reaction. Modern attached Regions, compendium imports and linked activities require human native UI. Reconcile uncertain/cancelled results; never retry under a new key.
+
+REST: `POST /api/gm/activities/apply`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | object | yes |  |
+| `expectedState` | object | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `correlationId` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_activity_state`
+
+Read exact GM-scoped native dnd5e activity, resources, target revisions and unresolved choices. Read before use; GM state must not be narrated to players without knowledge filtering.
+
+REST: `POST /api/gm/activities/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | object | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_character_apply` ⚠️ **destructive**
+
+Apply bounded native typed damage/healing/tempHP, checks/death/concentration, stable/unconscious effects, conditions/exhaustion, rests/hit dice, inventory/copies/removal/attunement, currency/XP/maxHP and effect durations. Exact active GM+scene, expected state, durable dedup receipts. Lookup recipe; human rulings required for stabilization/eligibility/group/contested/traps/grapple/shove; transfer is separate receipted copy and source-removal steps. Never replay uncertain rolls/spends.
+
+REST: `POST /api/gm/character/apply`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | object | yes |  |
+| `expectedState` | object | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `correlationId` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_character_state`
+
+Read exact native scene actor health/effects/passives/resources/inventory and Foundry user/character/ownership party roster. GM only. Lookup recipes before applying character actions.
+
+REST: `POST /api/gm/character/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | object | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_combat_apply` ⚠️ **destructive**
+
+Authenticated native GM encounter creation from existing scene tokens, roster/initiative/start/next/end and durable explicit action/bonus/reaction/movement/ready/interruption decisions. End deletes the combat. Pending interruptions block progress. Legendary/lair/mythic rules require explicit GM ruling and native activity activation for resource use. Supply exact state, durable idempotencyKey and correlationId; uncertain receipts forbid replay.
+
+REST: `POST /api/gm/combat/apply`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | object | yes |  |
+| `expectedState` | object | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `correlationId` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_combat_state`
+
+GM-only exact scene combat state and private durable budgets/ready/interruption ledger. Use the complete result as expectedState. Native Foundry 14.368 / dnd5e 6.0.3; explicit rules choices; no historical capture or automatic opportunity detection.
+
+REST: `POST /api/gm/combat/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | object | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_receipt_read`
+
+Read one exact native durable reservation/receipt after cancellation, restart or reconnect. Read only, never rerolls or spends. Reserved and uncertain results require human reconciliation.
+
+REST: `POST /api/gm/receipts/read`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | object | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_recipe_invoke`
+
+Explicit GM-only bounded native workflow. Lookup/read recipe first. Stable per-step IDs, fresh preconditions and independent readback; first failure stops; uncertain dispatch is never retried automatically. Native durable journal remains authoritative after reconnect/restart.
+
+REST: `POST /api/gm/recipes/invoke`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `recipeId` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `expectedInitialState` | object | yes |  |
+| `steps` | array | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_recipe_list`
+
+Lookup required: bounded catalog of native GM workflows with exact required generic MCP tools. Catalog is public metadata; execution is native-authorized GM only.
+
+REST: `GET /api/gm/recipes`
+
+**Input**
+
+_No fields._
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_recipe_read`
+
+Lookup required: read full purpose, triggers, tools, parameters, preconditions, verification, permissions, recovery and compatibility.
+
+REST: `POST /api/gm/recipes/read`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `recipeId` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_recipe_search`
+
+Lookup required: search bounded GM recipe purpose and triggers before gameplay.
+
+REST: `POST /api/gm/recipes/search`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `query` | string | yes |  |
+| `limit` | integer | no |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_scene_apply`
+
+Apply native movement/time/elevation or persist a journal-only recipe invocation reservation after exact-state checks. Reservation markers change no gameplay state and fence recipe restart continuation.
+
+REST: `POST /api/gm/scene/apply`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | any | yes |  |
+| `expectedState` | object | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `correlationId` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_gm_scene_state`
+
+Read scoped native movement/time/elevation or a journal-only recipe reservation precondition. Human rules decisions remain explicit.
+
+REST: `POST /api/gm/scene/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schemaVersion` | string | yes |  |
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `action` | any | yes |  |
 
 **Success output**
 
@@ -3453,6 +3850,7 @@ REST: `POST /api/scenes/token-visibility`
 |---|---|---|---|
 | `sceneId` | string | yes |  |
 | `effectiveUserId` | string | yes |  |
+| `clientId` | string | no |  |
 | `tokenId` | string | yes |  |
 | `includeImage` | boolean | no |  |
 | `maxImageBytes` | integer | no |  |
@@ -3462,6 +3860,8 @@ REST: `POST /api/scenes/token-visibility`
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `capturedAt` | string | yes |  |
+| `observation` | object | yes |  |
 | `sceneId` | string | yes |  |
 | `effectiveUserId` | string | yes |  |
 | `tokenId` | string | yes |  |
@@ -3654,6 +4054,7 @@ REST: `POST /api/scenes/render-snapshot`
 |---|---|---|---|
 | `sceneId` | string | yes |  |
 | `effectiveUserId` | string | yes |  |
+| `clientId` | string | no |  |
 | `tokenId` | string | yes |  |
 | `includeImage` | boolean | no |  |
 | `maxImageBytes` | integer | no |  |
@@ -3663,6 +4064,8 @@ REST: `POST /api/scenes/render-snapshot`
 
 | Field | Type | Required | Description |
 |---|---|---|---|
+| `capturedAt` | string | yes |  |
+| `observation` | object | yes |  |
 | `sceneId` | string | yes |  |
 | `effectiveUserId` | string | yes |  |
 | `tokenId` | string | yes |  |
@@ -3681,7 +4084,6 @@ REST: `POST /api/scenes/render-snapshot`
 | `fogRevision` | string \| null | yes |  |
 | `persistence` | object | yes |  |
 | `bounds` | object | yes |  |
-| `capturedAt` | string | yes |  |
 | `image` | any | yes |  |
 
 ### `foundry_reset_scene_fog`
@@ -3903,7 +4305,7 @@ _No concrete success schema declared._
 
 ### `foundry_validate_token_path`
 
-Read-only token path collision validation against exact wall IDs, simulated door states, grid distance, elevation, and ordered waypoints. Never moves the token or changes doors/fog.
+Read-only token path collision validation against exact wall IDs, simulated door states, grid distance, elevation, and ordered waypoints. Campaign burrowing ignores walls but requires every segment to remain below elevation zero or be proven inside explicitly authoritative bounded Region surface geometry. Never moves the token or changes doors, Regions, or fog.
 
 REST: `POST /api/scenes/collision/path`
 
@@ -3932,6 +4334,7 @@ REST: `POST /api/scenes/collision/path`
 | `malformedWallIds` | array | yes |  |
 | `invalidSimulatedDoorIds` | array | yes |  |
 | `modeSupport` | object | yes |  |
+| `burrowPolicy` | object | yes |  |
 | `gridFit` | object | yes |  |
 | `gridWarnings` | array | yes |  |
 | `before` | object | yes |  |
@@ -3964,6 +4367,7 @@ REST: `GET /api/scenes/wall-topology`
 | `duplicateGroups` | array | yes |  |
 | `danglingEndpointWallIds` | array | yes |  |
 | `crossingPairs` | array | yes |  |
+| `unchanged` | boolean | yes |  |
 | `persisted` | boolean | yes |  |
 
 ## schemas
@@ -4029,6 +4433,128 @@ REST: `GET /api/search`
 |---|---|---|---|
 | `query` | string | yes |  |
 | `types` | string | no |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+## session-actions
+
+### `foundry_apply_session_action`
+
+Apply one narrow current-scene session action for a live authorized GM, checking expectedState immediately before dispatch and reading back state. Supports dnd5e HP, door state, token position, combat next turn/initiative and plain chat. Caller must durably deduplicate; never retry uncertain results.
+
+REST: `POST /api/session-actions/apply`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `requestingUserId` | string | yes |  |
+| `action` | any | yes |  |
+| `expectedState` | object | yes |  |
+| `correlationId` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_core_action_confirmed`
+
+Execute a bounded typed routine GM action with exact current-world authorization, serialization, deduplication and authoritative read-back. Never retry uncertain outcomes.
+
+REST: `POST /api/session-actions/core/confirmed`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `requestId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `origin` | string | yes |  |
+| `schemaVersion` | string | yes |  |
+| `action` | any | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_core_state`
+
+Read bounded current-scene token, door, combat and configured condition identifiers on the exact authorized GM bridge.
+
+REST: `POST /api/session-actions/core/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `schemaVersion` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_get_session_action_state`
+
+Read bounded authoritative preflight state for a narrow GM session action on the current scene.
+
+REST: `POST /api/session-actions/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `requestingUserId` | string | yes |  |
+| `action` | any | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_get_token_light`
+
+Read bounded native emission for one exact placed token in the active scene, including scene distance units. Requires exact current-world GM. Token emission is distinct from vision/darkvision, ambient lights and actor prototype tokens.
+
+REST: `POST /api/session-actions/token/light/state`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `tokenId` | string | yes |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_set_token_light`
+
+Patch one placed token's bright/dim light radius in scene distance units (0.01 precision), optional hex color (normalized lowercase) and alpha, preserving omitted fields; clear emission with bright=dim=0. Uses exact current-world GM authorization and the confirmed core action lane. Light follows the token natively; vision, fog and walls still govern what is revealed. Deduplicated by requestId; never retry uncertain outcomes.
+
+REST: `POST /api/session-actions/token/light`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `userId` | string | yes |  |
+| `requestId` | string | yes |  |
+| `correlationId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `tokenId` | string | yes |  |
+| `light` | object | yes |  |
 
 **Success output**
 
@@ -4195,6 +4721,49 @@ REST: `POST /api/transactions/:transactionId/recover`
 **Success output**
 
 _No concrete success schema declared._
+
+## tv
+
+### `foundry_tv_control`
+
+Inspects or applies native camera, zoom, top-down perspective, PC union vision or ruler-based physical calibration on one exact authenticated opted-in TV client. Never broadcasts, grants permissions or uses GM vision. Missing native OBSERVER sources block applies. Physical-inch proof remains a later human ruler acceptance.
+
+REST: `POST /api/tv/control`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `version` | string | yes |  |
+| `worldId` | string | yes |  |
+| `sceneId` | string | yes |  |
+| `tvUserId` | string | yes |  |
+| `tvClientId` | string | yes |  |
+| `requestingUserId` | string | yes |  |
+| `action` | string | yes |  |
+| `camera` | object | no |  |
+| `calibration` | object | no |  |
+| `perspective` | string | no |  |
+| `expectedState` | object | no |  |
+| `idempotencyKey` | string | no |  |
+
+**Success output**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `version` | string | yes |  |
+| `worldId` | string | yes |  |
+| `tvUserId` | string | yes |  |
+| `tvClientId` | string | yes |  |
+| `action` | string | yes |  |
+| `camera` | object | yes |  |
+| `vision` | object | yes |  |
+| `perspective` | string | yes |  |
+| `calibration` | object | yes |  |
+| `replayed` | boolean | yes |  |
+| `requestingUserId` | string | yes |  |
+| `auditCorrelationId` | string | yes |  |
+| `executingClient` | object | yes |  |
 
 ## user
 
@@ -4367,6 +4936,58 @@ REST: `GET /api/world`
 **Input**
 
 _No input._
+
+**Success output**
+
+_No concrete success schema declared._
+
+## world-documents
+
+### `foundry_apply_world_document` ⚠️ **destructive**
+
+One supported known-family active-world document create/update/delete with exact source hash preflight and read-back. Deletion/ownership requires trusted exact human review; scripts unsupported. Caller owns durable idempotency; uncertain mutations must never be retried.
+
+REST: `POST /api/world-documents/apply`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `requestingUserId` | string | yes |  |
+| `family` | string | yes |  |
+| `targetId` | string | no |  |
+| `parentId` | string | no |  |
+| `operation` | string | yes |  |
+| `data` | object | no |  |
+| `expectedRevision` | any | yes |  |
+| `correlationId` | string | yes |  |
+| `idempotencyKey` | string | yes |  |
+| `reviewedDestructive` | boolean | no |  |
+| `preparationGuard` | object | no |  |
+
+**Success output**
+
+_No concrete success schema declared._
+
+### `foundry_get_world_document`
+
+Bounded live-GM active-world document list/source with canonical SHA256 revision. Source is untrusted GM data, not implicitly player narration.
+
+REST: `POST /api/world-documents/read`
+
+**Input**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `worldId` | string | yes |  |
+| `requestingUserId` | string | yes |  |
+| `family` | string | yes |  |
+| `targetId` | string | no |  |
+| `parentId` | string | no |  |
+| `operation` | string | yes |  |
+| `offset` | integer | no |  |
+| `limit` | integer | no |  |
 
 **Success output**
 

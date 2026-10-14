@@ -27,6 +27,15 @@ export interface CollisionGrid {
   size: number;
   diagonalRule?: "euclidean" | "manhattan" | "5105";
 }
+export interface BurrowSurface {
+  polygons: CollisionPoint[][];
+  holes?: CollisionPoint[][];
+  bottom?: number;
+  top?: number;
+  topInclusive?: boolean;
+  revision?: string;
+  incompleteReasons?: string[];
+}
 export interface ValidateTokenPathInput {
   sceneId: string;
   tokenId: string;
@@ -90,6 +99,7 @@ export interface CollisionReadSnapshot {
     revision: string | null;
     stateSignature: string;
   };
+  burrowSurfaces?: { count: number; stateSignature: string };
 }
 export interface ValidateTokenPathResult {
   sceneId: string;
@@ -103,6 +113,14 @@ export interface ValidateTokenPathResult {
   malformedWallIds: string[];
   invalidSimulatedDoorIds: string[];
   modeSupport: { status: "supported" | "unsupported"; warnings: string[] };
+  burrowPolicy: {
+    status: "not_applicable" | "complete" | "incomplete" | "unsupported";
+    policy: "negative-elevation-or-authoritative-surface";
+    authoritativeSurfaceCount: number;
+    usedSurfaceCount: number;
+    unprovenSegmentIndexes: number[];
+    warnings: string[];
+  };
   gridFit: { valid: boolean; errors: string[]; warnings: string[] };
   gridWarnings: string[];
   before: { x: number; y: number; elevation: number; revision: string };
@@ -128,6 +146,8 @@ export interface WallTopologyResult {
   duplicateGroups: string[][];
   danglingEndpointWallIds: string[];
   crossingPairs: Array<[string, string]>;
+  /** Two independent bounded live reads produced the same topology projection. */
+  unchanged: boolean;
   persisted: false;
 }
 
@@ -508,6 +528,149 @@ function wallShapeSignature(wall: CollisionWall): string {
   });
 }
 
+function pointInPolygon(point: CollisionPoint, polygon: CollisionPoint[]): boolean {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const a = polygon[index]!;
+    const b = polygon[previous]!;
+    const edge = Math.abs(cross(a, b, point)) <= EPSILON;
+    if (
+      edge &&
+      point.x >= Math.min(a.x, b.x) - EPSILON &&
+      point.x <= Math.max(a.x, b.x) + EPSILON &&
+      point.y >= Math.min(a.y, b.y) - EPSILON &&
+      point.y <= Math.max(a.y, b.y) + EPSILON
+    )
+      return true;
+    if (
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x
+    )
+      inside = !inside;
+  }
+  return inside;
+}
+
+function convexPolygon(polygon: CollisionPoint[]): boolean {
+  if (polygon.length < 3) return false;
+  let sign = 0;
+  for (let index = 0; index < polygon.length; index++) {
+    const value = cross(
+      polygon[index]!,
+      polygon[(index + 1) % polygon.length]!,
+      polygon[(index + 2) % polygon.length]!,
+    );
+    if (Math.abs(value) <= EPSILON) continue;
+    const next = Math.sign(value);
+    if (sign && next !== sign) return false;
+    sign = next;
+  }
+  return sign !== 0;
+}
+
+function footprintCorners(point: CollisionPoint, width: number, height: number): CollisionPoint[] {
+  return [
+    point,
+    { ...point, x: point.x + width },
+    { ...point, x: point.x + width, y: point.y + height },
+    { ...point, y: point.y + height },
+  ];
+}
+
+function surfaceProvesSegment(
+  surface: BurrowSurface,
+  from: CollisionPoint,
+  to: CollisionPoint,
+  width: number,
+  height: number,
+): boolean {
+  if (
+    surface.incompleteReasons?.length ||
+    surface.holes?.length ||
+    !Number.isFinite(surface.bottom) ||
+    !Number.isFinite(surface.top) ||
+    surface.bottom! > surface.top!
+  )
+    return false;
+  const elevations = [from.elevation ?? 0, to.elevation ?? 0];
+  if (
+    elevations.some(
+      (elevation) =>
+        elevation < surface.bottom! - EPSILON ||
+        (surface.topInclusive === false
+          ? elevation >= surface.top! - EPSILON
+          : elevation > surface.top! + EPSILON),
+    )
+  )
+    return false;
+  return surface.polygons.some(
+    (polygon) =>
+      convexPolygon(polygon) &&
+      [...footprintCorners(from, width, height), ...footprintCorners(to, width, height)].every(
+        (point) => pointInPolygon(point, polygon),
+      ),
+  );
+}
+
+function burrowCoverage(
+  points: CollisionPoint[],
+  width: number,
+  height: number,
+  surfaces: BurrowSurface[],
+): ValidateTokenPathResult["burrowPolicy"] {
+  const warnings: string[] = [];
+  const unprovenSegmentIndexes: number[] = [];
+  const used = new Set<number>();
+  const malformed = surfaces.filter((surface) => surface.incompleteReasons?.length);
+  if (malformed.length)
+    warnings.push(`${malformed.length} authoritative burrow surface projection(s) are incomplete.`);
+  for (let index = 0; index < points.length - 1; index++) {
+    const from = points[index]!;
+    const to = points[index + 1]!;
+    const fromElevation = from.elevation ?? 0;
+    const toElevation = to.elevation ?? fromElevation;
+    if (fromElevation < 0 && toElevation < 0) continue;
+    const start =
+      fromElevation < 0 && toElevation >= 0
+        ? {
+            ...from,
+            x: from.x + (to.x - from.x) * (-fromElevation / (toElevation - fromElevation)),
+            y: from.y + (to.y - from.y) * (-fromElevation / (toElevation - fromElevation)),
+            elevation: 0,
+          }
+        : from;
+    const end =
+      toElevation < 0 && fromElevation >= 0
+        ? {
+            ...to,
+            x: from.x + (to.x - from.x) * (-fromElevation / (toElevation - fromElevation)),
+            y: from.y + (to.y - from.y) * (-fromElevation / (toElevation - fromElevation)),
+            elevation: 0,
+          }
+        : to;
+    const surfaceIndex = surfaces.findIndex((surface) =>
+      surfaceProvesSegment(surface, start, end, width, height),
+    );
+    if (surfaceIndex < 0) unprovenSegmentIndexes.push(index);
+    else used.add(surfaceIndex);
+  }
+  const missing = unprovenSegmentIndexes.length > 0;
+  if (missing)
+    warnings.push(
+      surfaces.length
+        ? "The complete non-negative-elevation path is not provably contained by one bounded convex authoritative surface per segment."
+        : "No authoritative burrow surface geometry is available for a non-negative-elevation path.",
+    );
+  return {
+    status: missing ? (surfaces.length ? "incomplete" : "unsupported") : "complete",
+    policy: "negative-elevation-or-authoritative-surface",
+    authoritativeSurfaceCount: surfaces.length,
+    usedSurfaceCount: used.size,
+    unprovenSegmentIndexes,
+    warnings,
+  };
+}
+
 export function validatePathGeometry(
   input: ValidateTokenPathInput,
   token: {
@@ -521,16 +684,19 @@ export function validatePathGeometry(
   },
   walls: CollisionWall[],
   grid: CollisionGrid,
+  burrowSurfaces: BurrowSurface[] = [],
 ): ValidateTokenPathResult {
   const malformedWallIds = walls.filter(isMalformedWall).map((w) => w.id);
   const zeroLengthWallIds = walls
     .filter((w) => !malformedWallIds.includes(w.id) && w.c[0] === w.c[2] && w.c[1] === w.c[3])
     .map((w) => w.id);
   const validWalls = walls.filter((w) => !malformedWallIds.includes(w.id));
-  const points: CollisionPoint[] = [
-    { x: token.x, y: token.y, elevation: token.elevation ?? 0 },
-    ...input.waypoints,
-  ];
+  const points: CollisionPoint[] = [{ x: token.x, y: token.y, elevation: token.elevation ?? 0 }];
+  for (const waypoint of input.waypoints)
+    points.push({
+      ...waypoint,
+      elevation: waypoint.elevation ?? points.at(-1)!.elevation ?? 0,
+    });
   const width = token.width ?? grid.size,
     height = token.height ?? grid.size;
   const gridErrors: string[] = [],
@@ -557,13 +723,21 @@ export function validatePathGeometry(
     )
       gridErrors.push("Token footprint is not an integral number of grid spaces.");
   }
-  const modeSupport =
+  const burrowPolicy =
     input.movementMode === "burrow"
-      ? {
-          status: "unsupported" as const,
-          warnings: ["Burrowing collision cannot be derived from Foundry wall geometry."],
-        }
-      : { status: "supported" as const, warnings: [] as string[] };
+      ? burrowCoverage(points, width, height, burrowSurfaces)
+      : {
+          status: "not_applicable" as const,
+          policy: "negative-elevation-or-authoritative-surface" as const,
+          authoritativeSurfaceCount: 0,
+          usedSurfaceCount: 0,
+          unprovenSegmentIndexes: [] as number[],
+          warnings: [] as string[],
+        };
+  const modeSupport =
+    input.movementMode === "burrow" && burrowPolicy.status === "unsupported"
+      ? { status: "unsupported" as const, warnings: burrowPolicy.warnings }
+      : { status: "supported" as const, warnings: burrowPolicy.warnings };
   const simulatedDoors = new Map<string, CollisionDoorState>();
   const invalidSimulatedDoorIds: string[] = [];
   for (const [id, requestedState] of Object.entries(input.simulatedDoors ?? {})) {
@@ -579,6 +753,7 @@ export function validatePathGeometry(
     const from = points[index]!;
     const intersections = validWalls
       .flatMap((wall): CollisionIntersection[] => {
+        if (input.movementMode === "burrow") return [];
         const hit = sweptFootprintIntersectionAtElevation(from, to, width, height, wall);
         if (!hit || !directionBlocks(from, to, wall) || wall.move === 0) return [];
         const type = doorType(wall),
@@ -603,7 +778,8 @@ export function validatePathGeometry(
       from,
       to,
       distance: pathDistance(from, to, grid),
-      blocked: modeSupport.status === "unsupported" || Boolean(first),
+      blocked:
+        input.movementMode === "burrow" ? burrowPolicy.status !== "complete" : Boolean(first),
       wallIds: intersections.filter((h) => h.blocking).map((h) => h.wallId),
       firstCollisionWallIds: first
         ? intersections
@@ -615,10 +791,10 @@ export function validatePathGeometry(
     };
   });
   const incompleteReasons = [
-    ...(malformedWallIds.length
+    ...(input.movementMode !== "burrow" && malformedWallIds.length
       ? [`Malformed wall geometry: ${malformedWallIds.join(", ")}.`]
       : []),
-    ...(zeroLengthWallIds.length
+    ...(input.movementMode !== "burrow" && zeroLengthWallIds.length
       ? [`Incomplete zero-length wall geometry: ${zeroLengthWallIds.join(", ")}.`]
       : []),
     ...(invalidSimulatedDoorIds.length
@@ -629,11 +805,13 @@ export function validatePathGeometry(
     ...gridErrors,
   ];
   const status =
-    modeSupport.status === "unsupported"
+    burrowPolicy.status === "unsupported"
       ? "unsupported"
-      : incompleteReasons.length
+      : burrowPolicy.status === "incomplete"
         ? "incomplete"
-        : "complete";
+        : incompleteReasons.length
+          ? "incomplete"
+          : "complete";
   const firstCollision =
     segments
       .flatMap((s) => (s.firstCollision ? [{ ...s.firstCollision, segmentIndex: s.index }] : []))
@@ -680,6 +858,24 @@ export function validatePathGeometry(
           },
         ]),
     ),
+    ...(input.movementMode === "burrow"
+      ? {
+          burrowSurfaces: {
+            count: burrowSurfaces.length,
+            stateSignature: boundedShapeSignature(
+              burrowSurfaces.map((surface) => ({
+                polygons: surface.polygons,
+                holes: surface.holes ?? [],
+                bottom: surface.bottom ?? null,
+                top: surface.top ?? null,
+                topInclusive: surface.topInclusive ?? null,
+                revision: surface.revision ?? "unavailable",
+                incompleteReasons: surface.incompleteReasons ?? [],
+              })),
+            ),
+          },
+        }
+      : {}),
   };
   return {
     sceneId: input.sceneId,
@@ -693,6 +889,7 @@ export function validatePathGeometry(
     malformedWallIds,
     invalidSimulatedDoorIds,
     modeSupport,
+    burrowPolicy,
     gridFit: {
       valid: gridErrors.length === 0 && gridWarnings.length === 0,
       errors: gridErrors,
@@ -759,6 +956,7 @@ export function inspectWallTopology(sceneId: string, walls: CollisionWall[]): Wa
       )
       .map((w) => w.id),
     crossingPairs,
+    unchanged: true,
     persisted: false,
   };
 }

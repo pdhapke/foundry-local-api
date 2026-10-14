@@ -22,7 +22,7 @@ export const collisionTopologyEndpointDescriptors: AnyEndpointDescriptor[] = [
   {
     name: "foundry_validate_token_path",
     description:
-      "Read-only token path collision validation against exact wall IDs, simulated door states, grid distance, elevation, and ordered waypoints. Never moves the token or changes doors/fog.",
+      "Read-only token path collision validation against exact wall IDs, simulated door states, grid distance, elevation, and ordered waypoints. Campaign burrowing ignores walls but requires every segment to remain below elevation zero or be proven inside explicitly authoritative bounded Region surface geometry. Never moves the token or changes doors, Regions, or fog.",
     method: "post",
     path: "/scenes/collision/path",
     inputSchema: z

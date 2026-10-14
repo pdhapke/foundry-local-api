@@ -7,6 +7,8 @@ export type {
   BridgeErrorResponse,
   BridgeError,
   CommandHandler,
+  CommandTiming,
+  NativeLatency,
   BridgeEventMessage,
   BridgeEventDelivery,
   BridgeEventSenderIdentity,
@@ -254,7 +256,12 @@ export type {
 export type { FoundryEventRecord, RecentEventsInput, RecentEventsResult } from "./events.js";
 
 export { GAME_STATE_COMMANDS } from "./game-state.js";
-export type { GamePausedResult, SetGamePausedInput } from "./game-state.js";
+export type {
+  GamePausedResult,
+  SetGamePausedInput,
+  ConfirmedPauseInput,
+  ConfirmedPauseResult,
+} from "./game-state.js";
 
 export { WORLD_TIME_COMMANDS } from "./world-time.js";
 export type { WorldTimeResult, AdvanceWorldTimeInput } from "./world-time.js";
@@ -366,3 +373,12 @@ export type {
   TrailsBuilderItemPreview,
   TrailsBuilderPreviewResult,
 } from "./trails-of-destiny.js";
+export * from "./session-actions.js";
+export * from "./world-documents.js";
+export * from "./attack-actions.js";
+export * from "./native-gm.js";
+
+export * from "./gm-combat.js";
+export * from "./gm-activities.js";
+export * from "./gm-character.js";
+export * from "./gm-tv.js";

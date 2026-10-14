@@ -16,6 +16,8 @@ export interface MovementRegion {
   top?: number;
   topInclusive?: boolean;
   stopOnEnter?: boolean;
+  /** Explicit campaign authority that this bounded Region represents burrowable material. */
+  burrowSurface?: true;
 }
 export interface MovementEventInput {
   eventId: string;

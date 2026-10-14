@@ -46,13 +46,20 @@ void describe("scene render endpoints", () => {
     let command: string | undefined;
     let payload: unknown;
     let options: any;
-    const foundryClient = fake(((type: string, value: unknown, callOptions: unknown) => {
-      command = type;
-      payload = value;
-      options = callOptions;
-      return Promise.resolve({ status: "complete" });
-    }) as FoundryClient["call"]);
-    await sceneRenderEndpointDescriptors[0]!.handler(input, { foundryClient });
+    const otherPlayer = { ...player, clientId: "newer-player-client", connectedAt: 2 };
+    const foundryClient = fake(
+      ((type: string, value: unknown, callOptions: unknown) => {
+        command = type;
+        payload = value;
+        options = callOptions;
+        return Promise.resolve({ ...input, status: "complete", observation:{version:1,worldId:"world",sceneId:"scene",userId:"player",tokenId:"token",isGM:false,optedIn:true} });
+      }) as FoundryClient["call"],
+      [gm, player, otherPlayer],
+    );
+    await sceneRenderEndpointDescriptors[0]!.handler(
+      { ...input, clientId: "player-client" },
+      { foundryClient },
+    );
     assert.equal(command, SCENE_RENDER_COMMANDS.SNAPSHOT);
     assert.deepEqual(payload, input);
     assert.equal(options.clientId, "player-client");

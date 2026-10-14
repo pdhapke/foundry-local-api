@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { afterEach, describe, it } from "node:test";
 import { SCENE_RENDER_LIMITS } from "@foundry-local-api/shared";
 import { inspectSceneVisibility, renderSceneSnapshot } from "./scene-render.js";
@@ -29,6 +30,7 @@ function install(
     missingPreparedModes?: boolean;
     rawSpecialMode?: boolean;
     assetFailure?: boolean;
+    v14Environment?: boolean;
   } = {},
 ) {
   const calls = { union: 0, selectedDetection: 0, unrelatedDetection: 0 };
@@ -37,9 +39,12 @@ function install(
     _id: "scene",
     name: "Fixture",
     revisionMarker: 1,
-    darkness: 0.5,
-    globalLight: false,
-    fogExploration: true,
+    ...(options.v14Environment
+      ? {
+          environment: { darknessLevel: 0.25, globalLight: { enabled: true } },
+          fog: { mode: 1 },
+        }
+      : { darkness: 0.5, globalLight: false, fogExploration: true }),
     ...(options.assetFailure ? { background: { src: "secret/assets/player-background.png" } } : {}),
   };
   const scene = {
@@ -52,6 +57,7 @@ function install(
     "token-selected",
     {
       sight: { enabled: true },
+      elevation: 0,
       ...(options.rawSpecialMode
         ? { detectionModes: { otherSense: { id: "otherSense", enabled: true, range: 100 } } }
         : {}),
@@ -70,6 +76,8 @@ function install(
     configurable: true,
     value: {
       user,
+      world: {id:"world"},
+      settings: {get: () => true},
       collections: new Map([
         ["Scene", new Map([["scene", scene]])],
         ["JournalEntry", new Map([["secret-journal", secretJournal]])],
@@ -92,6 +100,11 @@ function install(
     los: { contains: (x: number) => x < 10 },
   };
   selectedPlaceable.vision = vision;
+  const visibleRegionDocument = Object.assign(document("gm-region-id"), {
+    testPoint: ({ x, elevation }: { x: number; elevation: number }) => x < 5 && elevation === 0,
+    tokens: new Set([selectedToken]),
+    behaviors: new Map([["behavior-id", { active: true, viewed: true }]]),
+  });
   const visionSources = new Map<string, unknown>([["vision", vision]]);
   if (options.extraVision)
     visionSources.set("other", {
@@ -154,6 +167,8 @@ function install(
     configurable: true,
     value: {
       scene,
+      ready: true,
+      perception: {renderFlags: {size:0}},
       stage: {},
       app: {
         renderer: {
@@ -210,14 +225,15 @@ function install(
         placeables: [
           {
             id: "gm-region-id",
+            isVisible: true,
             visible: true,
-            document: document("gm-region-id"),
-            testPoint: ({ x }: { x: number }) => x < 5,
+            document: visibleRegionDocument,
           },
           {
             id: "hidden-region-id",
+            isVisible: false,
             visible: false,
-            document: document("hidden-region-id"),
+            document: document("hidden-region-id", { hidden: true }),
           },
         ],
       },
@@ -269,6 +285,44 @@ afterEach(() => {
 });
 
 void describe("scene render commands", () => {
+  void it("uses the stored-fog canonical projection for the rendered fog revision", async () => {
+    install();
+    const runtime = (globalThis as any).canvas;
+    runtime.fog.exploration.toObject = () => ({
+      _id: "fog-document-id",
+      scene: "scene",
+      user: "player",
+      explored: "unchanged",
+      positions: { token: { x: 1, y: 2 } },
+    });
+    const result = await inspectSceneVisibility({
+      sceneId: "scene",
+      effectiveUserId: "player",
+      tokenId: "token-selected",
+    });
+    const canonical =
+      '{"exists":true,"state":{"explored":"unchanged","positions":{"token":{"x":1,"y":2}}}}';
+    assert.equal(result.fogRevision, createHash("sha256").update(canonical).digest("hex"));
+  });
+
+  void it("fails closed when rendered fog cannot be serialized", async () => {
+    install();
+    (globalThis as any).canvas.fog.exploration.toObject = () => {
+      throw new Error("private runtime detail");
+    };
+
+    const result = await inspectSceneVisibility({
+      sceneId: "scene",
+      effectiveUserId: "player",
+      tokenId: "token-selected",
+    });
+
+    assert.equal(result.fogRevision, null);
+    assert.equal(result.environment.fog, "incomplete");
+    assert.ok(result.issues.some(({ code }) => code === "FOG_UNAVAILABLE"));
+    assert.doesNotMatch(JSON.stringify(result), /private runtime detail/);
+  });
+
   void it("uses the exact player and owned Token context without leaking hidden identities", async () => {
     const { source, calls } = install();
     const result = await renderSceneSnapshot({
@@ -303,7 +357,10 @@ void describe("scene render commands", () => {
         blockerKeys: ["blocker-1"],
       },
     ]);
-    assert.deepEqual(result.regions, [{ key: "region-1" }]);
+    assert.deepEqual(result.regions, [
+      { key: "region-1", containsSelectedToken: true, effects: "active" },
+    ]);
+    assert.equal(result.environment.regions, "complete");
     assert.deepEqual(result.visibleBarriers, [
       {
         key: "blocker-1",
@@ -385,6 +442,19 @@ void describe("scene render commands", () => {
     );
   });
 
+  void it("projects Foundry v14 nested darkness, global light, and fog mode", async () => {
+    install({ v14Environment: true });
+    const result = await inspectSceneVisibility({
+      sceneId: "scene",
+      effectiveUserId: "player",
+      tokenId: "token-selected",
+    });
+    assert.equal(result.environment.darknessLevel, 0.25);
+    assert.equal(result.environment.globalLight, true);
+    assert.equal(result.environment.fogExplorationEnabled, true);
+    assert.equal(result.environment.darkness, "complete");
+  });
+
   void it("returns typed asset and unsupported results", async () => {
     install({ extraction: "fail" });
     const asset = await renderSceneSnapshot({
@@ -407,6 +477,56 @@ void describe("scene render commands", () => {
     assert.ok(unsupported.issues.some((issue) => issue.code === "REGION_SUPPORT_UNAVAILABLE"));
   });
 
+  void it("fails closed for malformed visible Region evidence without disclosing identity", async () => {
+    install();
+    const runtime = (globalThis as any).canvas;
+    runtime.regions.placeables.push({
+      id: "malformed-secret-region-id",
+      isVisible: true,
+      visible: true,
+      document: document("malformed-secret-region-id"),
+    });
+    const result = await inspectSceneVisibility({
+      sceneId: "scene",
+      effectiveUserId: "player",
+      tokenId: "token-selected",
+    });
+    assert.equal(result.status, "incomplete");
+    assert.equal(result.environment.regions, "incomplete");
+    assert.ok(result.issues.some(({ code }) => code === "REGION_EVIDENCE_INCOMPLETE"));
+    assert.equal(JSON.stringify(result).includes("malformed-secret-region-id"), false);
+  });
+
+  void it("redacts behavior state when an always-visible Region is not observable", async () => {
+    install();
+    const runtime = (globalThis as any).canvas;
+    const selectedTokenDocument = runtime.tokens.placeables[0].document;
+    runtime.regions.placeables.push({
+      id: "always-visible-region-id",
+      isVisible: true,
+      visible: true,
+      document: {
+        ...document("always-visible-region-id"),
+        testUserPermission: () => false,
+        testPoint: ({ x }: { x: number }) => x < 5,
+        tokens: new Set([selectedTokenDocument]),
+        behaviors: new Map([["secret-behavior-id", { active: true, viewed: true }]]),
+      },
+    });
+    const result = await inspectSceneVisibility({
+      sceneId: "scene",
+      effectiveUserId: "player",
+      tokenId: "token-selected",
+    });
+    assert.equal(result.environment.regions, "complete");
+    assert.deepEqual(result.regions[1], {
+      key: "region-2",
+      containsSelectedToken: true,
+      effects: "redacted",
+    });
+    assert.doesNotMatch(JSON.stringify(result), /always-visible-region-id|secret-behavior-id/);
+  });
+
   void it("supports image, structured snapshot, and visibility-only modes", async () => {
     install({ extraction: "fail" });
     const structured = await renderSceneSnapshot({
@@ -427,7 +547,7 @@ void describe("scene render commands", () => {
       tokenId: "token-selected",
     });
     assert.equal("image" in visibility, false);
-    assert.equal("capturedAt" in visibility, false);
+    assert.equal("capturedAt" in visibility, true);
   });
 
   void it("refuses a union-view image and isolates structured entities to the selected Token", async () => {
@@ -449,8 +569,8 @@ void describe("scene render commands", () => {
         id: "other-source-only",
         visible: false,
         regions: [],
-        blockerAttribution: "out-of-range",
-        blockerKeys: [],
+        blockerAttribution: "visible-wall",
+        blockerKeys: ["blocker-1"],
       },
     ]);
     assert.equal(result.isolation.unrelatedVisionSourcesIgnored, 1);
@@ -511,9 +631,13 @@ void describe("scene render commands", () => {
     });
     runtime.regions.placeables.push({
       id: "region-special-only",
+      isVisible: true,
       visible: true,
-      document: document("region-special-only"),
-      testPoint: ({ x }: { x: number }) => x > 7,
+      document: Object.assign(document("region-special-only"), {
+        testPoint: ({ x }: { x: number }) => x > 7,
+        tokens: new Set(),
+        behaviors: new Map(),
+      }),
     });
     runtime.walls.placeables.push({
       id: "exit-special-only",
@@ -537,7 +661,9 @@ void describe("scene render commands", () => {
     assert.deepEqual(result.visible.notes, ["note-public"]);
     assert.deepEqual(result.visible.tiles, ["tile-public"]);
     assert.equal(result.queryPoints[0]?.visible, false);
-    assert.deepEqual(result.regions, [{ key: "region-1" }]);
+    assert.deepEqual(result.regions, [
+      { key: "region-1", containsSelectedToken: true, effects: "active" },
+    ]);
     assert.equal(result.visibleBarriers.length, 2);
     assert.equal(
       result.visibleBarriers.some(({ exit }) => exit),
@@ -625,7 +751,7 @@ void describe("scene render commands", () => {
     assert.equal(JSON.stringify(result).includes("secret/assets/player-background.png"), false);
   });
 
-  void it("attributes each in-range occlusion independently and flags ambiguous blockers", async () => {
+  void it("attributes visible occlusion while retaining successful negative queries with unknown causes", async () => {
     install();
     const result = await inspectSceneVisibility({
       sceneId: "scene",
@@ -651,9 +777,39 @@ void describe("scene render commands", () => {
       result.issues.some(
         ({ code, subjectId }) => code === "QUERY_FAILED" && subjectId === "ambiguous",
       ),
-      true,
+      false,
     );
+    assert.equal(result.status, "complete");
+  });
+
+  void it("keeps secret, lighting and range negative results uniformly unknown without a secret-specific status", async () => {
+    for (const cause of ["secret", "lighting", "range"] as const) {
+      install({ selectedDetection: x => x < 5 });
+      const runtime = (globalThis as any).canvas;
+      runtime.walls.placeables = cause === "secret" ? [{
+        id: "private-secret-door", visible: true, doorControl: { visible: true },
+        document: document("private-secret-door", { c: [5, -5, 5, 5], door: 2, ds: 0, sight: 20 }),
+      }] : [];
+      const result = await inspectSceneVisibility({ sceneId: "scene", effectiveUserId: "player", tokenId: "token-selected",
+        queryPoints: [{ id: "known-negative", x: cause === "range" ? 10000 : 8, y: 1 }] });
+      assert.equal(result.status, "complete", cause);
+      assert.deepEqual(result.queryPoints, [{ id: "known-negative", visible: false, regions: [], blockerAttribution: "environment-ambiguous", blockerKeys: [] }]);
+      assert.equal(result.issues.some(({ code }) => code === "QUERY_FAILED"), false);
+      assert.deepEqual(result.visibleBarriers, []);
+      assert.equal(result.redaction.secretDoors, true);
+      assert.doesNotMatch(JSON.stringify(result), /private-secret-door/);
+    }
+  });
+
+  void it("retains failed native query evaluation as incomplete without exposing its private error", async () => {
+    install({ selectedDetection: x => { if (x === 8) throw Error("private-secret-evaluation-detail"); return x < 5; } });
+    (globalThis as any).canvas.walls.placeables = [];
+    const result = await inspectSceneVisibility({ sceneId: "scene", effectiveUserId: "player", tokenId: "token-selected", queryPoints: [{ id: "failed-native-query", x: 8, y: 1 }] });
     assert.equal(result.status, "incomplete");
+    assert.equal(result.environment.vision, "incomplete");
+    assert.ok(result.issues.some(({ code, subjectId }) => code === "SELECTED_VISION_EVALUATION_FAILED" && subjectId === "failed-native-query"));
+    assert.equal(result.queryPoints[0]?.visible, false);
+    assert.doesNotMatch(JSON.stringify(result), /private-secret-evaluation-detail/);
   });
 
   void it("fails closed when the selected Token has no usable canvas center", async () => {
@@ -697,4 +853,47 @@ void describe("scene render commands", () => {
     assert.equal(result.bounds.truncated, true);
     assert.ok(result.issues.length <= SCENE_RENDER_LIMITS.maxIssues);
   });
+});
+
+void it("requires direct non-GM consent and rechecks consent after asynchronous observation", async()=>{install();(globalThis as any).game.user.isGM=true;await assert.rejects(inspectSceneVisibility({sceneId:"scene",effectiveUserId:"player",tokenId:"token-selected"}));install();let checks=0;(globalThis as any).game.settings.get=()=>++checks===1;await assert.rejects(inspectSceneVisibility({sceneId:"scene",effectiveUserId:"player",tokenId:"token-selected"}));});
+void it("pending or missing native render readiness clears every perception claim",async()=>{for(const pending of [1,null]){install();const runtime=(globalThis as any).canvas;if(pending===null)delete runtime.perception;else runtime.perception.renderFlags.size=pending;const result=await inspectSceneVisibility({sceneId:"scene",effectiveUserId:"player",tokenId:"token-selected",queryPoints:[{id:"q",x:1,y:1}]});assert.equal(result.observation.readiness,pending===null?"unavailable":"stale");assert.deepEqual(result.visible,{tokens:[],notes:[],tiles:[]});assert.deepEqual(result.regions,[]);assert.deepEqual(result.visibleBarriers,[]);assert.deepEqual(result.coveragePolygons,[]);assert.equal(result.queryPoints[0]?.visible,false);assert.equal(result.queryPoints[0]?.blockerAttribution,"unavailable");}});
+
+void it("free visibility queries pass selected-token elevation by default and explicit elevation to native config",async()=>{install();const runtime=(globalThis as any).canvas;const selected=runtime.tokens.placeables.find((v:any)=>v.id==="token-selected");const originalSource=selected.document.toObject;selected.document.toObject=()=>({...originalSource(),elevation:7});const originalConfig=runtime.visibility._createVisibilityTestConfig;const points:any[]=[];runtime.visibility._createVisibilityTestConfig=(value:any[],options:any)=>{points.push(...value);return originalConfig(value,options);};await inspectSceneVisibility({sceneId:"scene",effectiveUserId:"player",tokenId:"token-selected",queryPoints:[{id:"default",x:1,y:1},{id:"explicit",x:1,y:1,elevation:9}]});assert.ok(points.some(v=>v.elevation===7));assert.ok(points.some(v=>v.elevation===9));});
+
+void it("native active-scene viewing permits an owned perspective without Scene OBSERVER", async () => {
+  install();
+  const scene = (globalThis as any).canvas.scene;
+  scene.active = true;
+  scene.testUserPermission = () => false;
+  const result = await inspectSceneVisibility({ sceneId: "scene", effectiveUserId: "player", tokenId: "token-selected" });
+  assert.equal(result.observation.readiness, "ready");
+  assert.equal(result.visible.tokens.includes("token-hidden"), false);
+});
+
+void it("inactive unobservable scenes and active permission revoked during observation reject", async () => {
+  for (const revoke of [false, true]) {
+    install();
+    const scene = (globalThis as any).canvas.scene;
+    scene.active = revoke;
+    scene.testUserPermission = () => false;
+    if (revoke) {
+      const original = scene.toObject;
+      scene.toObject = () => { const value = original(); scene.active = false; return value; };
+    }
+    await assert.rejects(inspectSceneVisibility({ sceneId: "scene", effectiveUserId: "player", tokenId: "token-selected" }),
+      (error: unknown) => (error as { code?: string }).code === "PERMISSION_DENIED");
+  }
+});
+
+void it("wall-clipped FOV exclusion never claims radial out-of-range", async () => {
+  install({ selectedDetection: x => x > 0 && x < 6 });
+  const runtime = (globalThis as any).canvas;
+  const selected = runtime.tokens.placeables.find((value: any) => value.id === "token-selected");
+  selected.vision.shape.contains = (x: number) => x < 6;
+  const result = await inspectSceneVisibility({ sceneId: "scene", effectiveUserId: "player", tokenId: "token-selected",
+    queryPoints: [{ id: "behind-closed-door", x: 8, y: 1 }, { id: "far-without-range-evidence", x: -10000, y: -10000 }] });
+  assert.equal(result.queryPoints[0]?.visible, false);
+  assert.equal(result.queryPoints[0]?.blockerAttribution, "visible-wall");
+  assert.equal(result.queryPoints[1]?.blockerAttribution, "environment-ambiguous");
+  assert.equal(result.queryPoints.some(point => point.blockerAttribution === "out-of-range"), false);
 });

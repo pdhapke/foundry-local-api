@@ -10,3 +10,6 @@ build/
 *.log
 .DS_Store
 Thumbs.db
+server/.managed-credential/
+server/.managed-credential.lock/
+server/.managed-credential.required

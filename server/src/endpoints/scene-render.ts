@@ -18,17 +18,18 @@ export const sceneRenderSchema = z
   .object({
     sceneId: id,
     effectiveUserId: id,
+    clientId: id.optional(),
     tokenId: id,
     includeImage: z.boolean().optional(),
     maxImageBytes: z.number().int().min(1024).max(2_000_000).optional(),
     queryPoints: z
-      .array(z.object({ id, x: z.number().finite(), y: z.number().finite() }).strict())
+      .array(z.object({ id, x: z.number().finite(), y: z.number().finite(), elevation: z.number().finite().optional() }).strict())
       .max(SCENE_RENDER_LIMITS.maxQueryPoints)
       .optional(),
   })
   .strict();
 
-type Request = SceneRenderInput;
+type Request = SceneRenderInput & { clientId?: string };
 
 function route(input: Request, ctx: EndpointContext) {
   const clients = ctx.foundryClient.getCapabilityReport().clients;
@@ -40,7 +41,14 @@ function route(input: Request, ctx: EndpointContext) {
       retryable: true,
     });
   const target = clients
-    .filter((client) => client.userId === input.effectiveUserId && client.optedIn)
+    .filter(
+      (client) =>
+        client.userId === input.effectiveUserId &&
+        (!input.clientId || client.clientId === input.clientId) &&
+        client.lane === "player" &&
+        !client.isGM &&
+        client.optedIn,
+    )
     .sort((a, b) => b.connectedAt - a.connectedAt)[0];
   if (!target)
     throw new FoundryBridgeError(
@@ -52,7 +60,32 @@ function route(input: Request, ctx: EndpointContext) {
 }
 
 function payload(input: Request): SceneRenderInput {
-  return input;
+  const { clientId: _clientId, ...commandInput } = input;
+  return commandInput;
+}
+async function observe<T extends SceneVisibilityResult>(input: Request, ctx: EndpointContext, command: string): Promise<T> {
+  const routed = route(input, ctx);
+  // Capability reports may expose mutable records; preserve the dispatch binding across awaits.
+  const requester = { ...routed.requester };
+  const target = { ...routed.target };
+  const result = await ctx.foundryClient.call<SceneRenderInput, T>(command, payload(input), {
+    clientId: target.clientId, userId: target.userId, requestingUserId: requester.userId,
+  });
+  const observation = result?.observation;
+  if (!observation || observation.version !== 1 || result.sceneId !== input.sceneId || result.effectiveUserId !== input.effectiveUserId || result.tokenId !== input.tokenId
+    || observation.sceneId !== input.sceneId || observation.userId !== input.effectiveUserId || observation.tokenId !== input.tokenId
+    || observation.isGM !== false || observation.optedIn !== true || typeof observation.worldId !== "string") throw new FoundryBridgeError("INVALID_PAYLOAD", "Player observation acknowledgement mismatch.", { retryable: false });
+  observation.clientId = target.clientId;
+  const clients = ctx.foundryClient.getCapabilityReport().clients;
+  const stillBound = clients.some(value => value.clientId === target.clientId && value.connectedAt === target.connectedAt && value.userId === target.userId && value.lane === "player" && !value.isGM && value.optedIn)
+    && clients.some(value => value.clientId === requester.clientId && value.connectedAt === requester.connectedAt && value.userId === requester.userId && value.lane === "gm" && value.isGM && value.optedIn);
+  if (!stillBound) {
+    observation.readiness = "stale"; result.status = "incomplete";
+    result.visible = { tokens: [], notes: [], tiles: [] }; result.regions = []; result.visibleBarriers = []; result.coveragePolygons = [];
+    result.queryPoints = (result.queryPoints ?? []).map(point => ({ ...point, visible: false, regions: [], blockerKeys: [], blockerAttribution: "unavailable" }));
+    if ("image" in result) result.image = null;
+  }
+  return result;
 }
 
 export const sceneRenderEndpointDescriptors: AnyEndpointDescriptor[] = [
@@ -65,12 +98,7 @@ export const sceneRenderEndpointDescriptors: AnyEndpointDescriptor[] = [
     inputSchema: sceneRenderSchema,
     outputSchema: sceneRenderOutputSchema,
     handler: (input: Request, ctx): Promise<SceneRenderResult> => {
-      const { requester, target } = route(input, ctx);
-      return ctx.foundryClient.call(SCENE_RENDER_COMMANDS.SNAPSHOT, payload(input), {
-        clientId: target.clientId,
-        userId: target.userId,
-        requestingUserId: requester.userId,
-      });
+      return observe(input, ctx, SCENE_RENDER_COMMANDS.SNAPSHOT);
     },
     annotations: { readOnlyHint: true, idempotentHint: true },
   },
@@ -83,12 +111,7 @@ export const sceneRenderEndpointDescriptors: AnyEndpointDescriptor[] = [
     inputSchema: sceneRenderSchema,
     outputSchema: sceneVisibilityOutputSchema,
     handler: (input: Request, ctx): Promise<SceneVisibilityResult> => {
-      const { requester, target } = route(input, ctx);
-      return ctx.foundryClient.call(SCENE_RENDER_COMMANDS.VISIBILITY, payload(input), {
-        clientId: target.clientId,
-        userId: target.userId,
-        requestingUserId: requester.userId,
-      });
+      return observe(input, ctx, SCENE_RENDER_COMMANDS.VISIBILITY);
     },
     annotations: { readOnlyHint: true, idempotentHint: true },
   },

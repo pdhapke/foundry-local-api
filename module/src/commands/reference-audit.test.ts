@@ -161,4 +161,185 @@ void describe("reference audit", () => {
       assert.equal(result.classes.find(({ class: kind }) => kind === name)?.complete, false);
     assert.equal(result.clean, null);
   });
+
+  void it("uses the collection type without touching a fragile documentName getter", () => {
+    const table = {
+      uuid: "RollTable.table-1",
+      toObject: () => ({ results: [] }),
+    } as Record<string, unknown>;
+    Object.defineProperty(table, "documentName", {
+      get: () => {
+        throw new TypeError("Cannot read properties of null (reading 'type')");
+      },
+    });
+    (globalThis as any).game.collections = new Map([["RollTable", new Map([["table-1", table]])]]);
+
+    const result = auditReferences({ includeDocumentTypes: ["RollTable"] });
+
+    assert.equal(result.scannedDocuments, 1);
+    assert.equal(
+      result.issues.some((issue) => issue.code === "MALFORMED_TABLE_RESULTS"),
+      false,
+    );
+  });
+
+  void it("reads authoritative embedded source data without touching wrapper fields", () => {
+    const resultWrapper = {
+      _source: {
+        type: "text",
+        description: "Safe text result",
+        sourceReference: "@UUID[Item.none]",
+      },
+      siblingReference: "@UUID[Item.none]",
+    } as Record<string, unknown>;
+    Object.defineProperty(resultWrapper, "type", {
+      enumerable: true,
+      get: () => {
+        throw new TypeError("Cannot read properties of null (reading 'type')");
+      },
+    });
+    (globalThis as any).game.collections = new Map([
+      [
+        "RollTable",
+        new Map([
+          [
+            "table-1",
+            {
+              uuid: "RollTable.table-1",
+              toObject: () => ({ results: [resultWrapper] }),
+            },
+          ],
+        ]),
+      ],
+    ]);
+
+    const result = auditReferences({ includeDocumentTypes: ["RollTable"] });
+
+    assert.equal(result.scannedDocuments, 1);
+    assert.equal(
+      result.issues.some((issue) => issue.code === "MALFORMED_TABLE_RESULT"),
+      false,
+    );
+    assert.ok(
+      result.issues.some(
+        (issue) => issue.code === "BROKEN_UUID" && issue.fieldPath === "results.0.sourceReference",
+      ),
+    );
+    assert.equal(
+      result.issues.some((issue) => issue.fieldPath === "results.0.siblingReference"),
+      false,
+    );
+  });
+
+  void it("never reports a document-type-filtered scan as campaign-wide clean", () => {
+    (globalThis as any).game.collections = new Map([
+      ["Actor", new Map([["1", { uuid: "Actor.1", toObject: () => ({ name: "Safe" }) }]])],
+    ]);
+
+    const result = auditReferences({ includeDocumentTypes: ["Actor"] });
+
+    assert.equal(result.scannedDocuments, 1);
+    assert.equal(result.complete, false);
+    assert.equal(result.clean, null);
+    assert.ok(result.classes.every(({ reason }) => reason?.includes("campaign-wide coverage")));
+  });
+
+  void it("returns typed incomplete coverage when a live field getter is unreadable", () => {
+    const unreadable = {} as Record<string, unknown>;
+    Object.defineProperty(unreadable, "type", {
+      enumerable: true,
+      get: () => {
+        throw new TypeError("private runtime detail");
+      },
+    });
+    (globalThis as any).game.collections = new Map([
+      [
+        "RollTable",
+        new Map([
+          [
+            "table-1",
+            {
+              uuid: "RollTable.table-1",
+              toObject: () => ({ results: [unreadable] }),
+            },
+          ],
+        ]),
+      ],
+    ]);
+
+    const result = auditReferences({ includeDocumentTypes: ["RollTable"] });
+
+    assert.equal(result.complete, false);
+    assert.equal(result.clean, null);
+    assert.ok(result.issues.some((issue) => issue.code === "DOCUMENT_AUDIT_ERROR"));
+    assert.doesNotMatch(JSON.stringify(result), /private runtime detail/);
+  });
+
+  void it("fails closed on cyclic serialized data without traversing indefinitely", () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic["self"] = cyclic;
+    (globalThis as any).game.collections = new Map([
+      ["Actor", new Map([["cyclic", { uuid: "Actor.cyclic", toObject: () => cyclic }]])],
+    ]);
+
+    const result = auditReferences({});
+
+    assert.equal(result.complete, false);
+    assert.equal(result.clean, null);
+    assert.ok(result.issues.some((issue) => issue.code === "DOCUMENT_AUDIT_ERROR"));
+  });
+
+  void it("extracts asset targets from HTML and CSS wrappers without markup prefixes", () => {
+    (globalThis as any).game.collections = new Map([
+      [
+        "JournalEntry",
+        new Map([
+          [
+            "html",
+            {
+              uuid: "JournalEntry.html",
+              toObject: () => ({
+                content: '<img src="maps/scene.webp"><div style="url(icons/svg/d20-grey.svg)">',
+              }),
+            },
+          ],
+        ]),
+      ],
+    ]);
+
+    const result = auditReferences({});
+    const targets = result.issues
+      .filter((issue) => issue.code === "ASSET_REQUIRES_SERVER_CHECK")
+      .map((issue) => issue.target);
+
+    assert.deepEqual(targets, ["maps/scene.webp", "icons/svg/d20-grey.svg"]);
+  });
+
+  void it("fails closed when cumulative strings exceed the per-document character budget", () => {
+    const individuallyBounded = "x".repeat(1_500_000);
+    (globalThis as any).game.collections = new Map([
+      [
+        "JournalEntry",
+        new Map([
+          [
+            "oversized",
+            {
+              uuid: "JournalEntry.oversized",
+              toObject: () => ({
+                first: individuallyBounded,
+                second: individuallyBounded,
+                third: individuallyBounded,
+              }),
+            },
+          ],
+        ]),
+      ],
+    ]);
+
+    const result = auditReferences({});
+
+    assert.equal(result.complete, false);
+    assert.equal(result.clean, null);
+    assert.ok(result.issues.some((issue) => issue.code === "DOCUMENT_AUDIT_ERROR"));
+  });
 });

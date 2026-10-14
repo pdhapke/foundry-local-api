@@ -70,6 +70,24 @@ void describe("callRestEndpoint", () => {
 });
 
 void describe("registerHttpMcpTools", () => {
+  void it("preserves allowlisted connectivity codes without private error details", async () => {
+    let callback: (() => Promise<Record<string, unknown>>) | undefined;
+    const server = { registerTool: (_name: string, _config: unknown, handler: typeof callback) => {
+      callback = handler; return {};
+    } } as unknown as McpServer;
+    registerHttpMcpTools(server, [{ name: "foundry_remote_perception", description: "test", method: "get", path: "/perception", handler: () => ({}) }], { baseUrl: "http://127.0.0.1:3939", apiKey: "test" });
+    for (const code of ["NOT_CONNECTED", "TIMEOUT"]) {
+      globalThis.fetch = (() => Promise.resolve(Response.json({ error: {
+        code, retryable: true, message: "private server description", details: { trap: "secret" }, clientId: "private-id",
+      } }, { status: 503 }))) as typeof fetch;
+      const result = await callback!();
+      assert.equal(result.isError, true);
+      assert.deepEqual(result.structuredContent, { error: { code, retryable: true } });
+    }
+    globalThis.fetch = (() => Promise.resolve(Response.json({ error: { code: "SECRET_LABEL", retryable: "yes" } }, { status: 500 }))) as typeof fetch;
+    assert.equal((await callback!()).structuredContent, undefined);
+  });
+
   void it("enforces descriptor refinements before issuing an HTTP request", async () => {
     let fetchCalls = 0;
     globalThis.fetch = (() => {

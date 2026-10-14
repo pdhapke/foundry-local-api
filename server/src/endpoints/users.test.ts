@@ -97,6 +97,24 @@ void describe("Phase 25 users & client state", () => {
     assert.deepEqual(res.body, { _id: "u1", name: "Alicia" });
   });
 
+  void it("PUT /api/users/:userId preserves an explicitly supplied blank password", async () => {
+    const app = buildApp(((type: string, payload: UserUpdateInput) => {
+      assert.equal(type, "userUpdate");
+      assert.deepEqual(payload, { userId: "u1", changes: { password: "" } });
+      const result: DocumentData = { _id: "u1", name: "Izzy" };
+      return Promise.resolve(result);
+    }) as FoundryClient["call"]);
+
+    const res = await request(app)
+      .put("/api/users/u1")
+      .set(API_KEY_HEADER, API_KEY)
+      .send({ changes: { password: "" } });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { _id: "u1", name: "Izzy" });
+    assert.equal("password" in res.body, false);
+  });
+
   void it("DELETE /api/users/:userId deletes a user by id", async () => {
     const app = buildApp(((type: string, payload: UserIdInput) => {
       assert.equal(type, "userDelete");

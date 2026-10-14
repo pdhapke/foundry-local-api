@@ -9,6 +9,7 @@
 export const GAME_STATE_COMMANDS = {
   GET_PAUSED: "gameGetPaused",
   SET_PAUSED: "gameSetPaused",
+  SET_PAUSED_CONFIRMED: "gameSetPausedConfirmed",
 } as const;
 
 export interface GamePausedResult {
@@ -17,4 +18,21 @@ export interface GamePausedResult {
 
 export interface SetGamePausedInput {
   paused: boolean;
+}
+
+export interface ConfirmedPauseInput extends SetGamePausedInput {
+  worldId: string;
+  userId: string;
+  requestId: string;
+  correlationId: string;
+  origin: "ai-dm";
+}
+export interface ConfirmedPauseResult {
+  outcome: "confirmed" | "uncertain" | "failure";
+  paused: boolean | null;
+  worldId: string;
+  correlationId: string;
+  mutated: boolean;
+  stateObservedAtMs?: number;
+  message?: string;
 }

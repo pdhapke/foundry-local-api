@@ -2,8 +2,11 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { loadOrCreateCompanionApiKey } from "./foundry-companion-credential.mjs";
+
 const serverDirectory = fileURLToPath(new URL("../server/", import.meta.url));
 const serverEntryPoint = fileURLToPath(new URL("../server/dist/index.js", import.meta.url));
+export const foundryLocalApiCompanionCredential = loadOrCreateCompanionApiKey();
 
 if (!existsSync(serverEntryPoint)) {
   console.error(
@@ -12,7 +15,7 @@ if (!existsSync(serverEntryPoint)) {
 } else {
   const child = spawn(process.execPath, [serverEntryPoint], {
     cwd: serverDirectory,
-    env: process.env,
+    env: { ...process.env, API_KEY: foundryLocalApiCompanionCredential },
     stdio: "inherit",
     windowsHide: false,
   });

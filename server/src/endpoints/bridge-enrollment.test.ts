@@ -153,7 +153,7 @@ void describe("Phase 0R enrollment endpoints", () => {
     assert.equal(noConsentEnrollments.listEvents().at(-1)?.reason, "consent_required");
   });
 
-  void it("cannot use a scoped enrollment credential as REST or MCP authentication", async () => {
+  void it("cannot use scoped enrollment or GM bridge credentials as REST or MCP authentication", async () => {
     const store = new EnrollmentStore();
     const issued = store.issue({
       issuer: { userId: "gm", clientId: "gm-client", isGM: true, connected: true },
@@ -173,6 +173,12 @@ void describe("Phase 0R enrollment endpoints", () => {
     );
     assert.equal(
       (await request(app).post("/mcp").set("Authorization", `Bearer ${issued.credential}`)).status,
+      401,
+    );
+    const gmBridgeCode = "G".repeat(43);
+    assert.equal((await request(app).get("/api/test").set("x-api-key", gmBridgeCode)).status, 401);
+    assert.equal(
+      (await request(app).post("/mcp").set("Authorization", `Bearer ${gmBridgeCode}`)).status,
       401,
     );
   });

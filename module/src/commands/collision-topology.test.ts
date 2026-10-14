@@ -65,7 +65,9 @@ void describe("live collision commands", () => {
       movementMode: "walk",
     });
     assert.deepEqual(result.evidence.after, second.evidence.before);
-    assert.deepEqual(validateLiveWallTopology({ sceneId: "s" }).malformedWallIds, []);
+    const topology = validateLiveWallTopology({ sceneId: "s" });
+    assert.deepEqual(topology.malformedWallIds, []);
+    assert.equal(topology.unchanged, true);
     assert.deepEqual(calls, []);
   });
   void it("fails closed without disclosing restricted walls to players", () => {
@@ -328,6 +330,13 @@ void describe("live collision commands", () => {
     );
     assert.equal(result.evidence.before.malformedWalls["malformed"]?.revision, "9");
     assert.equal(result.evidence.after.malformedWalls["malformed"]?.revision, "9");
+    wallRead = 0;
+    const topology = validateLiveWallTopology({ sceneId: "s" });
+    assert.equal(topology.status, "incomplete");
+    assert.equal(topology.unchanged, false);
+    assert.ok(
+      topology.incompleteReasons.some((reason) => reason.includes("independent live reads")),
+    );
   });
   void it("detects non-finite and null malformed-wall changes without revision changes", () => {
     let wallRead = 0;
@@ -396,7 +405,7 @@ void describe("live collision commands", () => {
     }
     assert.equal(wallRead, 4);
   });
-  void it("refuses document ID revision fallbacks", () => {
+  void it("uses semantic revisions when Foundry omits embedded document statistics", () => {
     const token = { id: "t", toObject: () => ({ x: 0, y: 0, width: 1, height: 1 }) };
     const scene = {
       id: "s",
@@ -414,15 +423,77 @@ void describe("live collision commands", () => {
         settings: { get: () => "5105" },
       },
     });
-    assert.throws(
-      () =>
-        validateLiveTokenPath({
-          sceneId: "s",
-          tokenId: "t",
-          waypoints: [{ x: 5, y: 0 }],
-          movementMode: "walk",
-        }),
-      /genuine document revision/,
-    );
+    const result = validateLiveTokenPath({
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 5, y: 0 }],
+      movementMode: "walk",
+    });
+    assert.match(result.evidence.before.tokenRevision, /^semantic:\d+:[0-9a-f]{32}$/);
+    assert.equal(result.evidence.before.tokenRevision, result.evidence.after.tokenRevision);
+    assert.equal(result.evidence.unchanged, true);
+  });
+  void it("reads only explicitly authoritative Region surfaces for burrow coverage", () => {
+    const calls: string[] = [];
+    const token = {
+      id: "t",
+      toObject: () => ({
+        x: 1,
+        y: 1,
+        elevation: 0,
+        width: 1,
+        height: 1,
+        _stats: { modifiedTime: 1 },
+      }),
+    };
+    const region = {
+      id: "surface",
+      polygons: undefined,
+      toObject: () => ({
+        shapes: [{ type: "rectangle", x: 0, y: 0, width: 10, height: 10 }],
+        elevation: { bottom: -10, top: 0, topInclusive: true },
+        flags: { "foundry-local-api": { burrowSurface: true } },
+        _stats: { modifiedTime: 2 },
+      }),
+      update: () => calls.push("update"),
+      delete: () => calls.push("delete"),
+    };
+    const wall = {
+      id: "wall",
+      toObject: () => ({ c: [5, 0, 5, 10], move: 20, _stats: { modifiedTime: 3 } }),
+    };
+    const scene = {
+      id: "s",
+      toObject: () => ({ _stats: { modifiedTime: 4 } }),
+      grid: { type: 0, size: 1, diagonalRule: "euclidean" },
+      testUserPermission: () => true,
+      getEmbeddedCollection: (type: string) =>
+        type === "Token"
+          ? new Map([["t", token]])
+          : type === "Region"
+            ? new Map([["surface", region]])
+            : new Map([["wall", wall]]),
+    };
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        collections: new Map([["Scene", new Map([["s", scene]])]]),
+        user: { id: "gm", isGM: true },
+        settings: { get: () => "euclidean" },
+      },
+    });
+    const result = validateLiveTokenPath({
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 8, y: 1, elevation: 0 }],
+      movementMode: "burrow",
+    });
+    assert.equal(result.status, "complete");
+    assert.equal(result.reachable, true);
+    assert.deepEqual(result.segments[0]!.intersections, []);
+    assert.equal(result.burrowPolicy.authoritativeSurfaceCount, 1);
+    assert.equal(result.evidence.before.burrowSurfaces?.count, 1);
+    assert.equal(result.evidence.unchanged, true);
+    assert.deepEqual(calls, []);
   });
 });

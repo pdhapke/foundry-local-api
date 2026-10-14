@@ -5,6 +5,7 @@
 // request/response envelope (shared/src/protocol.ts), correlation ids, and
 // per-call timeouts.
 import { randomUUID } from "node:crypto";
+import { currentTraceId, latencyEvent, nativeLatencyEvent, withLatencyTrace } from "../latency-trace.js";
 
 import {
   BRIDGE_PROTOCOL_VERSION,
@@ -41,6 +42,8 @@ export interface FoundryClientOptions {
 }
 
 interface PendingCall {
+  traceId: string | undefined;
+  started: number;
   resolve: (result: unknown) => void;
   reject: (err: FoundryBridgeError) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -85,6 +88,22 @@ export class FoundryClient {
     this.gateway.onConnectionLost((client) => this.rejectPendingForClient(client.clientId));
   }
 
+  reserveClientIdentity(
+    desiredClientId: string,
+    ownerClientId: string,
+    binding: {
+      expectedUserId: string;
+      expectedLane: "gm" | "player" | "tv";
+      ttlMs: number;
+    },
+  ): string | null {
+    return this.gateway.reserveClientIdentity(desiredClientId, ownerClientId, binding);
+  }
+
+  releaseClientIdentity(desiredClientId: string, ownerClientId: string): void {
+    this.gateway.releaseClientIdentity(desiredClientId, ownerClientId);
+  }
+
   /**
    * Sends `{type, payload}` to the currently connected Foundry module and
    * resolves with its `result`, or rejects with a `FoundryBridgeError`.
@@ -122,6 +141,7 @@ export class FoundryClient {
     const timeoutMs = options?.timeoutMs ?? this.options.defaultTimeoutMs;
     const request: BridgeRequest<TPayload> =
       payload === undefined ? { id, type } : { id, type, payload };
+    if (currentTraceId()) request.traceId = currentTraceId()!;
 
     const startedAudit: MutationAuditRecord = {
       timestamp: new Date().toISOString(),
@@ -169,6 +189,8 @@ export class FoundryClient {
       }, timeoutMs);
 
       this.pending.set(id, {
+        traceId: currentTraceId(),
+        started: performance.now(),
         resolve: resolve as (result: unknown) => void,
         reject,
         timer,
@@ -184,6 +206,7 @@ export class FoundryClient {
       const sent = this.gateway.send(JSON.stringify(request), {
         clientId: executingClient.clientId,
       });
+      latencyEvent(`bridge:${type}:dispatch`);
       if (!sent) {
         // Connection dropped between the isConnected() check above and now
         // (e.g. a concurrent disconnect). Fail the same way as the
@@ -502,6 +525,17 @@ export class FoundryClient {
           ...(pending.auditOperation ? { operation: pending.auditOperation } : {}),
         });
       }
+      withLatencyTrace(pending.traceId, () => {
+        latencyEvent(`bridge:${pending.command}:ack`, performance.now() - pending.started, "returned");
+        const native = response.latency;
+        if (native && native.traceId === pending.traceId) {
+          nativeLatencyEvent(`native:${pending.command}:clock`, native);
+          latencyEvent(`native:${pending.command}:execution`, native.nativeExecutionMs, "returned");
+          for (const span of Array.isArray(native.spans) ? native.spans.slice(0, 32) : [])
+            if (span && ["preflight-read", "authoritative-readback", "mutation-and-readback"].includes(span.stage) && Number.isFinite(span.durationMs))
+              latencyEvent(`native:${span.stage}`, span.durationMs, "returned");
+        }
+      });
       pending.resolve(response.result);
     } else {
       const code = normalizeBridgeErrorCode(response.error.code);

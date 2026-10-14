@@ -18,8 +18,9 @@
 //     real `FoundryClient` already exists.
 import type { NextFunction, Request, RequestHandler, Response, Router } from "express";
 import type { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { withLatencyTrace, latencySpan } from "../latency-trace.js";
 import { ProtocolError } from "@foundry-local-api/shared";
-import { ZodObject, type ZodRawShape } from "zod";
+import { type ZodObject, type ZodRawShape } from "zod";
 
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { FoundryBridgeError, foundryBridgeErrorToHttpError } from "../bridge/errors.js";
@@ -76,7 +77,8 @@ function registerRestRoute<TInput, TResult>(
     const foundations = req.app.locals["foundations"] as FoundationRuntime | undefined;
     const ctx: EndpointContext = { foundryClient, eventBus, foundations };
 
-    Promise.resolve(handler(input, ctx))
+    Promise.resolve()
+      .then(() => handler(input, ctx))
       .then((result) => res.json(outputSchema ? outputSchema.parse(result) : result))
       .catch((err: unknown) => {
         if (err instanceof ProtocolError) {
@@ -131,6 +133,24 @@ export function registerMcpTools(
   return descriptors.map((descriptor) => registerMcpTool(descriptor, mcpServer, ctx));
 }
 
+/** Schema objects may originate in another trusted extension package's Zod
+ * installation. Structural recognition keeps the shared public contract usable. */
+function isObjectSchema(schema: unknown): schema is ZodObject<ZodRawShape> {
+  if (!schema || typeof schema !== "object") return false;
+  const candidate = schema as {
+    _zod?: { def?: { type?: unknown } };
+    _def?: { typeName?: unknown };
+    shape?: unknown;
+    parse?: unknown;
+  };
+  return (
+    (candidate._zod?.def?.type === "object" || candidate._def?.typeName === "ZodObject") &&
+    candidate.shape !== null &&
+    typeof candidate.shape === "object" &&
+    typeof candidate.parse === "function"
+  );
+}
+
 function registerMcpTool<TInput, TResult>(
   descriptor: EndpointDescriptor<TInput, TResult>,
   mcpServer: McpServer,
@@ -138,8 +158,9 @@ function registerMcpTool<TInput, TResult>(
 ): RegisteredTool {
   const { name, description, inputSchema, outputSchema, handler, annotations } = descriptor;
 
-  const outputShape =
-    outputSchema instanceof ZodObject ? (outputSchema.shape as ZodRawShape) : undefined;
+  const outputShape = isObjectSchema(outputSchema)
+    ? (outputSchema.shape as ZodRawShape)
+    : undefined;
   if (outputSchema && !outputShape) {
     throw new Error(
       `MCP tool "${name}": outputSchema must be a ZodObject to be exposed as a tool.`,
@@ -151,7 +172,7 @@ function registerMcpTool<TInput, TResult>(
     // `{key: ZodType}` record), not the ZodObject wrapper — descriptors
     // that carry an inputSchema are expected to define it as a flat
     // ZodObject argument bag for exactly this reason.
-    if (!(inputSchema instanceof ZodObject)) {
+    if (!isObjectSchema(inputSchema)) {
       throw new Error(
         `MCP tool "${name}": inputSchema must be a ZodObject (a flat argument bag) to be exposed as a tool.`,
       );
@@ -165,36 +186,45 @@ function registerMcpTool<TInput, TResult>(
         ...(outputShape ? { outputSchema: outputShape } : {}),
         ...(annotations ? { annotations } : {}),
       },
-      async (args) => {
-        try {
-          // The SDK rebuilds a plain object from the raw shape above. Parse
-          // again with the descriptor's complete schema so superRefine,
-          // refine, transforms, and strictness are enforced for MCP calls too.
-          const parsed = inputSchema.parse(args);
-          const result = await handler(parsed as TInput, ctx);
-          if (outputSchema) outputSchema.parse(result);
-          return {
-            content: [{ type: "text" as const, text: JSON.stringify(result) }],
-            ...(outputShape ? { structuredContent: result as Record<string, unknown> } : {}),
-          };
-        } catch (err) {
-          if (err instanceof FoundryBridgeError) {
-            return {
-              content: [{ type: "text" as const, text: formatMcpBridgeError(err) }],
-              isError: true,
-            };
-          }
-          if (err instanceof ProtocolError) {
-            return {
-              content: [
-                { type: "text" as const, text: formatMcpBridgeError(protocolToBridgeError(err)) },
-              ],
-              isError: true,
-            };
-          }
-          throw err;
-        }
-      },
+      async (args, extra) =>
+        withLatencyTrace(
+          extra?._meta?.["foundry-ai-dungeon-master/trace-id"] as string | undefined,
+          async () => {
+            try {
+              // The SDK rebuilds a plain object from the raw shape above. Parse
+              // again with the descriptor's complete schema so superRefine,
+              // refine, transforms, and strictness are enforced for MCP calls too.
+              const parsed = inputSchema.parse(args);
+              const result = await latencySpan(`mcp:${name}`, async () =>
+                handler(parsed as TInput, ctx),
+              );
+              if (outputSchema) outputSchema.parse(result);
+              return {
+                content: [{ type: "text" as const, text: JSON.stringify(result) }],
+                ...(outputShape ? { structuredContent: result as Record<string, unknown> } : {}),
+              };
+            } catch (err) {
+              if (err instanceof FoundryBridgeError) {
+                return {
+                  content: [{ type: "text" as const, text: formatMcpBridgeError(err) }],
+                  isError: true,
+                };
+              }
+              if (err instanceof ProtocolError) {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: formatMcpBridgeError(protocolToBridgeError(err)),
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+              throw err;
+            }
+          },
+        ),
     );
   }
 
@@ -205,32 +235,38 @@ function registerMcpTool<TInput, TResult>(
       ...(outputShape ? { outputSchema: outputShape } : {}),
       ...(annotations ? { annotations } : {}),
     },
-    async () => {
-      try {
-        const result = await handler(undefined as TInput, ctx);
-        if (outputSchema) outputSchema.parse(result);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result) }],
-          ...(outputShape ? { structuredContent: result as Record<string, unknown> } : {}),
-        };
-      } catch (err) {
-        if (err instanceof FoundryBridgeError) {
-          return {
-            content: [{ type: "text" as const, text: formatMcpBridgeError(err) }],
-            isError: true,
-          };
-        }
-        if (err instanceof ProtocolError) {
-          return {
-            content: [
-              { type: "text" as const, text: formatMcpBridgeError(protocolToBridgeError(err)) },
-            ],
-            isError: true,
-          };
-        }
-        throw err;
-      }
-    },
+    async (extra) =>
+      withLatencyTrace(
+        extra?._meta?.["foundry-ai-dungeon-master/trace-id"] as string | undefined,
+        async () => {
+          try {
+            const result = await latencySpan(`mcp:${name}`, async () =>
+              handler(undefined as TInput, ctx),
+            );
+            if (outputSchema) outputSchema.parse(result);
+            return {
+              content: [{ type: "text" as const, text: JSON.stringify(result) }],
+              ...(outputShape ? { structuredContent: result as Record<string, unknown> } : {}),
+            };
+          } catch (err) {
+            if (err instanceof FoundryBridgeError) {
+              return {
+                content: [{ type: "text" as const, text: formatMcpBridgeError(err) }],
+                isError: true,
+              };
+            }
+            if (err instanceof ProtocolError) {
+              return {
+                content: [
+                  { type: "text" as const, text: formatMcpBridgeError(protocolToBridgeError(err)) },
+                ],
+                isError: true,
+              };
+            }
+            throw err;
+          }
+        },
+      ),
   );
 }
 

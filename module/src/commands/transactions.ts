@@ -18,6 +18,7 @@ import { registerCommand } from "../command-registry.js";
 import { validateDocumentSchema } from "./schema-discovery.js";
 
 interface MutableDocument extends FoundryDocument {
+  delete(options?: Record<string, unknown>): Promise<FoundryDocument>;
   update(
     changes: Record<string, unknown>,
     options?: Record<string, unknown>,
@@ -696,6 +697,13 @@ async function compensateCurrentAndRethrow(
   throw cause;
 }
 
+/** Provenance is produced by the validated bridge executor, never copied from document data.
+ * This is an event echo marker, not an authorization grant. Every compensation keeps correlation.
+ */
+export function transactionMutationOptions(manifest: TransactionManifest, phase: "apply" | "compensate"): Record<string, unknown> {
+  return { correlationId: manifest.correlationId, foundryLocalApiOrigin: { source: "foundry-local-api.transaction", phase, correlationId: manifest.correlationId } };
+}
+
 async function apply(
   prepared: PreparedOperation,
   manifest: TransactionManifest,
@@ -707,6 +715,7 @@ async function apply(
     try {
       created = (await documentClass(operation.documentType).create(prepared.normalizedData!, {
         keepId: true,
+        ...transactionMutationOptions(manifest, "apply"),
       })) as MutableDocument | undefined;
     } catch (cause) {
       const escaped = collection(operation.documentType).get(
@@ -717,7 +726,7 @@ async function apply(
           result: placeholderResult(operation, escaped.id, prepared.validationWarnings),
           recovery: recovery(operation, escaped.id, "delete-created"),
           compensate: async () => {
-            await escaped.delete();
+            await escaped.delete(transactionMutationOptions(manifest, "compensate"));
             if (collection(operation.documentType).has(escaped.id))
               throw new Error("Created document survived compensation.");
           },
@@ -731,7 +740,7 @@ async function apply(
       result: placeholderResult(operation, created.id, prepared.validationWarnings),
       recovery: recovery(operation, created.id, "delete-created"),
       compensate: async () => {
-        await created.delete();
+        await created.delete(transactionMutationOptions(manifest, "compensate"));
         if (collection(operation.documentType).has(created.id)) {
           throw new Error(`Created ${operation.documentType} ${created.id} survived compensation.`);
         }
@@ -761,15 +770,16 @@ async function apply(
       target,
       prepared.beforeImage!,
       prepared.validationWarnings,
+      manifest,
     );
     try {
-      await target.update(prepared.normalizedData!);
+      await target.update(prepared.normalizedData!, transactionMutationOptions(manifest, "apply"));
     } catch (cause) {
       return compensateCurrentAndRethrow(planned, cause);
     }
     try {
       return maybeInjectPostWrite(
-        await restoreApplied(operation, target, prepared.beforeImage!, prepared.validationWarnings),
+        await restoreApplied(operation, target, prepared.beforeImage!, prepared.validationWarnings, manifest),
         manifest,
       );
     } catch (cause) {
@@ -791,6 +801,7 @@ async function apply(
       compensate: async () => {
         const restored = await documentClass(operation.documentType).create(beforeImage, {
           keepId: true,
+          ...transactionMutationOptions(manifest, "compensate"),
         });
         if (
           !restored ||
@@ -804,7 +815,7 @@ async function apply(
       },
     };
     try {
-      await target.delete();
+      await target.delete(transactionMutationOptions(manifest, "apply"));
     } catch (cause) {
       if (!collection(operation.documentType).has(operation.documentId)) {
         return compensateCurrentAndRethrow(planned, cause);
@@ -825,7 +836,7 @@ async function apply(
       [created] = await parent.createEmbeddedDocuments(
         operation.embeddedType,
         [prepared.normalizedData!],
-        { keepId: true },
+        { keepId: true, ...transactionMutationOptions(manifest, "apply") },
       );
     } catch (cause) {
       const escaped = parent
@@ -836,7 +847,7 @@ async function apply(
           result: placeholderResult(operation, escaped.id, prepared.validationWarnings),
           recovery: recovery(operation, escaped.id, "delete-created"),
           compensate: async () => {
-            await escaped.delete();
+            await escaped.delete(transactionMutationOptions(manifest, "compensate"));
             if (parent.getEmbeddedCollection(operation.embeddedType).has(escaped.id))
               throw new Error("Created embedded document survived compensation.");
           },
@@ -850,7 +861,7 @@ async function apply(
       result: placeholderResult(operation, created.id, prepared.validationWarnings),
       recovery: recovery(operation, created.id, "delete-created"),
       compensate: async () => {
-        await created.delete();
+        await created.delete(transactionMutationOptions(manifest, "compensate"));
         if (parent.getEmbeddedCollection(operation.embeddedType).has(created.id)) {
           throw new Error(`Created ${operation.embeddedType} ${created.id} survived compensation.`);
         }
@@ -880,15 +891,16 @@ async function apply(
       target,
       prepared.beforeImage!,
       prepared.validationWarnings,
+      manifest,
     );
     try {
-      await target.update(prepared.normalizedData!);
+      await target.update(prepared.normalizedData!, transactionMutationOptions(manifest, "apply"));
     } catch (cause) {
       return compensateCurrentAndRethrow(planned, cause);
     }
     try {
       return maybeInjectPostWrite(
-        await restoreApplied(operation, target, prepared.beforeImage!, prepared.validationWarnings),
+        await restoreApplied(operation, target, prepared.beforeImage!, prepared.validationWarnings, manifest),
         manifest,
       );
     } catch (cause) {
@@ -905,7 +917,7 @@ async function apply(
       const [restored] = await parent.createEmbeddedDocuments(
         operation.embeddedType,
         [beforeImage],
-        { keepId: true },
+        { keepId: true, ...transactionMutationOptions(manifest, "compensate") },
       );
       if (
         !restored ||
@@ -919,7 +931,7 @@ async function apply(
     },
   };
   try {
-    await target.delete();
+    await target.delete(transactionMutationOptions(manifest, "apply"));
   } catch (cause) {
     if (!parent.getEmbeddedCollection(operation.embeddedType).has(operation.embeddedId)) {
       return compensateCurrentAndRethrow(planned, cause);
@@ -934,6 +946,7 @@ async function restoreApplied(
   target: MutableDocument,
   beforeImage: Record<string, unknown>,
   validationWarnings: Array<{ code: string; path: string; message: string }>,
+  manifest: TransactionManifest,
 ): Promise<AppliedOperation> {
   const data = target.toObject();
   if (!("documentId" in operation) && !("embeddedId" in operation)) {
@@ -944,7 +957,7 @@ async function restoreApplied(
     result: await result(operation, id, data, validationWarnings),
     recovery: recovery(operation, id, "restore-before-image"),
     compensate: async () => {
-      await target.update(beforeImage, { diff: false, recursive: false });
+      await target.update(beforeImage, { diff: false, recursive: false, ...transactionMutationOptions(manifest, "compensate") });
       if (
         (await transactionRevision(target.toObject())) !== (await transactionRevision(beforeImage))
       ) {

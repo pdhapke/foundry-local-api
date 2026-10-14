@@ -35,10 +35,26 @@ export class HttpToolError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly protocolError?: { code: string; retryable: boolean },
   ) {
     super(message);
     this.name = "HttpToolError";
   }
+}
+
+const SAFE_ERROR_CODES = new Set([
+  "NOT_CONNECTED", "TIMEOUT", "PERMISSION_DENIED", "NOT_FOUND", "STALE_REVISION",
+  "UNSUPPORTED_VERSION", "UNSUPPORTED_TYPE", "INVALID_PAYLOAD", "INCOMPLETE_RESULT",
+  "ENROLLMENT_EXPIRED", "ENROLLMENT_REVOKED", "CONSENT_REQUIRED", "FOUNDRY_IDENTITY_MISMATCH",
+]);
+
+function safeProtocolError(body: unknown): { code: string; retryable: boolean } | undefined {
+  if (!body || typeof body !== "object" || !("error" in body)) return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return undefined;
+  const { code, retryable } = error as { code?: unknown; retryable?: unknown };
+  return typeof code === "string" && SAFE_ERROR_CODES.has(code)
+    ? { code, retryable: retryable === true } : undefined;
 }
 
 const PATH_PARAM_PATTERN = /:([A-Za-z0-9_]+)/g;
@@ -134,7 +150,7 @@ export async function callRestEndpoint(
 
   const body = await parseBody(response);
   if (!response.ok) {
-    throw new HttpToolError(errorMessageFrom(body, response.status), response.status);
+    throw new HttpToolError(errorMessageFrom(body, response.status), response.status, safeProtocolError(body));
   }
   return body;
 }
@@ -149,7 +165,7 @@ async function callHealthEndpoint(options: HttpMcpClientOptions): Promise<unknow
   const response = await fetch(`${options.baseUrl}/health`);
   const body = await parseBody(response);
   if (!response.ok) {
-    throw new HttpToolError(errorMessageFrom(body, response.status), response.status);
+    throw new HttpToolError(errorMessageFrom(body, response.status), response.status, safeProtocolError(body));
   }
   return body;
 }
@@ -197,6 +213,8 @@ function registerHttpMcpTool(
       return {
         content: [{ type: "text" as const, text: `Foundry API error: ${message}` }],
         isError: true,
+        ...(err instanceof HttpToolError && err.protocolError
+          ? { structuredContent: { error: err.protocolError } } : {}),
       };
     }
   };

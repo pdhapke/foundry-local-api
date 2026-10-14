@@ -13,6 +13,38 @@ const savedFetch = Object.getOwnPropertyDescriptor(globalThis, "fetch");
 const savedLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 const savedSessionStorage = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
 
+// Node's test runner owns completion of these registered tests.
+void it("projects CSS display dimensions independently of DPR and preload readiness", () => {
+  install("display-test");
+  const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  try {
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        querySelector: () => ({ getBoundingClientRect: () => ({ width: 1920, height: 1080 }) }),
+      },
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { devicePixelRatio: 2 },
+    });
+    Object.assign(canvas!, { ready: true });
+    const response = getClientReadiness({ correlationId: "display-test-read" });
+    assert.deepEqual(response.display, {
+      cssWidth: 1920,
+      cssHeight: 1080,
+      devicePixelRatio: 2,
+      canvasReady: true,
+    });
+  } finally {
+    if (oldDocument) Object.defineProperty(globalThis, "document", oldDocument);
+    else Reflect.deleteProperty(globalThis, "document");
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
 function install(clientId = "client-player") {
   let applications = 0;
   let preloads = 0;
@@ -25,6 +57,9 @@ function install(clientId = "client-player") {
         setItem: (key: string, value: string) => values.set(key, value),
       },
     });
+  }
+  if (globalThis.localStorage.getItem("foundry-local-api.clientId") !== clientId) {
+    globalThis.localStorage.setItem("foundry-local-api.clientId", clientId);
   }
   const canvasValue = {
     scene: { id: "scene" },
@@ -88,6 +123,91 @@ afterEach(() => {
 });
 
 void describe("client readiness commands", () => {
+  void it("views only the exact receiver and uses DTT pan despite animatePan lock, with durable replay", async () => {
+    const fixture = install("forest-tv");
+    let physicalPans = 0,
+      views = 0;
+    Object.assign(game.user, { name: "TV" });
+    const viewport = { x: 100, y: 200, scale: 0.5 };
+    Object.assign(game, {
+      modules: new Map([
+        [
+          "digital-tabletops",
+          {
+            active: true,
+            api: {
+              physicalViewport: () => ({ scale: 0.5 }),
+              applyPhysicalViewport: (input: any) => {
+                assert.equal(input.expectedScale, 0.5);
+                physicalPans++;
+                Object.assign(canvas!.stage.pivot, { x: input.x, y: input.y });
+                Object.assign(canvas!.stage.scale, { x: 0.5, y: 0.5 });
+              },
+            },
+          },
+        ],
+      ]),
+    });
+    game.collections.get("Scene")!.set("forest", {
+      id: "forest",
+      view: async () => {
+        views++;
+        Object.assign(canvas!, { scene: { id: "forest" } });
+      },
+    } as any);
+    const input = {
+      sceneId: "forest",
+      correlationId: "forest-view-dtt-1",
+      viewport,
+      viewScene: true,
+      digitalTabletop: true,
+    };
+    const response = await applyClientViewport(input);
+    assert.equal(response.activeSceneId, "forest");
+    assert.equal(response.applied.viewport, true);
+    assert.equal(physicalPans, 1);
+    assert.equal(views, 1);
+    assert.equal(fixture.applications(), 0);
+    assert.equal((await applyClientViewport(input)).replayed, true);
+    assert.equal(physicalPans, 1);
+    assert.equal(views, 1);
+  });
+  void it("missing DTT or fullscreen preflight refuses before scene view", async () => {
+    install("forest-preflight");
+    Object.assign(game.user, { name: "TV" });
+    let views = 0;
+    game.collections.get("Scene")!.set("forest", {
+      id: "forest",
+      view: async () => {
+        views++;
+      },
+    } as any);
+    const input = {
+      sceneId: "forest",
+      correlationId: "forest-preflight-1",
+      viewport: { x: 0, y: 0, scale: 0.5 },
+      viewScene: true,
+      digitalTabletop: true,
+    };
+    await assert.rejects(applyClientViewport(input), /Digital Tabletop/);
+    Object.assign(game, {
+      modules: new Map([
+        [
+          "digital-tabletops",
+          {
+            active: true,
+            api: {
+              physicalViewport: () => {
+                throw Error("fullscreen required");
+              },
+            },
+          },
+        ],
+      ]),
+    });
+    await assert.rejects(applyClientViewport(input), /fullscreen/);
+    assert.equal(views, 0);
+  });
   void it("acknowledges a reload before scheduling it and deduplicates correlation replay", () => {
     install();
     let scheduledDelay: number | undefined;
@@ -203,7 +323,7 @@ void describe("client readiness commands", () => {
   });
 
   void it("persists correlation replay and readiness across a browser reload", async () => {
-    const values = new Map<string, string>();
+    const values = new Map<string, string>([["foundry-local-api.clientId", "client-player"]]);
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: {
@@ -262,7 +382,7 @@ void describe("client readiness commands", () => {
   });
 
   void it("persists intent before mutation and refuses an unknown restart outcome", async () => {
-    const values = new Map<string, string>();
+    const values = new Map<string, string>([["foundry-local-api.clientId", "client-player"]]);
     let writes = 0;
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,

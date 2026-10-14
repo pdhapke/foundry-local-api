@@ -5,19 +5,40 @@
 // so they're "unit-sanity-checkable without a real timer or socket" — its
 // own doc comments say so — and nothing exercised them yet. This file does.
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 
 import {
   BridgeClient,
   buildBridgeHello,
-  buildBridgeConnectionUrl,
   computeBackoffDelayMs,
   DEFAULT_BACKOFF_OPTIONS,
-  clearLegacyNonGmApiKey,
-  configureBridgeAdminSettingVisibility,
-  getConfiguredApiKey,
+  deriveBridgeUrl,
+  getClientId,
   registerBridgeSettings,
+  rotateClientId,
+  stageIdentityHandoff,
 } from "./bridge-client.js";
+
+function storage(values = new Map<string, string>()) {
+  return {
+    values,
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+  };
+}
+
+const savedLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+const savedSessionStorage = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+
+afterEach(() => {
+  for (const [name, descriptor] of [
+    ["localStorage", savedLocalStorage],
+    ["sessionStorage", savedSessionStorage],
+  ] as const) {
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    else Reflect.deleteProperty(globalThis, name);
+  }
+});
 
 void describe("computeBackoffDelayMs", () => {
   void it("never exceeds the capped exponential ceiling for a given attempt", () => {
@@ -62,30 +83,125 @@ void describe("computeBackoffDelayMs", () => {
   });
 });
 
-void describe("buildBridgeConnectionUrl", () => {
-  void it("appends a URL-encoded apiKey query param when one is given", () => {
-    const url = buildBridgeConnectionUrl("ws://127.0.0.1:3939/bridge", "s3cr3t key/with+chars");
-    const parsed = new URL(url);
-    assert.equal(parsed.searchParams.get("apiKey"), "s3cr3t key/with+chars");
+void describe("deriveBridgeUrl", () => {
+  void it("keeps localhost aligned with the Foundry page and forces the bridge port/path", () => {
+    assert.equal(
+      deriveBridgeUrl({ protocol: "http:", hostname: "localhost" }),
+      "ws://localhost:3939/bridge",
+    );
   });
 
-  void it("omits the apiKey query param entirely when the key is an empty string", () => {
-    const url = buildBridgeConnectionUrl("ws://127.0.0.1:3939/bridge", "");
-    const parsed = new URL(url);
-    assert.equal(parsed.searchParams.has("apiKey"), false);
-    assert.equal(url, "ws://127.0.0.1:3939/bridge");
+  void it("keeps 127.0.0.1 aligned and uses secure WebSockets for an HTTPS page", () => {
+    assert.equal(
+      deriveBridgeUrl({ protocol: "https:", hostname: "127.0.0.1" }),
+      "wss://127.0.0.1:3939/bridge",
+    );
   });
 
-  void it("preserves an existing path/query on the base URL", () => {
-    const url = buildBridgeConnectionUrl("ws://example.test:1234/bridge?foo=bar", "key1");
-    const parsed = new URL(url);
-    assert.equal(parsed.pathname, "/bridge");
-    assert.equal(parsed.searchParams.get("foo"), "bar");
-    assert.equal(parsed.searchParams.get("apiKey"), "key1");
+  void it("supports the exact IPv6 loopback hostname", () => {
+    assert.equal(
+      deriveBridgeUrl({ protocol: "http:", hostname: "[::1]" }),
+      "ws://[::1]:3939/bridge",
+    );
+    assert.equal(deriveBridgeUrl({ protocol: "http:", hostname: "::1" }), "ws://[::1]:3939/bridge");
+  });
+
+  void it("supports a configured hostname in the reserved localhost namespace", () => {
+    assert.equal(
+      deriveBridgeUrl({ protocol: "http:", hostname: "foundry.localhost" }),
+      "ws://foundry.localhost:3939/bridge",
+    );
+  });
+
+  void it("does not silently cross hostnames when the Foundry page host changes", () => {
+    assert.notEqual(
+      deriveBridgeUrl({ protocol: "http:", hostname: "localhost" }),
+      deriveBridgeUrl({ protocol: "http:", hostname: "127.0.0.1" }),
+    );
+  });
+
+  void it("rejects remote, deceptive, and unsupported page locations", () => {
+    for (const hostname of [
+      "example.test",
+      "localhost.example.test",
+      "127.0.0.1.example.test",
+      "127.0.0.2",
+    ]) {
+      assert.throws(
+        () => deriveBridgeUrl({ protocol: "http:", hostname }),
+        /not an approved loopback host/,
+      );
+    }
+    assert.throws(
+      () => deriveBridgeUrl({ protocol: "file:", hostname: "localhost" }),
+      /protocol is not supported/,
+    );
   });
 });
 
 void describe("Track 0 bridge negotiation", () => {
+  void it("persists a client identity across fresh browser sessions", () => {
+    const persistent = storage();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: persistent,
+    });
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: storage(),
+    });
+    const first = getClientId();
+
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: storage(),
+    });
+    assert.equal(getClientId(), first);
+    assert.equal(persistent.getItem("foundry-local-api.clientId"), first);
+  });
+
+  void it("migrates the prior session identity and rotates it with collision protection", () => {
+    const persistent = storage();
+    const session = storage(
+      new Map<string, string>([["foundry-local-api.clientId", "legacy-player-client"]]),
+    );
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: persistent,
+    });
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: session,
+    });
+
+    assert.equal(getClientId(), "legacy-player-client");
+    assert.equal(persistent.getItem("foundry-local-api.clientId"), "legacy-player-client");
+    const rotated = rotateClientId("legacy-player-client");
+    assert.notEqual(rotated, "legacy-player-client");
+    assert.equal(persistent.getItem("foundry-local-api.clientId"), rotated);
+    assert.throws(() => rotateClientId("legacy-player-client"), /identity changed before rotation/);
+  });
+
+  void it("uses the persistent identity over a stale session identity and repairs the session", () => {
+    const persistent = storage(
+      new Map<string, string>([["foundry-local-api.clientId", "persistent-client"]]),
+    );
+    const session = storage(
+      new Map<string, string>([["foundry-local-api.clientId", "stale-session-client"]]),
+    );
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: persistent,
+    });
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: session,
+    });
+
+    assert.equal(getClientId(), "persistent-client");
+    assert.equal(session.getItem("foundry-local-api.clientId"), "persistent-client");
+  });
+
   void it("registers settings during Foundry 14 init without reading the null game.user", () => {
     const registered = new Map<string, ClientSettings.RegisterOptions<unknown>>();
     Object.defineProperty(globalThis, "game", {
@@ -103,37 +219,15 @@ void describe("Track 0 bridge negotiation", () => {
     });
 
     assert.doesNotThrow(() => registerBridgeSettings());
-    assert.equal(registered.size, 3);
-    assert.equal(registered.get("foundry-local-api.bridgeApiKey")?.config, false);
-  });
-
-  void it("reveals the administrative key setting only after a GM identity exists", () => {
-    const adminSetting: ClientSettings.RegisteredSetting = {
-      scope: "client",
-      config: false,
-    };
-    Object.defineProperty(globalThis, "game", {
-      configurable: true,
-      value: {
-        user: { id: "gm", name: "Gamemaster", isGM: true },
-        settings: {
-          settings: new Map([["foundry-local-api.bridgeApiKey", adminSetting]]),
-        },
-      },
-    });
-
-    configureBridgeAdminSettingVisibility();
-    assert.equal(adminSetting.config, true);
-
-    adminSetting.config = false;
-    game.user.isGM = false;
-    configureBridgeAdminSettingVisibility();
-    assert.equal(adminSetting.config, false);
+    assert.equal(registered.size, 1);
+    assert.equal(registered.has("foundry-local-api.bridgeUrl"), false);
+    assert.equal(registered.has("foundry-local-api.bridgeApiKey"), false);
+    assert.equal(registered.has("foundry-local-api.gmBridgeCode"), false);
   });
 
   void it("reports real user/version identity and requires player opt-in", () => {
     const storage = new Map<string, string>();
-    Object.defineProperty(globalThis, "sessionStorage", {
+    Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: {
         getItem: (key: string) => storage.get(key) ?? null,
@@ -158,6 +252,62 @@ void describe("Track 0 bridge negotiation", () => {
     assert.ok(message.capabilities.includes("ping"));
   });
 
+  void it("sends the claimed world for independent GM session verification without credentials", () => {
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: storage(new Map([["foundry-local-api.clientId", "gm-client"]])),
+    });
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "gm", name: "Gamemaster", isGM: true },
+        world: { id: "world-1" },
+        release: { version: "14.368" },
+        system: { id: "dnd5e", version: "6.0.3" },
+        modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
+        settings: { get: () => false },
+      },
+    });
+    const hello = buildBridgeHello();
+    assert.equal(hello.worldId, "world-1");
+    assert.equal("gmBridgeCredential" in hello, false);
+  });
+
+  void it("sends an adoption proof only from the browser session that staged it", () => {
+    const persistent = storage(
+      new Map([["foundry-local-api.clientId", "e54cdc0c-74a8-4548-96b2-27d3a1021f7d"]]),
+    );
+    const ownerSession = storage();
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: persistent });
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: ownerSession,
+    });
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: { id: "gm", name: "Gamemaster", isGM: true },
+        world: { id: "test-world" },
+        release: { version: "14.368" },
+        system: { id: "dnd5e", version: "6.0.3" },
+        modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
+        settings: { get: () => true },
+      },
+    });
+    const proof = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    stageIdentityHandoff("e54cdc0c-74a8-4548-96b2-27d3a1021f7d", proof);
+    const ownerHello = buildBridgeHello();
+    assert.equal(ownerHello.identityHandoffProof, proof);
+
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: storage(),
+    });
+    const racingHello = buildBridgeHello();
+    assert.equal(racingHello.identityHandoffProof, undefined);
+    assert.notEqual(racingHello.browserSessionId, ownerHello.browserSessionId);
+  });
+
   void it("keeps consent diagnostics current when the client setting changes", () => {
     let consent = false;
     Object.defineProperty(globalThis, "game", {
@@ -170,10 +320,7 @@ void describe("Track 0 bridge negotiation", () => {
         settings: { get: () => consent },
       },
     });
-    const client = new BridgeClient(
-      () => "ws://127.0.0.1:3939/bridge",
-      () => "",
-    );
+    const client = new BridgeClient(() => "ws://127.0.0.1:3939/bridge");
     assert.equal(client.getDiagnostics().consentGranted, false);
     consent = true;
     client.handleSettingsChanged();
@@ -183,25 +330,8 @@ void describe("Track 0 bridge negotiation", () => {
     assert.equal(client.getDiagnostics().consentGranted, false);
   });
 
-  void it("clears and verifies a legacy non-GM administrative key", async () => {
-    let stored = "legacy-master-key";
-    Object.defineProperty(globalThis, "game", {
-      configurable: true,
-      value: {
-        user: { id: "izzy", name: "Izzy", isGM: false },
-        settings: {
-          get: () => stored,
-          set: async (_namespace: string, _key: string, value: string) => (stored = value),
-        },
-      },
-    });
-    assert.equal(await clearLegacyNonGmApiKey(), true);
-    assert.equal(stored, "");
-  });
-
-  void it("keeps a Foundry GM assigned to TV on the bounded TV lane", async () => {
-    let stored = "legacy-master-key";
-    Object.defineProperty(globalThis, "sessionStorage", {
+  void it("keeps a Foundry GM assigned to TV on the bounded TV lane", () => {
+    Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: {
         getItem: () => "tv-client",
@@ -215,10 +345,7 @@ void describe("Track 0 bridge negotiation", () => {
         release: { version: "14.368" },
         system: { id: "dnd5e", version: "6.0.3" },
         modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
-        settings: {
-          get: (_namespace: string, key: string) => (key === "allowRemoteControl" ? true : stored),
-          set: async (_namespace: string, _key: string, value: string) => (stored = value),
-        },
+        settings: { get: () => true },
       },
     });
 
@@ -226,13 +353,10 @@ void describe("Track 0 bridge negotiation", () => {
     assert.equal(hello.identity.lane, "tv");
     assert.equal(hello.identity.isGM, false);
     assert.equal(hello.identity.optedIn, true);
-    assert.equal(getConfiguredApiKey(), "");
-    assert.equal(await clearLegacyNonGmApiKey(), true);
-    assert.equal(stored, "");
   });
 
   void it("cannot change this browser's lane or identity during enrollment", () => {
-    Object.defineProperty(globalThis, "sessionStorage", {
+    Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: {
         getItem: () => "player-client",
@@ -249,10 +373,7 @@ void describe("Track 0 bridge negotiation", () => {
         settings: { get: () => true },
       },
     });
-    const client = new BridgeClient(
-      () => "ws://127.0.0.1:3939/bridge",
-      () => "",
-    );
+    const client = new BridgeClient(() => "ws://127.0.0.1:3939/bridge");
     assert.throws(
       () =>
         client.acceptEnrollment({

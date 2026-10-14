@@ -54,5 +54,13 @@ export default tseslint.config(
       },
     },
   },
+  {
+    files: ["**/*.d.ts", "**/*.d.mts"],
+    rules: {
+      // Ambient class declarations have no method bodies. Their #private
+      // fields preserve nominal identity, so runtime-use analysis cannot apply.
+      "no-unused-private-class-members": "off",
+    },
+  },
   eslintConfigPrettier,
 );

@@ -134,7 +134,7 @@ variable is optional and documented inline in that file. The essentials:
 | `PORT` | `3939` | TCP port the HTTP server listens on. |
 | `HOST` | `127.0.0.1` | Bind address. Must be a loopback address unless `ALLOW_REMOTE_BIND=true`. |
 | `ALLOW_REMOTE_BIND` | `false` | Opt-in to bind to a non-loopback address (LAN/`0.0.0.0`). Logs a loud warning when used. |
-| `API_KEY` | *(auto-provisioned)* | Administrative key required on every `/api/*` and `/mcp` request and the GM `/bridge` lane. Player/TV browsers never receive it; they use GM-authorized scoped enrollment. If left unset, the server generates one on first startup and writes it back into `server/.env` for you. |
+| `API_KEY` | *(auto-provisioned)* | Administrative key required on every `/api/*` and `/mcp` request. It is never sent to a Foundry browser and cannot authenticate `/bridge`. Player/TV browsers continue to use GM-authorized scoped enrollment. If left unset, the server generates one on first startup and writes it back into `server/.env` for you. |
 | `CORS_ALLOWED_ORIGINS` | *(empty = deny all)* | Comma-separated list of origins allowed to make cross-origin browser requests to `/api/*`. |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window (ms) applied to `/api/*`. |
 | `RATE_LIMIT_MAX` | `100` | Max requests per window per client, applied to `/api/*`. |
@@ -165,12 +165,21 @@ npm start          # node dist/index.js — requires `npm run build` first
 ```
 
 With Foundry running and the module enabled, the in-client bridge connects
-out to the server automatically (default `ws://127.0.0.1:3939/bridge`). The
-server logs a startup banner with the health/API URLs once it's listening.
+automatically to the same hostname as the Foundry page, forcing port `3939`
+and path `/bridge`. This preserves Foundry's host-only session-cookie boundary:
+`localhost`, `127.0.0.1`, and IPv6 loopback are not silently mixed.
 
-The GM browser authenticates its administrative bridge lane with the master
-API key. A player or TV browser must separately enable **Allow bounded remote
-control**, then be enrolled by an authenticated GM call to
+The GM browser needs no bridge credential or pairing step. The bridge receives
+the ambient Foundry session cookie during the loopback WebSocket upgrade,
+forwards only the `session` cookie to the matching allowlisted Foundry origin,
+and independently checks `/game` plus Foundry's authenticated Socket.IO
+session and `getJoinData` response. It grants the GM lane only when Foundry
+confirms the exact world, exact user, and exact `GAMEMASTER` role. The `TV`
+account is never promoted to this lane. Verification is repeated for every
+new WebSocket connection and session material is not retained.
+
+A player or TV browser must separately enable **Allow bounded remote control**,
+then be enrolled by an authenticated GM call to
 `foundry_issue_bridge_enrollment`. The server rotates a short-lived,
 single-use `/bridge` credential bound to the exact user, browser client ID,
 lane, protocol, and module version. Delivery through Foundry's targeted user
@@ -337,21 +346,20 @@ for the full write-up):
 - **Localhost-only by default.** `server/src/config.ts` refuses to bind to
   a non-loopback `HOST` unless `ALLOW_REMOTE_BIND=true` is explicitly set
   (and logs a loud warning when it is).
-- **API key required** on every `/api/*` request (`X-Api-Key` header) and
-  every `/bridge` WebSocket connection (`?apiKey=` query param, since a
-  browser `WebSocket` can't set custom handshake headers). Auto-provisioned
-  on first run; compared with a timing-safe equality check
-  (`server/src/security/api-key.ts`).
+- **Separated authentication lanes.** The administrative API key is required
+  on every `/api/*` and `/mcp` request and is never sent to a Foundry browser.
+  The GM `/bridge` lane instead revalidates the browser's existing Foundry
+  session against the allowlisted loopback Foundry server. API-key query
+  authentication on `/bridge` is rejected.
 - **Rate limiting** (`express-rate-limit`) covers the entire `/api/*`
   chain — nothing is mounted around it.
 - **CORS deny-by-default**: cross-origin browser requests to `/api/*` are
   rejected unless the origin is explicitly listed in
   `CORS_ALLOWED_ORIGINS`.
 - **GM-only gating** on privilege-elevating writes: world-scope settings
-  writes, user CRUD/role changes, and ownership grants all require the
-  connected Foundry user to be a GM (enforced module-side, since only the
-  connected module knows the current user's role — the server itself has
-  no concept of "which Foundry user" beyond the single static API key).
+  writes, user CRUD/role changes, and ownership grants require the connected
+  Foundry user to be the exact session-verified role-4 GM. Module-side checks
+  remain defense in depth rather than the bridge authentication source.
 - **No document-level permission checks** beyond that: the whole system
   trusts the single API key as a single privilege tier (equivalent to a
   GM's own client). This is a deliberate scope, not an oversight — see

@@ -4,6 +4,6 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src"],
+  "include": ["src", "contracts/**/*.d.ts", "events-core.d.ts", "../scripts/*.d.mts"],
   "references": [{ "path": "../shared" }]
 }

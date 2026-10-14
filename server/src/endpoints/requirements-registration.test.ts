@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { allEndpointDescriptors } from "./index.js";
 
 const REQUIRED_TOOLS = [
+  "foundry_validate_acceptance_failures",
   "foundry_get_document_schema",
   "foundry_validate_document_data",
   "foundry_execute_as_user",
@@ -20,6 +21,8 @@ const REQUIRED_TOOLS = [
   "foundry_get_client_readiness",
   "foundry_apply_client_viewport",
   "foundry_reload_client",
+  "foundry_adopt_gm_client_identity",
+  "foundry_adopt_enrolled_client_identity",
   "foundry_list_embedded_child",
   "foundry_get_embedded_child",
   "foundry_create_embedded_child",
@@ -37,6 +40,7 @@ const REQUIRED_TOOLS = [
 ] as const;
 
 const REQUIRED_CONCRETE_OUTPUTS = [
+  "foundry_validate_acceptance_failures",
   "foundry_issue_bridge_enrollment",
   "foundry_get_bridge_enrollment_diagnostics",
   "foundry_render_scene_snapshot",
@@ -51,11 +55,28 @@ const REQUIRED_CONCRETE_OUTPUTS = [
   "foundry_validate_wall_topology",
   "foundry_record_movement_event",
   "foundry_get_movement_events",
+  "foundry_adopt_gm_client_identity",
+  "foundry_adopt_enrolled_client_identity",
+] as const;
+
+// The older DM supplies these through the authenticated extension catalog.
+// Static aliases would collide with its registration and disable the extension.
+const AI_OWNED_EXTENSION_TOOLS = [
+  "foundry_rollover_movement_store_generation",
   "foundry_list_ai_gm_deliveries",
   "foundry_get_ai_gm_delivery",
 ] as const;
 
 void describe("MCP requirement root registration", () => {
+  void it("reserves AI-owned aliases for the dynamic extension catalog", () => {
+    for (const name of AI_OWNED_EXTENSION_TOOLS) {
+      assert.equal(
+        allEndpointDescriptors.some((descriptor) => descriptor.name === name),
+        false,
+        name,
+      );
+    }
+  });
   void it("registers every requirement tool exactly once with REST wiring", () => {
     const names = allEndpointDescriptors.map(({ name }) => name);
     for (const required of REQUIRED_TOOLS) {

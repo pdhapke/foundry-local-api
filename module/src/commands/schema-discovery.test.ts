@@ -416,6 +416,74 @@ afterEach(() => {
 });
 
 void describe("MCP-REQ-003 module schema commands", () => {
+  void it("accepts native dynamic ownership keys while retaining native ID/level and unknown-field gates", () => {
+    class DocumentOwnershipField {
+      options = { required: true, initial: { default: 0 } };
+      clean(value: unknown) { return structuredClone(value ?? this.options.initial); }
+      validate(value: unknown) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return new MockValidationFailure("ownership", "must be an ownership map");
+        return Object.entries(value).every(([key, level]) => (key === "default" || /^[A-Za-z0-9]{16}$/.test(key)) && [-1, 0, 1, 2, 3].includes(level))
+          ? undefined : new MockValidationFailure("ownership", "invalid native ownership key or level");
+      }
+    }
+    class OwnershipActor extends MockDocumentModel {
+      static override schema = { fields: { name: new StringField({ required: true }), ownership: new DocumentOwnershipField() as unknown as StringField } };
+    }
+    (globalThis as unknown as { CONFIG: Record<string, unknown> }).CONFIG.Actor = { documentClass: OwnershipActor };
+    const run = (ownership: unknown, extra: Record<string, unknown> = {}) => validateDocumentSchema({ ...VERSION_LOCK, documentType: "Actor", mode: "create", data: { name: "Owned observer", ownership, ...extra } });
+    const good = run({ default: 0, edtBL96Yu3058QAT: 3 });
+    assert.equal(good.results[0]?.valid, true); assert.deepEqual(good.results[0]?.warnings, []);
+    assert.deepEqual(good.results[0]?.normalized.ownership, { default: 0, edtBL96Yu3058QAT: 3 });
+    for (const invalid of [{ "invalid-id": 3 }, { default: 99 }, { edtBL96Yu3058QAT: "3" }]) assert.ok(run(invalid).results[0]?.errors.some(({ code, path }) => code === "NATIVE_VALIDATION" && path === "ownership"));
+    assert.ok(run({ default: 0 }, { forged: { secret: true } }).results[0]?.warnings.some(({ code, path }) => code === "UNKNOWN_FIELD" && path === "forged"));
+    assert.deepEqual(mutationCalls, []);
+  });
+
+  void it("accepts numeric object-backed Wall choices and retains rejection of invalid values", () => {
+    class WallChoiceField extends NumberField {
+      constructor() { super({ required: true, initial: 0 }); }
+      override validate(value: unknown) {
+        return typeof value === "number" && String(value) in { 0: "none", 1: "door", 2: "secret" }
+          ? undefined : new MockValidationFailure("door", "invalid native door choice");
+      }
+    }
+    const field = new WallChoiceField();
+    Object.defineProperty(WallChoiceField, "name", { value: "NumberField" });
+    Object.assign(field.options, { choices: { 0: "none", 1: "door", 2: "secret" } });
+    const config = (globalThis as unknown as { CONFIG: Record<string, unknown> }).CONFIG;
+    class EnumWall extends WallDocumentModel { static override schema = { fields: { c: new ArrayField({ required: true }), door: field } }; }
+    config.Wall = { documentClass: EnumWall };
+    const run = (door: number) => validateDocumentSchema({ ...VERSION_LOCK, documentType: "Wall", mode: "create", data: { c: [0, 0, 100, 100], door } });
+    assert.equal(run(2).results[0]?.valid, true);
+    assert.ok(run(9).results[0]?.errors.some(({ path }) => path === "door"));
+    assert.deepEqual(discoverDocumentSchema({ ...VERSION_LOCK, documentType: "Wall" }).fields.find(({ path }) => path === "door")?.choices, [0, 1, 2]);
+    assert.deepEqual(mutationCalls, []);
+  });
+
+  void it("preserves native null ActorDelta without manufacturing required nested fields", () => {
+    class NullableDelta extends SchemaField {
+      constructor() { super({
+        _id: new StringField({ required: true }),
+        system: new SchemaField({}, { required: true }) as unknown as StringField,
+        name: new StringField({ nullable: true, initial: null }),
+      }, { nullable: true, initial: null }); }
+      override clean(value: unknown) { return value === null || value === undefined ? null : super.clean(value); }
+      validate(value: unknown) { return value === null ? undefined : new MockValidationFailure("delta", "invalid native delta"); }
+    }
+    class DeltaToken extends TokenDocumentModel {
+      static override schema = { fields: { name: new StringField({ required: true }), x: new NumberField(), y: new NumberField(), delta: new NullableDelta() } };
+    }
+    (globalThis as unknown as { CONFIG: Record<string, unknown> }).CONFIG.Token = { documentClass: DeltaToken };
+    for (const data of [{ name: "Owned source", delta: null }, { name: "Owned source" }]) {
+      const result = validateDocumentSchema({ ...VERSION_LOCK, documentType: "Token", mode: "create", data });
+      assert.equal(result.results[0]?.valid, true, JSON.stringify(result.results[0]?.errors));
+      assert.equal(result.results[0]?.normalized.delta, null);
+    }
+    const invalid = validateDocumentSchema({ ...VERSION_LOCK, documentType: "Token", mode: "create", data: { name: "Bad delta", delta: {} } });
+    assert.ok(invalid.results[0]?.errors.some(({ code }) => code === "NATIVE_VALIDATION"));
+    assert.deepEqual(mutationCalls, []);
+  });
+
   void it("discovers core and subtype system fields with runtime context", () => {
     const result = discoverDocumentSchema({
       ...VERSION_LOCK,

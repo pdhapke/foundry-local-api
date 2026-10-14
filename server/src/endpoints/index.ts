@@ -1,9 +1,8 @@
 // Full list of endpoint descriptors, REST+MCP shared infrastructure (moved
 // out of mcp/ in Phase 6 — see registry.ts). Every later phase appends its
 // own descriptor array here.
-import { fileURLToPath } from "node:url";
 import { createAssetLifecycleEndpointDescriptors } from "./asset-lifecycle.js";
-import { aiGmDeliveryEndpointDescriptors } from "./ai-gm-delivery.js";
+import { createAcceptanceValidationEndpointDescriptors } from "./acceptance-validation.js";
 import { activeEffectEndpointDescriptors } from "./active-effects.js";
 import { actorEndpointDescriptors } from "./actors.js";
 import { adventureEndpointDescriptors } from "./adventures.js";
@@ -37,7 +36,10 @@ import { rollEndpointDescriptors } from "./rolls.js";
 import { rollTableEndpointDescriptors } from "./roll-tables.js";
 import { dnd5eSimulationEndpointDescriptors } from "./dnd5e-simulation.js";
 import { fogExplorationEndpointDescriptors } from "./fog-exploration.js";
-import { movementEventEndpointDescriptors } from "./movement-events.js";
+import {
+  getMovementEventStoreDiagnostics,
+  movementEventEndpointDescriptors,
+} from "./movement-events.js";
 import { sceneEndpointDescriptors } from "./scenes.js";
 import { schemaDiscoveryEndpointDescriptors } from "./schema-discovery.js";
 import { sceneRenderEndpointDescriptors } from "./scene-render.js";
@@ -50,12 +52,14 @@ import { userEndpointDescriptors } from "./users.js";
 import { worldTimeEndpointDescriptors } from "./world-time.js";
 import { productionFixtureRegistry, productionTransactionJournal } from "../foundations/runtime.js";
 import { AssetLifecycleService } from "../services/asset-lifecycle.js";
+import { resolveProductionAssetRoots } from "../services/production-asset-roots.js";
 
 const transactionEndpointDescriptors = createTransactionEndpointDescriptors(
   productionTransactionJournal,
 );
+const productionAssetRoots = resolveProductionAssetRoots();
 const assetLifecycleService = new AssetLifecycleService({
-  roots: { data: fileURLToPath(new URL("../../../../../", import.meta.url)) },
+  roots: productionAssetRoots.lifecycle,
   protectedPrefixes: {
     data: [
       "modules",
@@ -69,14 +73,37 @@ const assetLifecycleService = new AssetLifecycleService({
   fixtureOwnedPrefixes: { data: ["worlds/izzy-campaign/assets/mcp-test"] },
   isFixtureTestRunId: (testRunId) => productionFixtureRegistry.has(testRunId),
 });
+const referenceAuditAssetService = new AssetLifecycleService({
+  roots: productionAssetRoots.referenceAudit,
+});
 const assetLifecycleEndpointDescriptors =
   createAssetLifecycleEndpointDescriptors(assetLifecycleService);
-const referenceAuditEndpointDescriptors =
-  createReferenceAuditEndpointDescriptors(assetLifecycleService);
+const referenceAuditEndpointDescriptors = createReferenceAuditEndpointDescriptors(
+  referenceAuditAssetService,
+);
+const acceptanceValidationEndpointDescriptors = createAcceptanceValidationEndpointDescriptors({
+  readiness: clientReadinessEndpointDescriptors.find(
+    ({ name }) => name === "foundry_get_client_readiness",
+  )!,
+  fog: fogExplorationEndpointDescriptors.find(({ name }) => name === "foundry_get_scene_fog")!,
+  visibility: sceneRenderEndpointDescriptors.find(
+    ({ name }) => name === "foundry_get_token_visibility",
+  )!,
+  references: referenceAuditEndpointDescriptors.find(
+    ({ name }) => name === "foundry_audit_campaign_references",
+  )!,
+  topology: collisionTopologyEndpointDescriptors.find(
+    ({ name }) => name === "foundry_validate_wall_topology",
+  )!,
+  collision: collisionTopologyEndpointDescriptors.find(
+    ({ name }) => name === "foundry_validate_token_path",
+  )!,
+  movementDiagnostics: getMovementEventStoreDiagnostics,
+});
 
 export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   healthEndpointDescriptor,
-  ...aiGmDeliveryEndpointDescriptors,
+  ...acceptanceValidationEndpointDescriptors,
   ...bridgeEnrollmentEndpointDescriptors,
   ...foundationEndpointDescriptors,
   ...schemaDiscoveryEndpointDescriptors,
@@ -118,6 +145,9 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
   ...eventEndpointDescriptors,
   ...bulkEndpointDescriptors,
   ...gameStateEndpointDescriptors,
+  ...sessionActionEndpointDescriptors,
+  ...attackEndpointDescriptors,
+  ...worldDocumentEndpointDescriptors,
   ...worldTimeEndpointDescriptors,
   ...notificationEndpointDescriptors,
 ];
@@ -125,3 +155,23 @@ export const allEndpointDescriptors: AnyEndpointDescriptor[] = [
 export { makeDocumentEndpoints } from "./documents.js";
 export type { DocumentEndpointConfig } from "./documents.js";
 export type { AnyEndpointDescriptor, EndpointContext, EndpointDescriptor } from "./types.js";
+import { sessionActionEndpointDescriptors } from "./session-actions.js";
+import { attackEndpointDescriptors } from "./attack-actions.js";
+import { worldDocumentEndpointDescriptors } from "./world-documents.js";
+import { gmCombatEndpointDescriptors } from "./gm-combat.js";
+import { gmActivitiesEndpointDescriptors } from "./gm-activities.js";
+import { gmCharacterEndpointDescriptors } from "./gm-character.js";
+import { gmTvEndpointDescriptors } from "./gm-tv.js";
+import { createGmRecipeEndpointDescriptors } from "./gm-recipes.js";
+allEndpointDescriptors.push(
+  ...gmCombatEndpointDescriptors,
+  ...gmActivitiesEndpointDescriptors,
+  ...gmCharacterEndpointDescriptors,
+  ...gmTvEndpointDescriptors,
+);
+allEndpointDescriptors.push(...gmReceiptEndpointDescriptors, ...gmSceneEndpointDescriptors);
+allEndpointDescriptors.push(...createGmRecipeEndpointDescriptors(allEndpointDescriptors));
+
+import { gmReceiptEndpointDescriptors } from "./gm-receipts.js";
+
+import { gmSceneEndpointDescriptors } from "./gm-scene.js";

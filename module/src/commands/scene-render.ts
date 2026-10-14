@@ -12,12 +12,15 @@ import {
 import { registerCommand } from "../command-registry.js";
 
 interface PermissionDocument extends FoundryDocument {
+  active?: boolean;
   testUserPermission?: ((user: FoundryUser, permission: string) => boolean) | undefined;
 }
 
 interface SafeRegion {
   key: string;
-  placeable: any;
+  document: PermissionDocument;
+  containsSelectedToken: boolean;
+  effects: "active" | "none" | "redacted";
 }
 
 interface SelectedVisionIsolation {
@@ -34,6 +37,53 @@ async function fingerprint(value: unknown): Promise<string> {
   const text = JSON.stringify(value);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => `${JSON.stringify(key)}:${stable(child)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+async function fogRevision(exploration: unknown): Promise<string | null> {
+  const document = exploration as { toObject?: () => unknown } | null | undefined;
+  if (!document || typeof document.toObject !== "function") return null;
+  try {
+    const raw = document.toObject();
+    const source =
+      raw && typeof raw === "object" ? (raw as Record<string, unknown>) : Object.create(null);
+    const positions = source["positions"];
+    const canonical = {
+      exists: true,
+      state: {
+        explored: typeof source["explored"] === "string" ? source["explored"] : null,
+        positions: positions && typeof positions === "object" ? structuredClone(positions) : {},
+      },
+    };
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(stable(canonical)),
+    );
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(
+      "",
+    );
+  } catch {
+    return null;
+  }
+}
+
+function serializedFog(exploration: unknown): unknown {
+  try {
+    const document = exploration as { toObject?: () => unknown } | null | undefined;
+    return typeof document?.toObject === "function" ? document.toObject() : null;
+  } catch {
+    return null;
+  }
 }
 
 function sourceOf(document: PermissionDocument | undefined): Record<string, unknown> {
@@ -63,7 +113,8 @@ function requirePerspective(input: SceneRenderInput): {
   token: any;
   tokenDocument: PermissionDocument;
 } {
-  if (game.user.id !== input.effectiveUserId) {
+  if (game.user.id !== input.effectiveUserId || game.user.isGM
+    || game.settings.get("foundry-local-api", "allowRemoteControl") !== true) {
     throw new ProtocolError({
       code: "PERMISSION_DENIED",
       message: "The rendering client does not match the selected effective user.",
@@ -80,7 +131,9 @@ function requirePerspective(input: SceneRenderInput): {
     });
   }
   const scene = game.collections.get("Scene")?.get(input.sceneId) as PermissionDocument | undefined;
-  if (!scene || !permitted(scene, "OBSERVER")) {
+  // Foundry exposes the active Scene to players independently of document ownership.
+  // This grants only the exact already-loaded player perspective, never a GM view.
+  if (!scene || (scene.active !== true && !permitted(scene, "OBSERVER"))) {
     throw new ProtocolError({
       code: "PERMISSION_DENIED",
       message: "The selected user cannot render this Scene.",
@@ -183,7 +236,8 @@ function placeableCenter(placeable: any): { x: number; y: number } | null {
 function visibleRegions(
   runtime: any,
   issues: SceneRenderIssue[],
-  perspectivePoints: readonly { x: number; y: number }[],
+  tokenDocument: PermissionDocument,
+  perspectivePoints: readonly { x: number; y: number; elevation: number }[],
 ): SafeRegion[] {
   if (!runtime.regions || !Array.isArray(runtime.regions.placeables)) {
     issues.push({
@@ -195,20 +249,116 @@ function visibleRegions(
   }
   const result: SafeRegion[] = [];
   let exceeded = false;
-  for (const placeable of runtime.regions.placeables) {
+  const candidates = runtime.regions.placeables.slice(0, SCENE_RENDER_LIMITS.maxRegionCandidates);
+  if (runtime.regions.placeables.length > candidates.length) exceeded = true;
+  for (const placeable of candidates) {
     const document = placeable?.document as PermissionDocument | undefined;
-    if (
-      placeable?.visible !== true ||
-      placeable?.renderable === false ||
-      !mayDisclose(document) ||
-      !perspectivePoints.some((point) => regionContains(placeable, point.x, point.y))
-    )
+    const source = sourceOf(document);
+    let visible = false;
+    try {
+      visible =
+        typeof placeable?.isVisible === "boolean"
+          ? placeable.isVisible
+          : typeof placeable?.visible === "boolean"
+            ? placeable.visible
+            : false;
+    } catch {
+      regionIncomplete(issues, "A Region's player visibility state could not be evaluated.", true);
       continue;
+    }
+    if (!document || source["hidden"] === true || !visible || placeable?.renderable === false)
+      continue;
+    if (typeof (document as any).testPoint !== "function") {
+      issues.push({
+        code: "REGION_EVIDENCE_INCOMPLETE",
+        message: "A player-visible Region does not expose authoritative point containment.",
+        retryable: false,
+      });
+      continue;
+    }
+    let tokenMembership: any;
+    try {
+      tokenMembership = (document as any).tokens;
+    } catch {
+      tokenMembership = null;
+    }
+    if (!tokenMembership || typeof tokenMembership.has !== "function") {
+      issues.push({
+        code: "REGION_EVIDENCE_INCOMPLETE",
+        message: "A player-visible Region does not expose prepared Token membership.",
+        retryable: true,
+      });
+      continue;
+    }
+    let containsSelectedToken = false;
+    try {
+      containsSelectedToken = tokenMembership.has(tokenDocument) === true;
+    } catch {
+      regionIncomplete(
+        issues,
+        "A player-visible Region's Token membership could not be read.",
+        true,
+      );
+      continue;
+    }
+    let containsPerspectivePoint = false;
+    for (const point of perspectivePoints) {
+      const contains = regionContains(document, point);
+      if (contains === null) {
+        regionIncomplete(
+          issues,
+          "A player-visible Region's point containment could not be evaluated.",
+          true,
+        );
+        break;
+      }
+      if (contains) {
+        containsPerspectivePoint = true;
+        break;
+      }
+    }
+    if (!containsSelectedToken && !containsPerspectivePoint) continue;
     if (result.length >= SCENE_RENDER_LIMITS.maxRegions) {
       exceeded = true;
       break;
     }
-    result.push({ key: `region-${result.length + 1}`, placeable });
+    let effects: SafeRegion["effects"] = "redacted";
+    if (permitted(document, "OBSERVER")) {
+      let behaviors: any;
+      try {
+        behaviors = (document as any).behaviors;
+      } catch {
+        behaviors = null;
+      }
+      if (typeof behaviors?.values !== "function") {
+        issues.push({
+          code: "REGION_EVIDENCE_INCOMPLETE",
+          message: "A player-visible Region's prepared behavior state is unavailable.",
+          retryable: true,
+        });
+        continue;
+      }
+      try {
+        effects = Array.from(behaviors.values() as Iterable<any>).some(
+          (behavior) => behavior?.active === true && behavior?.viewed === true,
+        )
+          ? "active"
+          : "none";
+      } catch {
+        regionIncomplete(
+          issues,
+          "A player-visible Region's prepared behavior state could not be evaluated.",
+          true,
+        );
+        continue;
+      }
+    }
+    result.push({
+      key: `region-${result.length + 1}`,
+      document,
+      containsSelectedToken,
+      effects,
+    });
   }
   if (exceeded)
     issues.push({
@@ -219,17 +369,26 @@ function visibleRegions(
   return result;
 }
 
-function regionContains(placeable: any, x: number, y: number): boolean {
+function regionIncomplete(issues: SceneRenderIssue[], message: string, retryable: boolean): void {
+  if (
+    issues.some(
+      ({ code, message: existing }) =>
+        code === "REGION_EVIDENCE_INCOMPLETE" && existing === message,
+    )
+  )
+    return;
+  issues.push({ code: "REGION_EVIDENCE_INCOMPLETE", message, retryable });
+}
+
+function regionContains(
+  document: PermissionDocument,
+  point: { x: number; y: number; elevation: number },
+): boolean | null {
   try {
-    if (typeof placeable?.testPoint === "function") return placeable.testPoint({ x, y }) === true;
-    if (typeof placeable?.containsPoint === "function")
-      return placeable.containsPoint({ x, y }) === true;
-    if (typeof placeable?.shape?.contains === "function")
-      return placeable.shape.contains(x, y) === true;
+    return (document as any).testPoint(point) === true;
   } catch {
-    return false;
+    return null;
   }
-  return false;
 }
 
 function visibleBarriers(
@@ -667,7 +826,7 @@ function persistenceSource(scene: PermissionDocument): unknown {
   const runtime = canvas as any;
   return {
     scene: scene.toObject(),
-    fog: runtime?.fog?.exploration?.toObject?.() ?? null,
+    fog: serializedFog(runtime?.fog?.exploration),
     tokens: Array.from((scene as any).tokens?.values?.() ?? []).map((doc: any) => doc.toObject()),
   };
 }
@@ -712,10 +871,19 @@ function resultStatus(issues: SceneRenderIssue[], includeImage: boolean): SceneR
 
 async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<SceneRenderResult> {
   const { runtime, scene, token, tokenDocument } = requirePerspective(input);
+  const loadedScene = runtime.scene;
+  const worldId = game.world.id;
+  if (!Array.isArray(input.queryPoints ?? []) || (input.queryPoints?.length ?? 0) > SCENE_RENDER_LIMITS.maxQueryPoints
+    || input.queryPoints?.some(point => !point || typeof point.id !== "string" || point.id.length > 128 || !Number.isFinite(point.x) || !Number.isFinite(point.y)
+      || (point.elevation !== undefined && !Number.isFinite(point.elevation)))) throw new ProtocolError({ code: "INVALID_PAYLOAD", message: "Invalid bounded perception query.", retryable: false });
+  const pendingFlags = () => { const value = runtime.perception?.renderFlags?.size; return Number.isSafeInteger(value) && value >= 0 ? value as number : null; };
+  const initialFlags = pendingFlags();
+  const initiallyReady = runtime.ready === true;
   const beforeRevision = await fingerprint(persistenceSource(scene));
   const issues: SceneRenderIssue[] = [];
   const tokenSource = sourceOf(tokenDocument);
   const sceneSource = sourceOf(scene);
+  const tokenElevation = finiteNumber(tokenSource["elevation"]) ?? 0;
   const isolation = createSelectedVisionIsolation(runtime, token, issues);
   const selected = isolation.source;
   const tokenCenter = placeableCenter(token);
@@ -746,7 +914,19 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
       message: "Effective light-source evidence is unavailable on this client.",
       retryable: true,
     });
-  const darkness = finiteNumber(sceneSource["darkness"]);
+  const environmentSource =
+    sceneSource["environment"] && typeof sceneSource["environment"] === "object"
+      ? (sceneSource["environment"] as Record<string, unknown>)
+      : undefined;
+  const globalLightSource =
+    environmentSource?.["globalLight"] && typeof environmentSource["globalLight"] === "object"
+      ? (environmentSource["globalLight"] as Record<string, unknown>)
+      : undefined;
+  const fogSource =
+    sceneSource["fog"] && typeof sceneSource["fog"] === "object"
+      ? (sceneSource["fog"] as Record<string, unknown>)
+      : undefined;
+  const darkness = finiteNumber(sceneSource["darkness"] ?? environmentSource?.["darknessLevel"]);
   if (darkness === null)
     issues.push({
       code: "DARKNESS_UNAVAILABLE",
@@ -758,11 +938,14 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
   const notes = visibleIds(runtime.notes, "Note", issues, token, isolation);
   const tiles = visibleIds(runtime.tiles, "Tile", issues, token, isolation);
   issues.push(...assetDiagnostics(runtime, sceneSource, tiles));
-  const evaluatedQueries = (input.queryPoints ?? []).map((point) => {
+  const evaluatedQueries = (input.queryPoints ?? []).map((rawPoint) => {
+    const point = { ...rawPoint, elevation: rawPoint.elevation ?? tokenElevation };
     let visible = false;
     let inRange = false;
     try {
-      inRange = selected?.shape?.contains?.(point.x, point.y) === true;
+      // The source shape is wall-clipped FOV, not a distance-range test.
+      // Without separate native range evidence, retain ambiguous attribution.
+      inRange = Boolean(selected);
       visible = Boolean(selected) && inRange && isolation.test(point, null, point.id);
     } catch {
       issues.push({
@@ -774,9 +957,10 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
     }
     return { ...point, visible, inRange };
   });
-  const regions = visibleRegions(runtime, issues, [
-    tokenCenter,
-    ...evaluatedQueries.filter(({ visible }) => visible),
+  const regions = visibleRegions(runtime, issues, tokenDocument, [
+    ...evaluatedQueries
+      .filter(({ visible }) => visible)
+      .map(({ x, y, elevation }) => ({ x, y, elevation })),
   ]);
   const barrierEvidence = visibleBarriers(
     runtime,
@@ -786,16 +970,9 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
     evaluatedQueries,
   );
   const barriers = barrierEvidence.barriers;
-  for (const point of evaluatedQueries) {
-    if (!point.visible && point.inRange && !barrierEvidence.blockerKeysByQueryId.has(point.id))
-      issues.push({
-        code: "QUERY_FAILED",
-        message:
-          "An in-range visibility failure could not be attributed to a player-visible wall; fog or lighting may be responsible.",
-        retryable: true,
-        subjectId: point.id,
-      });
-  }
+  // A successful native negative observation does not establish its cause.
+  // Missing public blocker evidence stays ambiguous, not a query failure.
+  // Actual evaluation, readiness and unsupported-source failures remain separate issues.
   const queryPoints = evaluatedQueries.map((point) => {
     const blockerKeys = barrierEvidence.blockerKeysByQueryId.get(point.id) ?? [];
     const blockerAttribution: SceneVisibilityResult["queryPoints"][number]["blockerAttribution"] =
@@ -804,7 +981,7 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
         : isolation.status === "unsupported"
           ? "unavailable"
           : !point.inRange
-            ? "out-of-range"
+            ? "unavailable"
             : blockerKeys.length > 0
               ? "visible-wall"
               : "environment-ambiguous";
@@ -813,7 +990,20 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
       visible: point.visible,
       regions: point.visible
         ? regions
-            .filter(({ placeable }) => regionContains(placeable, point.x, point.y))
+            .filter(({ document }) => {
+              const contains = regionContains(document, {
+                x: point.x,
+                y: point.y,
+                elevation: point.elevation,
+              });
+              if (contains === null)
+                regionIncomplete(
+                  issues,
+                  "A player-visible Region's point containment could not be evaluated.",
+                  true,
+                );
+              return contains === true;
+            })
             .map(({ key }) => key)
         : [],
       blockerAttribution,
@@ -874,16 +1064,17 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
     }
   }
 
-  const afterRevision = await fingerprint(persistenceSource(scene));
-  if (beforeRevision !== afterRevision)
+  const renderedFogRevision = await fogRevision(runtime.fog?.exploration);
+  if (
+    runtime.fog?.exploration &&
+    renderedFogRevision === null &&
+    !issues.some((issue) => issue.code === "FOG_UNAVAILABLE")
+  )
     issues.push({
-      code: "PERSISTENCE_CHANGED",
-      message: "Read-only persistence verification detected a state change during capture.",
+      code: "FOG_UNAVAILABLE",
+      message: "Fog exploration evidence could not be serialized on this client.",
       retryable: true,
     });
-  const fogRevision = runtime.fog?.exploration
-    ? await fingerprint(runtime.fog.exploration.toObject?.() ?? null)
-    : null;
   const coverage = coveragePolygons(selected, issues);
   const lightCount = effectiveLightCount(runtime, token);
   if (lightCount === null && !issues.some((issue) => issue.code === "LIGHTING_UNAVAILABLE"))
@@ -892,24 +1083,43 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
       message: "Selected-Token light-source attribution is unavailable on this client.",
       retryable: true,
     });
+  const afterRevision = await fingerprint(persistenceSource(scene));
+  const finalPerspective = requirePerspective(input);
+  if (game.world.id !== worldId || runtime.scene !== loadedScene || finalPerspective.runtime !== runtime || finalPerspective.scene !== scene
+    || finalPerspective.token !== token || finalPerspective.tokenDocument !== tokenDocument) throw new ProtocolError({ code: "PERMISSION_DENIED", message: "Player perspective changed during observation.", retryable: false });
+  const finalFlags = pendingFlags();
+  const readiness = initialFlags === null || finalFlags === null || !initiallyReady || runtime.ready !== true ? "unavailable"
+    : initialFlags !== 0 || finalFlags !== 0 || beforeRevision !== afterRevision || selectedVision(token) !== selected ? "stale" : "ready";
+  if (readiness !== "ready") issues.push({ code: "QUERY_FAILED", message: "Native player perception observation is stale or unavailable.", retryable: true });
+  if (beforeRevision !== afterRevision)
+    issues.push({
+      code: "PERSISTENCE_CHANGED",
+      message: "Read-only persistence verification detected a state change during capture.",
+      retryable: true,
+    });
   const bounded = boundedIssues(issues);
   const truncated = issues.some((issue) => issue.code.includes("LIMIT_REACHED"));
   const visionStatus = issues.some((issue) => issue.code === "SELECTED_VISION_EVALUATION_FAILED")
     ? "incomplete"
     : isolation.status;
-  const unsupported = (code: SceneRenderIssue["code"]) =>
-    issues.some((issue) => issue.code === code) ? "unsupported" : "complete";
   const incomplete = (code: SceneRenderIssue["code"]) =>
     issues.some((issue) => issue.code === code) ? "incomplete" : "complete";
 
+  const capturedAt = new Date().toISOString();
+  const claimsReady = readiness === "ready";
   return {
+    capturedAt,
+    observation: { version: 1, id: crypto.randomUUID(), worldId, sceneId: input.sceneId, userId: game.user.id, tokenId: input.tokenId,
+      actorId: typeof tokenSource["actorId"] === "string" ? tokenSource["actorId"] : typeof token.actor?.id === "string" ? token.actor.id : null,
+      clientId: null, isGM: false, optedIn: true, capturedAt, stateRevision: afterRevision, readiness,
+      basis: "request-local-native-render-flags", pendingRenderFlags: finalFlags },
     sceneId: input.sceneId,
     effectiveUserId: game.user.id,
     tokenId: input.tokenId,
     status: resultStatus(issues, includeImage),
     issues: bounded,
     context: { selectedUser: true, selectedToken: true, tokenOwned: true, sceneLoaded: true },
-    visible: { tokens, notes, tiles },
+    visible: claimsReady ? { tokens, notes, tiles } : { tokens: [], notes: [], tiles: [] },
     redaction: {
       occludedEntities: true,
       hiddenRegions: true,
@@ -918,7 +1128,7 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
       secretDoors: true,
       exitDestinations: true,
     },
-    queryPoints,
+    queryPoints: claimsReady ? queryPoints : queryPoints.map(point => ({ ...point, visible: false, regions: [], blockerKeys: [], blockerAttribution: "unavailable" })),
     effectiveSources: { vision: selected ? 1 : 0, light: lightCount ?? 0 },
     isolation: {
       status: visionStatus,
@@ -932,21 +1142,35 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
       lighting: incomplete("LIGHTING_UNAVAILABLE"),
       darkness: incomplete("DARKNESS_UNAVAILABLE"),
       vision: visionStatus,
-      regions: unsupported("REGION_SUPPORT_UNAVAILABLE"),
+      regions: issues.some((issue) => issue.code === "REGION_SUPPORT_UNAVAILABLE")
+        ? "unsupported"
+        : incomplete("REGION_EVIDENCE_INCOMPLETE"),
       fogExplorationEnabled:
-        typeof sceneSource["fogExploration"] === "boolean" ? sceneSource["fogExploration"] : null,
+        typeof sceneSource["fogExploration"] === "boolean"
+          ? sceneSource["fogExploration"]
+          : typeof fogSource?.["mode"] === "number"
+            ? fogSource["mode"] !== 0
+            : null,
       tokenVisionEnabled:
         typeof tokenSource["sight"] === "object"
           ? (tokenSource["sight"] as Record<string, unknown>)["enabled"] === true
           : null,
       globalLight:
-        typeof sceneSource["globalLight"] === "boolean" ? sceneSource["globalLight"] : null,
+        typeof sceneSource["globalLight"] === "boolean"
+          ? sceneSource["globalLight"]
+          : typeof globalLightSource?.["enabled"] === "boolean"
+            ? globalLightSource["enabled"]
+            : null,
       darknessLevel: darkness,
     },
-    regions: regions.map(({ key }) => ({ key })),
-    visibleBarriers: barriers,
-    coveragePolygons: coverage,
-    fogRevision,
+    regions: (claimsReady ? regions : []).map(({ key, containsSelectedToken, effects }) => ({
+      key,
+      containsSelectedToken,
+      effects,
+    })),
+    visibleBarriers: claimsReady ? barriers : [],
+    coveragePolygons: claimsReady ? coverage : [],
+    fogRevision: renderedFogRevision,
     persistence: { beforeRevision, afterRevision, unchanged: beforeRevision === afterRevision },
     bounds: {
       truncated,
@@ -957,8 +1181,7 @@ async function inspect(input: SceneRenderInput, includeImage: boolean): Promise<
       coveragePointsPerSource: SCENE_RENDER_LIMITS.maxCoveragePointsPerSource,
       issues: SCENE_RENDER_LIMITS.maxIssues,
     },
-    capturedAt: new Date().toISOString(),
-    image,
+    image: claimsReady ? image : null,
   };
 }
 
@@ -970,7 +1193,7 @@ export async function inspectSceneVisibility(
   input: SceneRenderInput,
 ): Promise<SceneVisibilityResult> {
   const result = await inspect(input, false);
-  const { capturedAt: _capturedAt, image: _image, ...visibility } = result;
+  const { image: _image, ...visibility } = result;
   return visibility;
 }
 

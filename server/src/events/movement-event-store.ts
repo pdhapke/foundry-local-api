@@ -1,6 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname } from "node:path";
+import { z } from "zod";
 import {
   buildMovementEvent,
   type CompactMovementEvent,
@@ -17,39 +26,161 @@ interface State {
   eventSequences: Record<string, number>;
   eventHashes: Record<string, string>;
 }
+
+export type MovementStoreIssueCode =
+  | "STORE_NOT_CONFIGURED"
+  | "STORE_FILE_UNREADABLE"
+  | "STORE_READ_LIMIT_EXCEEDED"
+  | "STORE_INVALID_JSON"
+  | "STORE_UNSUPPORTED_VERSION"
+  | "STORE_SCHEMA_MISMATCH"
+  | "STORE_DIGEST_MISMATCH"
+  | "STORE_CURSOR_RECONCILIATION_GAP";
+
+export interface MovementStoreDiagnostics {
+  configured: boolean;
+  runtimeAvailable: boolean;
+  readable: boolean;
+  valid: boolean;
+  version: number | null;
+  generation: string | null;
+  eventCount: number | null;
+  nextSequence: number | null;
+  issueCodes: MovementStoreIssueCode[];
+}
+const MAX_STORE_BYTES = 8 * 1024 * 1024;
+const boundedText = z.string().min(1).max(512);
+const finite = z.number().finite();
+const point = z.object({ x: finite, y: finite, elevation: finite.optional() }).strict();
+const movementField = z.enum(["x", "y", "elevation"]);
+const transition = z
+  .object({
+    regionId: boundedText,
+    regionName: z.string().max(512).optional(),
+    category: z.enum(["hazard", "threshold", "exit", "room", "corridor", "other"]),
+    stopOnEnter: z.literal(true).optional(),
+    kind: z.enum(["enter", "exit"]),
+    segmentIndex: z.number().int().nonnegative(),
+    t: finite,
+    point,
+  })
+  .strict();
+const eventSchema = z
+  .object({
+    eventId: boundedText,
+    eventType: z.literal("token_movement"),
+    movementFields: z.array(movementField).max(3),
+    sceneId: boundedText,
+    tokenId: boundedText,
+    userId: boundedText,
+    timestamp: finite,
+    from: point,
+    to: point,
+    footprint: z.object({ width: finite.nonnegative(), height: finite.nonnegative() }).strict(),
+    geometryStatus: z.enum(["complete", "incomplete"]),
+    incompleteReasons: z.array(z.string().max(512)).max(256),
+    deltas: z.array(z.object({ dx: finite, dy: finite, delevation: finite }).strict()).max(255),
+    waypoints: z.array(point).min(2).max(256),
+    segments: z
+      .array(
+        z
+          .object({
+            index: z.number().int().nonnegative(),
+            from: point,
+            to: point,
+            dx: finite,
+            dy: finite,
+            delevation: finite,
+          })
+          .strict(),
+      )
+      .max(255),
+    transitions: z.array(transition).max(16_384),
+    firstStop: transition.optional(),
+    acceptedPoint: point,
+    remainingPath: z.array(point).max(256),
+    pendingMovement: z
+      .object({
+        status: z.literal("pending"),
+        stop: transition,
+        acceptedPoint: point,
+        remainingPath: z.array(point).max(256),
+      })
+      .strict()
+      .optional(),
+    provenance: z
+      .object({
+        reporterClientId: boundedText,
+        reporterUserId: boundedText,
+        reporterLane: z.enum(["gm", "player", "tv"]),
+      })
+      .strict()
+      .optional(),
+    sequence: z.number().int().positive(),
+  })
+  .strict();
+const stateSchema = z
+  .object({
+    version: z.literal(2),
+    generation: boundedText,
+    nextSequence: z.number().int().positive(),
+    events: z.array(eventSchema).max(20_000),
+    eventSequences: z.record(z.string(), z.number().int().positive()),
+    eventHashes: z.record(z.string(), z.string().regex(/^[a-f0-9]{64}$/)),
+  })
+  .strict();
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
+function readBounded(path: string, maxBytes = MAX_STORE_BYTES): string {
+  const descriptor = openSync(path, "r");
+  try {
+    const statistics = fstatSync(descriptor);
+    if (!statistics.isFile()) throw new Error("Movement event store path is not a regular file.");
+    const size = statistics.size;
+    if (!Number.isSafeInteger(size) || size > maxBytes)
+      throw new RangeError(`Movement event store exceeds the ${maxBytes}-byte read limit.`);
+    const buffer = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = readSync(descriptor, buffer, offset, size - offset, offset);
+      if (count === 0) break;
+      offset += count;
+    }
+    return buffer.subarray(0, offset).toString("utf8");
+  } finally {
+    closeSync(descriptor);
+  }
+}
 function validState(value: unknown): value is State {
+  return stateSchema.safeParse(value).success;
+}
+function integrityIssues(state: State): MovementStoreIssueCode[] {
+  const issueCodes: MovementStoreIssueCode[] = [];
+  const sequences = state.events.map((event) => event.sequence);
+  const indexedSequences = Object.values(state.eventSequences).sort((left, right) => left - right);
+  const indexedIds = Object.keys(state.eventSequences).sort();
+  const hashedIds = Object.keys(state.eventHashes).sort();
+  const unexplainedIndexGap =
+    indexedSequences.length !== state.nextSequence - 1 ||
+    indexedSequences.some((sequence, index) => sequence !== index + 1);
   if (
-    !isRecord(value) ||
-    value["version"] !== 2 ||
-    typeof value["generation"] !== "string" ||
-    !Number.isSafeInteger(value["nextSequence"]) ||
-    !Array.isArray(value["events"]) ||
-    !isRecord(value["eventSequences"]) ||
-    !isRecord(value["eventHashes"])
+    sequences.some((sequence, index) => index > 0 && sequence !== sequences[index - 1]! + 1) ||
+    (sequences.length > 0 && sequences.at(-1)! !== state.nextSequence - 1) ||
+    unexplainedIndexGap ||
+    indexedIds.length !== hashedIds.length ||
+    indexedIds.some((id, index) => id !== hashedIds[index]) ||
+    state.events.some((event) => state.eventSequences[event.eventId] !== event.sequence)
   )
-    return false;
-  const events = value["events"] as unknown[];
-  return (
-    events.every(
-      (e) =>
-        isRecord(e) &&
-        typeof e["eventId"] === "string" &&
-        e["eventType"] === "token_movement" &&
-        typeof e["sceneId"] === "string" &&
-        typeof e["tokenId"] === "string" &&
-        typeof e["userId"] === "string" &&
-        Array.isArray(e["movementFields"]) &&
-        Array.isArray(e["waypoints"]) &&
-        Array.isArray(e["segments"]) &&
-        Array.isArray(e["transitions"]) &&
-        Number.isSafeInteger(e["sequence"]),
-    ) &&
-    Object.values(value["eventSequences"]).every(Number.isSafeInteger) &&
-    Object.values(value["eventHashes"]).every((v) => typeof v === "string")
-  );
+    issueCodes.push("STORE_CURSOR_RECONCILIATION_GAP");
+  if (
+    state.events.some((event) => {
+      const { sequence: _sequence, ...compact } = event;
+      return state.eventHashes[event.eventId] !== digest(compact);
+    })
+  )
+    issueCodes.push("STORE_DIGEST_MISMATCH");
+  return issueCodes;
 }
 const digest = (event: CompactMovementEvent) =>
   createHash("sha256").update(JSON.stringify(event)).digest("hex");
@@ -72,10 +203,68 @@ export class MovementEventStore {
   get generation() {
     return this.state.generation;
   }
+  static diagnose(
+    path: string,
+    configured = true,
+    runtimeAvailable = configured,
+    maxBytes = MAX_STORE_BYTES,
+  ): MovementStoreDiagnostics {
+    const base = {
+      configured,
+      runtimeAvailable,
+      readable: false,
+      valid: false,
+      version: null,
+      generation: null,
+      eventCount: null,
+      nextSequence: null,
+    };
+    if (!configured) return { ...base, issueCodes: ["STORE_NOT_CONFIGURED"] };
+    let raw: string;
+    try {
+      raw = readBounded(path, maxBytes);
+    } catch (error) {
+      if (error instanceof RangeError)
+        return { ...base, issueCodes: ["STORE_READ_LIMIT_EXCEEDED"] };
+      return { ...base, issueCodes: ["STORE_FILE_UNREADABLE"] };
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { ...base, readable: true, issueCodes: ["STORE_INVALID_JSON"] };
+    }
+    if (!isRecord(parsed))
+      return { ...base, readable: true, issueCodes: ["STORE_SCHEMA_MISMATCH"] };
+    const version = typeof parsed["version"] === "number" ? parsed["version"] : null;
+    const generation = typeof parsed["generation"] === "string" ? parsed["generation"] : null;
+    const events = Array.isArray(parsed["events"]) ? parsed["events"] : null;
+    const nextSequence = Number.isSafeInteger(parsed["nextSequence"])
+      ? (parsed["nextSequence"] as number)
+      : null;
+    const metadata = {
+      ...base,
+      readable: true,
+      version,
+      generation,
+      eventCount: events?.length ?? null,
+      nextSequence,
+    };
+    if (version !== null && version !== 2)
+      return { ...metadata, issueCodes: ["STORE_UNSUPPORTED_VERSION"] };
+    if (version !== 2) return { ...metadata, issueCodes: ["STORE_SCHEMA_MISMATCH"] };
+    if (!validState(parsed)) return { ...metadata, issueCodes: ["STORE_SCHEMA_MISMATCH"] };
+
+    const issueCodes = integrityIssues(parsed);
+    return { ...metadata, valid: issueCodes.length === 0, issueCodes };
+  }
+  diagnose(): MovementStoreDiagnostics {
+    return MovementEventStore.diagnose(this.path);
+  }
   private load(): State {
     let raw: string;
     try {
-      raw = readFileSync(this.path, "utf8");
+      raw = readBounded(this.path);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         this.migrationNeeded = true;
@@ -154,18 +343,7 @@ export class MovementEventStore {
       throw new Error(
         "Movement event store has an invalid schema; explicit reconciliation is required.",
       );
-    const sequences = parsed.events.map((e) => e.sequence);
-    if (
-      sequences.some((n, i) => i > 0 && n <= sequences[i - 1]!) ||
-      parsed.nextSequence <= Math.max(0, ...sequences) ||
-      parsed.events.some((event) => {
-        const { sequence, ...compact } = event;
-        return (
-          parsed.eventSequences[event.eventId] !== sequence ||
-          parsed.eventHashes[event.eventId] !== digest(compact)
-        );
-      })
-    )
+    if (integrityIssues(parsed).length > 0)
       throw new Error(
         "Movement event store sequence history is inconsistent; explicit reconciliation is required.",
       );

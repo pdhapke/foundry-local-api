@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { config as loadDotenv } from "dotenv";
+import { readManagedCredential } from "../../scripts/foundry-managed-credential.mjs";
 
 // Resolve `.env` explicitly relative to this module's own location rather
 // than `process.cwd()`. `dotenv`'s default path resolution is
@@ -52,12 +53,9 @@ export interface AppConfig {
   /** Default milliseconds `FoundryClient.call` waits for a bridge response before rejecting with a timeout error. */
   bridgeTimeoutMs: number;
   /**
-   * Static API key required on every `/api/*` request (header) and every
-   * `/bridge` WebSocket connection (query param). Auto-provisioned on
-   * first startup if unset: a random key is generated and persisted to
-   * `.env` so it survives restarts (see `ensureApiKeyProvisioned`). An
-   * explicit value shorter than `MIN_API_KEY_LENGTH` is still rejected —
-   * see `parseApiKey`.
+   * Static administrative API key required on every `/api/*` and `/mcp`
+   * request. It is deliberately separate from Foundry-session authentication
+   * for the GM `/bridge` lane. Auto-provisioned on first startup if unset.
    */
   apiKey: string;
   /** Origins allowed to make cross-origin requests to `/api/*`. Empty = deny all cross-origin requests. */
@@ -116,9 +114,8 @@ function parseHost(raw: string | undefined): string {
       "\n" +
         "!!! WARNING: ALLOW_REMOTE_BIND=true — binding to " +
         `"${host}" instead of localhost. !!!\n` +
-        "This exposes full remote control of the connected Foundry game to " +
-        "anything that can reach this address. API-key auth still applies " +
-        "to /api/* and /bridge, but only do this on a trusted network.\n",
+        "This exposes REST/MCP access beyond loopback. The GM bridge lane " +
+        "still refuses non-loopback binding. Only do this on a trusted network.\n",
     );
   }
 
@@ -278,7 +275,8 @@ function parseRateLimitMax(raw: string | undefined): number {
  * falling back to a default that could be dangerous (e.g. binding remotely).
  */
 export function loadConfig(): AppConfig {
-  ensureApiKeyProvisioned();
+  const managed = readManagedCredential();
+  if (!managed) ensureApiKeyProvisioned();
   const nodeEnv = parseNodeEnv(process.env["NODE_ENV"]);
   return {
     port: parsePort(process.env["PORT"]),
@@ -287,7 +285,7 @@ export function loadConfig(): AppConfig {
     isDevelopment: nodeEnv === "development",
     shutdownTimeoutMs: parseShutdownTimeout(process.env["SHUTDOWN_TIMEOUT_MS"]),
     bridgeTimeoutMs: parseBridgeTimeout(process.env["BRIDGE_TIMEOUT_MS"]),
-    apiKey: parseApiKey(process.env["API_KEY"]),
+    apiKey: parseApiKey(managed?.key ?? process.env["API_KEY"]),
     corsAllowedOrigins: parseCorsAllowedOrigins(process.env["CORS_ALLOWED_ORIGINS"]),
     rateLimitWindowMs: parseRateLimitWindowMs(process.env["RATE_LIMIT_WINDOW_MS"]),
     rateLimitMax: parseRateLimitMax(process.env["RATE_LIMIT_MAX"]),

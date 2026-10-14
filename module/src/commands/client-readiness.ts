@@ -158,6 +158,14 @@ function currentViewport(): ClientReadinessResult["viewport"] {
   return { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.stage.scale.x };
 }
 
+function fullscreenEvidence(): boolean {
+  try {
+    const module=(game as unknown as {modules?: Map<string,{active:boolean;api?:{physicalViewport(strict:boolean):{fullscreen:boolean}}}>}).modules?.get('digital-tabletops');
+    if(module?.active && module.api && game.user.name === 'TV') return module.api.physicalViewport(false).fullscreen;
+  } catch { /* An unready canvas is not fullscreen physical evidence. */ }
+  return typeof document !== 'undefined' && Boolean(document.fullscreenElement);
+}
+
 function result(
   correlationId: string,
   assets: ClientReadinessResult["assets"],
@@ -177,6 +185,13 @@ function result(
     executingClientId: getClientId(),
     expectedSceneId,
     activeSceneId,
+    display: { cssWidth: Math.round(typeof document === 'undefined' ? 0 : document.querySelector<HTMLCanvasElement>('#board')?.getBoundingClientRect().width ?? 0),
+      cssHeight: Math.round(typeof document === 'undefined' ? 0 : document.querySelector<HTMLCanvasElement>('#board')?.getBoundingClientRect().height ?? 0),
+      devicePixelRatio: typeof window === 'undefined' ? 1 : window.devicePixelRatio, canvasReady: canvas?.ready === true,
+      ...(typeof window !== 'undefined' && Number.isFinite(window.innerWidth) ? {
+        fullscreen: fullscreenEvidence(), windowWidth: window.innerWidth, windowHeight: window.innerHeight,
+        screenWidth: window.screen.width, screenHeight: window.screen.height, visualScale: window.visualViewport?.scale ?? 1,
+      } : {}) },
     scenePreloaded,
     activeSceneMatches,
     sceneReady:
@@ -338,6 +353,18 @@ export async function applyClientViewport(
 ): Promise<ClientReadinessResult> {
   const replay = replayOrThrow(input.correlationId, input);
   if (replay) return replay;
+  const dtt = (game as unknown as { modules?: Map<string, { active: boolean; api?: { physicalViewport(strict: boolean): unknown; applyPhysicalViewport(view: {x:number;y:number;expectedScale:number}, strict:boolean): unknown } }> }).modules?.get('digital-tabletops');
+  if (input.digitalTabletop) {
+    if (game.user.name !== 'TV' || !dtt?.active || !dtt.api) throw new ProtocolError({code:'UNSUPPORTED_VERSION',message:'The actual TV requires the installed Digital Tabletop integration.',retryable:false});
+    // Preflight before switching a scene or recording a pending mutation.
+    dtt.api.physicalViewport(true);
+  }
+  if (input.viewScene && canvas?.scene?.id !== input.sceneId) {
+    const scene = game.collections.get('Scene')?.get(input.sceneId) as (FoundryDocument & {view?: () => Promise<unknown>}) | undefined;
+    if (!scene?.view) throw new ProtocolError({code:'NOT_FOUND',message:'Requested Scene view API unavailable.',retryable:false});
+    begin(input.correlationId, input, 'viewport');
+    await scene.view();
+  }
   if (!canvas || canvas.scene?.id !== input.sceneId) {
     throw new ProtocolError({
       code: "INVALID_PAYLOAD",
@@ -347,7 +374,8 @@ export async function applyClientViewport(
     });
   }
   begin(input.correlationId, input, "viewport");
-  await canvas.animatePan(input.viewport);
+  if (input.digitalTabletop) dtt!.api!.applyPhysicalViewport({x:input.viewport.x,y:input.viewport.y,expectedScale:input.viewport.scale}, true);
+  else await canvas.animatePan(input.viewport);
   const actual = currentViewport();
   const viewportMatches =
     actual !== null &&

@@ -2,6 +2,11 @@ import { z } from "zod";
 import {
   CLIENT_READINESS_COMMANDS,
   type ClientPreloadInput,
+  type ClientIdentityAdoptionInput,
+  type ClientIdentityAdoptionCommandInput,
+  type ClientEnrolledIdentityAdoptionInput,
+  type ClientEnrolledIdentityAdoptionCommandInput,
+  type ClientIdentityAdoptionResult,
   type ClientReloadInput,
   type ClientReloadResult,
   type ClientReadinessInput,
@@ -42,6 +47,8 @@ const viewportSchema = z
     correlationId,
     minimumModuleVersion: z.string().max(32).optional(),
     sceneId: id,
+    viewScene: z.boolean().optional(),
+    digitalTabletop: z.boolean().optional(),
     viewport: z
       .object({
         x: z.number().finite(),
@@ -60,6 +67,35 @@ const reloadSchema = z
     delayMs: z.number().int().min(500).max(5_000).default(1_000),
   })
   .strict();
+const uuid = z.string().uuid();
+const identityAdoptionSchema = z
+  .object({
+    correlationId,
+    expectedClientId: uuid,
+    desiredClientId: uuid,
+    timeoutMs: z.number().int().min(250).max(10_000).default(5_000),
+  })
+  .strict()
+  .refine((value) => value.expectedClientId !== value.desiredClientId, {
+    message: "desiredClientId must differ from expectedClientId",
+    path: ["desiredClientId"],
+  });
+const identityAdoptionOutputSchema = z
+  .object({
+    correlationId,
+    acknowledged: z.literal(true),
+    replayed: z.boolean(),
+    acknowledgedAt: z.string().min(1).max(128),
+    clientUserId: id,
+    executingClientId: uuid,
+    adoptedClientId: uuid,
+    reloadRequired: z.literal(true),
+  })
+  .strict();
+const enrolledIdentityAdoptionSchema = identityAdoptionSchema.safeExtend({
+  expectedUserId: id,
+  expectedLane: z.enum(["player", "tv"]),
+});
 const reloadAcknowledgementSchema = z
   .object({
     correlationId,
@@ -85,6 +121,10 @@ const acknowledgementSchema = z
     scenePreloaded: z.boolean(),
     activeSceneMatches: z.boolean(),
     sceneReady: z.boolean(),
+    display: z.object({ cssWidth: z.number().int().min(0).max(16384), cssHeight: z.number().int().min(0).max(16384),
+      devicePixelRatio: z.number().positive().max(8), canvasReady: z.boolean(), fullscreen: z.boolean().optional(),
+      windowWidth: z.number().positive().max(16384).optional(), windowHeight: z.number().positive().max(16384).optional(),
+      screenWidth: z.number().positive().max(16384).optional(), screenHeight: z.number().positive().max(16384).optional(), visualScale: z.number().positive().optional() }).strict().optional(),
     assets: z
       .array(
         z
@@ -117,6 +157,7 @@ type Envelope = ClientReadinessResult & {
     | "clientId"
     | "userId"
     | "lane"
+    | "isGM"
     | "foundryVersion"
     | "systemId"
     | "systemVersion"
@@ -213,6 +254,7 @@ function envelope(
       clientId: client.clientId,
       userId: client.userId,
       lane: client.lane,
+      isGM: client.isGM,
       foundryVersion: client.foundryVersion,
       systemId: client.systemId,
       systemVersion: client.systemVersion,
@@ -323,6 +365,8 @@ export const clientReadinessEndpointDescriptors: AnyEndpointDescriptor[] = [
         correlationId: input.correlationId,
         sceneId: input.sceneId,
         viewport: input.viewport,
+        ...(input.viewScene !== undefined ? { viewScene: input.viewScene } : {}),
+        ...(input.digitalTabletop !== undefined ? { digitalTabletop: input.digitalTabletop } : {}),
       };
       const value = await ctx.foundryClient.call<ClientViewportInput, ClientReadinessResult>(
         CLIENT_READINESS_COMMANDS.APPLY_VIEWPORT,
@@ -384,6 +428,7 @@ export const clientReadinessEndpointDescriptors: AnyEndpointDescriptor[] = [
           clientId: selected.clientId,
           userId: selected.userId,
           lane: selected.lane,
+          isGM: selected.isGM,
           foundryVersion: selected.foundryVersion,
           systemId: selected.systemId,
           systemVersion: selected.systemVersion,
@@ -392,5 +437,210 @@ export const clientReadinessEndpointDescriptors: AnyEndpointDescriptor[] = [
       };
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  {
+    name: "foundry_adopt_gm_client_identity",
+    description:
+      "One-time recovery of an absent exact GM client UUID on the currently authenticated exact GM command lane. Refuses connected or reserved target identities, compare-and-set mismatches, changed correlation replay, and non-GM/TV lanes. Persists the identity but never exposes credentials; reload is required before it becomes the negotiated identity.",
+    method: "post",
+    path: "/clients/adopt-gm-identity",
+    inputSchema: identityAdoptionSchema,
+    outputSchema: identityAdoptionOutputSchema,
+    handler: async (
+      input: ClientIdentityAdoptionInput & { timeoutMs: number },
+      ctx,
+    ): Promise<ClientIdentityAdoptionResult> => {
+      const clients = ctx.foundryClient.getCapabilityReport().clients;
+      const selected = clients.find(
+        (client) =>
+          client.clientId === input.expectedClientId &&
+          client.lane === "gm" &&
+          client.isGM &&
+          client.optedIn,
+      );
+      if (!selected) {
+        throw new FoundryBridgeError(
+          "NOT_CONNECTED",
+          "The expected authenticated GM client is not connected.",
+          { retryable: true },
+        );
+      }
+      if (!selected.capabilities.includes(CLIENT_READINESS_COMMANDS.ADOPT_IDENTITY)) {
+        throw new FoundryBridgeError(
+          "UNSUPPORTED_VERSION",
+          "The selected GM client does not advertise identity adoption.",
+        );
+      }
+      if (clients.some((client) => client.clientId === input.desiredClientId)) {
+        throw new FoundryBridgeError(
+          "IDEMPOTENCY_CONFLICT",
+          "The desired client identity is already connected.",
+        );
+      }
+      const identityHandoffProof = ctx.foundryClient.reserveClientIdentity(
+        input.desiredClientId,
+        input.expectedClientId,
+        {
+          expectedUserId: selected.userId,
+          expectedLane: "gm",
+          ttlMs: Math.min(120_000, input.timeoutMs + 60_000),
+        },
+      );
+      if (!identityHandoffProof) {
+        throw new FoundryBridgeError(
+          "IDEMPOTENCY_CONFLICT",
+          "The desired client identity is connected or reserved by another recovery.",
+        );
+      }
+      try {
+        const payload: ClientIdentityAdoptionCommandInput = {
+          correlationId: input.correlationId,
+          expectedClientId: input.expectedClientId,
+          desiredClientId: input.desiredClientId,
+          identityHandoffProof,
+        };
+        const value = await ctx.foundryClient.call<
+          ClientIdentityAdoptionCommandInput,
+          ClientIdentityAdoptionResult
+        >(CLIENT_READINESS_COMMANDS.ADOPT_IDENTITY, payload, {
+          clientId: selected.clientId,
+          userId: selected.userId,
+          requestingUserId: selected.userId,
+          correlationId: input.correlationId,
+          timeoutMs: input.timeoutMs,
+          auditPayloadSummary: {
+            correlationId: input.correlationId,
+            expectedClientId: input.expectedClientId,
+            desiredClientId: input.desiredClientId,
+          },
+        });
+        const parsed = identityAdoptionOutputSchema.safeParse(value);
+        if (
+          !parsed.success ||
+          parsed.data.correlationId !== input.correlationId ||
+          parsed.data.clientUserId !== selected.userId ||
+          parsed.data.executingClientId !== input.expectedClientId ||
+          parsed.data.adoptedClientId !== input.desiredClientId
+        ) {
+          throw new FoundryBridgeError(
+            "INCOMPLETE_RESULT",
+            "The identity-adoption acknowledgement did not match the selected GM client.",
+          );
+        }
+        return parsed.data;
+      } catch (error) {
+        ctx.foundryClient.releaseClientIdentity(input.desiredClientId, input.expectedClientId);
+        throw error;
+      }
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  {
+    name: "foundry_adopt_enrolled_client_identity",
+    description:
+      "One-time recovery of an absent exact UUID for an already enrolled, consenting player or TV client, initiated only through the authenticated GM command lane. Binds the exact client, user, and lane; reserves the target through bounded reconnect; exposes no credentials.",
+    method: "post",
+    path: "/clients/adopt-enrolled-identity",
+    inputSchema: enrolledIdentityAdoptionSchema,
+    outputSchema: identityAdoptionOutputSchema,
+    handler: async (
+      input: ClientEnrolledIdentityAdoptionInput & { timeoutMs: number },
+      ctx,
+    ): Promise<ClientIdentityAdoptionResult> => {
+      const clients = ctx.foundryClient.getCapabilityReport().clients;
+      const requester = clients.find(
+        (client) => client.lane === "gm" && client.isGM && client.optedIn,
+      );
+      if (!requester) {
+        throw new FoundryBridgeError("NOT_CONNECTED", "No authenticated GM lane is connected.", {
+          retryable: true,
+        });
+      }
+      const selected = clients.find(
+        (client) =>
+          client.clientId === input.expectedClientId &&
+          client.userId === input.expectedUserId &&
+          client.lane === input.expectedLane &&
+          !client.isGM &&
+          client.optedIn,
+      );
+      if (!selected) {
+        throw new FoundryBridgeError(
+          "NOT_CONNECTED",
+          "The exact enrolled player or TV client is not connected with the requested binding.",
+          { retryable: true },
+        );
+      }
+      if (!selected.capabilities.includes(CLIENT_READINESS_COMMANDS.ADOPT_ENROLLED_IDENTITY)) {
+        throw new FoundryBridgeError(
+          "UNSUPPORTED_VERSION",
+          "The selected enrolled client does not advertise identity adoption.",
+        );
+      }
+      if (clients.some((client) => client.clientId === input.desiredClientId)) {
+        throw new FoundryBridgeError("IDEMPOTENCY_CONFLICT", "The desired identity is connected.");
+      }
+      const identityHandoffProof = ctx.foundryClient.reserveClientIdentity(
+        input.desiredClientId,
+        input.expectedClientId,
+        {
+          expectedUserId: input.expectedUserId,
+          expectedLane: input.expectedLane,
+          ttlMs: Math.min(120_000, input.timeoutMs + 60_000),
+        },
+      );
+      if (!identityHandoffProof) {
+        throw new FoundryBridgeError(
+          "IDEMPOTENCY_CONFLICT",
+          "The desired identity is connected or reserved.",
+        );
+      }
+      try {
+        const payload: ClientEnrolledIdentityAdoptionCommandInput = {
+          correlationId: input.correlationId,
+          expectedClientId: input.expectedClientId,
+          desiredClientId: input.desiredClientId,
+          expectedUserId: input.expectedUserId,
+          expectedLane: input.expectedLane,
+          identityHandoffProof,
+        };
+        const value = await ctx.foundryClient.call<
+          ClientEnrolledIdentityAdoptionCommandInput,
+          ClientIdentityAdoptionResult
+        >(CLIENT_READINESS_COMMANDS.ADOPT_ENROLLED_IDENTITY, payload, {
+          clientId: selected.clientId,
+          userId: selected.userId,
+          lane: selected.lane,
+          requestingUserId: requester.userId,
+          correlationId: input.correlationId,
+          timeoutMs: input.timeoutMs,
+          auditPayloadSummary: {
+            correlationId: input.correlationId,
+            expectedClientId: input.expectedClientId,
+            desiredClientId: input.desiredClientId,
+            expectedUserId: input.expectedUserId,
+            expectedLane: input.expectedLane,
+          },
+        });
+        const parsed = identityAdoptionOutputSchema.safeParse(value);
+        if (
+          !parsed.success ||
+          parsed.data.correlationId !== input.correlationId ||
+          parsed.data.clientUserId !== selected.userId ||
+          parsed.data.executingClientId !== input.expectedClientId ||
+          parsed.data.adoptedClientId !== input.desiredClientId
+        ) {
+          throw new FoundryBridgeError(
+            "INCOMPLETE_RESULT",
+            "The enrolled identity-adoption acknowledgement did not match the exact client binding.",
+          );
+        }
+        return parsed.data;
+      } catch (error) {
+        ctx.foundryClient.releaseClientIdentity(input.desiredClientId, input.expectedClientId);
+        throw error;
+      }
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
 ];

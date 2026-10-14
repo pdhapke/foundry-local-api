@@ -12,7 +12,7 @@ The normal call path is:
 4. Descriptor handlers call `FoundryClient.call(command, payload)` (`server/src/bridge/foundry-client.ts`). It emits a correlated `BridgeRequest` through `BridgeGateway` (`server/src/bridge/gateway.ts`) to the connected Foundry browser module.
 5. `module/src/bridge-client.ts` receives the request and calls `dispatch` in `module/src/command-registry.ts`; side-effect imports in `module/src/index.ts` register handlers from `module/src/commands/*.ts`. The response returns over the same WebSocket. Wire types live in `shared/src/protocol.ts`.
 
-Production composition is in `server/src/index.ts`: it constructs `BridgeGateway`, `FoundryClient`, `IntegrationManager`, event bus, Express app, and optional stdio MCP. `server/src/app.ts` owns auth/CORS/rate limiting and the `/api` and `/mcp` mounts. `/health` is deliberately unauthenticated; `/api` uses CORS + rate limiting + API key; `/mcp` uses CORS + API key without REST rate limiting; `/bridge` takes the same key as `?apiKey=` because browser WebSockets cannot set the custom header.
+Production composition is in `server/src/index.ts`: it constructs `BridgeGateway`, `FoundryClient`, `IntegrationManager`, event bus, Express app, and optional stdio MCP. `server/src/app.ts` owns auth/CORS/rate limiting and the `/api` and `/mcp` mounts. `/health` is deliberately unauthenticated; `/api` uses CORS + rate limiting + API key; `/mcp` uses CORS + API key without REST rate limiting. The historical `/bridge?apiKey=` design is superseded: the GM bridge lane now validates the browser's existing Foundry session against the allowlisted loopback Foundry server, while player/TV lanes retain scoped enrollment.
 
 ## Existing optional-integration architecture
 

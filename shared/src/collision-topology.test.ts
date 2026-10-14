@@ -92,6 +92,160 @@ void describe("collision and topology geometry", () => {
     });
     assert.equal(burrow.modeSupport.status, "unsupported");
     assert.equal(burrow.reachable, false);
+    assert.match(burrow.modeSupport.warnings[0]!, /no authoritative burrow surface/i);
+  });
+  void it("permits continuously negative burrowing without applying walls or doors", () => {
+    const result = validatePathGeometry(
+      {
+        sceneId: "s",
+        tokenId: "t",
+        waypoints: [
+          { x: 10, y: 0, elevation: -1 },
+          { x: 20, y: 0 },
+        ],
+        movementMode: "burrow",
+      },
+      { x: 0, y: 0, elevation: -3, revision: "t1", width: 2, height: 2 },
+      [
+        { id: "solid", c: [5, -2, 5, 4] },
+        { id: "locked", c: [15, -2, 15, 4], door: 1, ds: "locked" },
+        { id: "malformed-but-irrelevant", c: null } as unknown as {
+          id: string;
+          c: [number, number, number, number];
+        },
+      ],
+      { type: 0, size: 2 },
+    );
+    assert.equal(result.status, "complete");
+    assert.equal(result.reachable, true);
+    assert.equal(result.modeSupport.status, "supported");
+    assert.equal(result.burrowPolicy.status, "complete");
+    assert.deepEqual(
+      result.segments.map(({ intersections }) => intersections),
+      [[], []],
+    );
+    assert.equal(result.firstCollision, null);
+    assert.equal(result.segments[1]!.from.elevation, -1);
+    assert.equal(result.segments[1]!.to.elevation, -1);
+    assert.deepEqual(result.malformedWallIds, ["malformed-but-irrelevant"]);
+    assert.equal(result.evidence.before.burrowSurfaces?.count, 0);
+  });
+  void it("requires exact bounded convex surface containment at non-negative elevation", () => {
+    const input = {
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 8, y: 2, elevation: 0 }],
+      movementMode: "burrow" as const,
+    };
+    const token = { x: 2, y: 2, elevation: 0, revision: "t1", width: 2, height: 2 };
+    const surface = {
+      polygons: [
+        [
+          { x: 0, y: 0 },
+          { x: 12, y: 0 },
+          { x: 12, y: 6 },
+          { x: 0, y: 6 },
+        ],
+      ],
+      bottom: -10,
+      top: 0,
+      topInclusive: true,
+      revision: "surface-r1",
+    };
+    const proven = validatePathGeometry(input, token, [], { type: 0, size: 2 }, [surface]);
+    assert.equal(proven.status, "complete");
+    assert.equal(proven.reachable, true);
+    assert.equal(proven.burrowPolicy.usedSurfaceCount, 1);
+    assert.deepEqual(proven.burrowPolicy.unprovenSegmentIndexes, []);
+    assert.match(proven.evidence.before.burrowSurfaces!.stateSignature, /^[0-9a-f]{8}$/);
+
+    const outside = validatePathGeometry(
+      { ...input, waypoints: [{ x: 11, y: 2, elevation: 0 }] },
+      token,
+      [],
+      { type: 0, size: 2 },
+      [surface],
+    );
+    assert.equal(outside.status, "incomplete");
+    assert.equal(outside.reachable, false);
+    assert.deepEqual(outside.burrowPolicy.unprovenSegmentIndexes, [0]);
+
+    const holed = validatePathGeometry(input, token, [], { type: 0, size: 2 }, [
+      {
+        ...surface,
+        holes: [
+          [
+            { x: 4, y: 1 },
+            { x: 6, y: 1 },
+            { x: 6, y: 5 },
+          ],
+        ],
+      },
+    ]);
+    assert.equal(holed.status, "incomplete", "holes fail closed instead of guessing coverage");
+  });
+  void it("applies both one-way orientations and wall-bound departure semantics", () => {
+    const token = { x: 0, y: 0, revision: "t1", width: 2, height: 2 };
+    const input = {
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 10, y: 0 }],
+      movementMode: "walk" as const,
+    };
+    const left = validatePathGeometry(input, token, [{ id: "left", c: [5, -2, 5, 4], dir: 1 }], {
+      type: 0,
+      size: 2,
+    });
+    const right = validatePathGeometry(input, token, [{ id: "right", c: [5, -2, 5, 4], dir: 2 }], {
+      type: 0,
+      size: 2,
+    });
+    assert.equal(left.reachable, true);
+    assert.equal(right.reachable, false);
+
+    const departLeft = validatePathGeometry(
+      { ...input, waypoints: [{ x: 0, y: 0 }] },
+      { ...token, x: 3 },
+      [{ id: "bound", c: [5, -2, 5, 4] }],
+      { type: 0, size: 2 },
+    );
+    const crossFromLeftBoundary = validatePathGeometry(
+      { ...input, waypoints: [{ x: 6, y: 0 }] },
+      { ...token, x: 3 },
+      [{ id: "bound", c: [5, -2, 5, 4] }],
+      { type: 0, size: 2 },
+    );
+    const departRight = validatePathGeometry(
+      { ...input, waypoints: [{ x: 8, y: 0 }] },
+      { ...token, x: 5 },
+      [{ id: "bound", c: [5, -2, 5, 4] }],
+      { type: 0, size: 2 },
+    );
+    assert.equal(departLeft.reachable, true, "contact may move away from the wall on its side");
+    assert.equal(crossFromLeftBoundary.reachable, false, "contact may not cross through the wall");
+    assert.equal(crossFromLeftBoundary.firstCollision?.t, 0);
+    assert.equal(departRight.reachable, true, "the opposite wall boundary may also move away");
+  });
+  void it("combines footprint and elevation intervals at inclusive wall bounds", () => {
+    const token = { x: 0, y: 0, elevation: 10, revision: "t1", width: 10, height: 10 };
+    const input = {
+      sceneId: "s",
+      tokenId: "t",
+      waypoints: [{ x: 20, y: 0, elevation: 0 }],
+      movementMode: "fly" as const,
+    };
+    const wall = { id: "bounded", c: [15, -5, 15, 15] as [number, number, number, number] };
+    const below = validatePathGeometry(input, token, [{ ...wall, bottom: 0, top: 2.4 }], {
+      type: 0,
+      size: 10,
+    });
+    const atBoundary = validatePathGeometry(input, token, [{ ...wall, bottom: 0, top: 2.5 }], {
+      type: 0,
+      size: 10,
+    });
+    assert.equal(below.reachable, true, "the Token clears the wall before entering its elevation");
+    assert.equal(atBoundary.reachable, false, "the exact upper elevation boundary is solid");
+    assert.equal(atBoundary.firstCollision?.elevation, 2.5);
   });
   void it("sweeps the complete footprint through narrow and corner contacts", () => {
     const token = {

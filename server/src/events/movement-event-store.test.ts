@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -66,7 +66,61 @@ void describe("durable movement event store", () => {
     const invalid = join(directory, "invalid.json");
     writeFileSync(invalid, JSON.stringify({ nextSequence: "one", events: [] }));
     assert.throws(() => new MovementEventStore(invalid), /invalid schema/);
+    assert.deepEqual(MovementEventStore.diagnose(invalid).issueCodes, ["STORE_SCHEMA_MISMATCH"]);
     assert.throws(() => new MovementEventStore(directory), /Unable to read/);
+
+    assert.deepEqual(MovementEventStore.diagnose(corrupt).issueCodes, ["STORE_INVALID_JSON"]);
+    assert.equal(readFileSync(corrupt, "utf8"), "{");
+    assert.deepEqual(MovementEventStore.diagnose(corrupt, false).issueCodes, [
+      "STORE_NOT_CONFIGURED",
+    ]);
+    assert.deepEqual(MovementEventStore.diagnose(directory).issueCodes, ["STORE_FILE_UNREADABLE"]);
+
+    const unsupported = join(directory, "unsupported.json");
+    writeFileSync(unsupported, JSON.stringify({ version: 99, events: [] }));
+    assert.deepEqual(MovementEventStore.diagnose(unsupported).issueCodes, [
+      "STORE_UNSUPPORTED_VERSION",
+    ]);
+
+    const healthyPath = join(directory, "healthy.json");
+    const store = new MovementEventStore(healthyPath);
+    store.append(event("diagnostic-event"));
+    const healthy = MovementEventStore.diagnose(healthyPath);
+    assert.equal(healthy.valid, true);
+    assert.equal(healthy.eventCount, 1);
+    assert.equal(MovementEventStore.diagnose(healthyPath, true, false).runtimeAvailable, false);
+    assert.deepEqual(MovementEventStore.diagnose(healthyPath, true, true, 1).issueCodes, [
+      "STORE_READ_LIMIT_EXCEEDED",
+    ]);
+
+    const nestedInvalid = join(directory, "nested-invalid.json");
+    const nested = JSON.parse(readFileSync(healthyPath, "utf8")) as {
+      events: Array<{ waypoints: Array<{ x: unknown }> }>;
+    };
+    nested.events[0]!.waypoints[0]!.x = "not-a-coordinate";
+    writeFileSync(nestedInvalid, JSON.stringify(nested));
+    assert.deepEqual(MovementEventStore.diagnose(nestedInvalid).issueCodes, [
+      "STORE_SCHEMA_MISMATCH",
+    ]);
+
+    const gapPath = join(directory, "gap.json");
+    const gap = JSON.parse(readFileSync(healthyPath, "utf8")) as {
+      eventSequences: Record<string, number>;
+    };
+    gap.eventSequences["unexplained-third-event"] = 3;
+    writeFileSync(gapPath, JSON.stringify(gap));
+    assert.deepEqual(MovementEventStore.diagnose(gapPath).issueCodes, [
+      "STORE_CURSOR_RECONCILIATION_GAP",
+    ]);
+
+    const tampered = JSON.parse(readFileSync(healthyPath, "utf8")) as {
+      events: Array<{ timestamp: number }>;
+    };
+    tampered.events[0]!.timestamp += 1;
+    writeFileSync(healthyPath, JSON.stringify(tampered));
+    assert.deepEqual(MovementEventStore.diagnose(healthyPath).issueCodes, [
+      "STORE_DIGEST_MISMATCH",
+    ]);
   });
 
   void it("migrates a valid legacy buffer once and then preserves its generation", () => {

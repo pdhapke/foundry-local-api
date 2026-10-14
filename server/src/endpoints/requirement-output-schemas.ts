@@ -161,6 +161,10 @@ const sceneIssue = z
   .strict();
 export const sceneVisibilityOutputSchema = z
   .object({
+    capturedAt: z.string(),
+    observation: z.object({ version: z.literal(1), id: z.string().uuid(), worldId: id, sceneId: id, userId: id, tokenId: id,
+      actorId: id.nullable(), clientId: id.nullable(), isGM: z.literal(false), optedIn: z.literal(true), capturedAt: z.string(), stateRevision: z.string(),
+      readiness: z.enum(["ready", "stale", "unavailable"]), basis: z.literal("request-local-native-render-flags"), pendingRenderFlags: z.number().int().min(0).nullable() }).strict(),
     sceneId: id,
     effectiveUserId: id,
     tokenId: id,
@@ -227,7 +231,15 @@ export const sceneVisibilityOutputSchema = z
         darknessLevel: z.number().nullable(),
       })
       .strict(),
-    regions: z.array(z.object({ key: z.string() }).strict()),
+    regions: z.array(
+      z
+        .object({
+          key: z.string(),
+          containsSelectedToken: z.boolean(),
+          effects: z.enum(["active", "none", "redacted"]),
+        })
+        .strict(),
+    ),
     visibleBarriers: z.array(
       z
         .object({
@@ -380,6 +392,10 @@ const collisionSnapshot = z
       })
       .strict()
       .optional(),
+    burrowSurfaces: z
+      .object({ count: z.number().int().nonnegative(), stateSignature: z.string() })
+      .strict()
+      .optional(),
   })
   .strict();
 export const collisionPathOutputSchema = z
@@ -411,6 +427,16 @@ export const collisionPathOutputSchema = z
     modeSupport: z
       .object({ status: z.enum(["supported", "unsupported"]), warnings: z.array(z.string()) })
       .strict(),
+    burrowPolicy: z
+      .object({
+        status: z.enum(["not_applicable", "complete", "incomplete", "unsupported"]),
+        policy: z.literal("negative-elevation-or-authoritative-surface"),
+        authoritativeSurfaceCount: z.number().int().nonnegative(),
+        usedSurfaceCount: z.number().int().nonnegative(),
+        unprovenSegmentIndexes: z.array(z.number().int().nonnegative()),
+        warnings: z.array(z.string()),
+      })
+      .strict(),
     gridFit: z
       .object({ valid: z.boolean(), errors: z.array(z.string()), warnings: z.array(z.string()) })
       .strict(),
@@ -439,6 +465,7 @@ export const wallTopologyOutputSchema = z
     duplicateGroups: z.array(z.array(id)),
     danglingEndpointWallIds: z.array(id),
     crossingPairs: z.array(z.tuple([id, id])),
+    unchanged: z.boolean(),
     persisted: z.literal(false),
   })
   .strict();
@@ -529,57 +556,3 @@ export const movementPageOutputSchema = z
   })
   .strict();
 
-const deliveryState = z.enum(["queued", "in_flight", "retry_wait", "acknowledged", "dead_letter"]);
-export const aiGmDeliveryItemOutputSchema = z
-  .object({
-    id,
-    consumerId: id,
-    eventId: id,
-    eventSequence: z.number().int().positive(),
-    eventCursor: z.string(),
-    event: sequencedMovementEventOutputSchema,
-    state: deliveryState,
-    adjudication: z
-      .object({
-        status: z.literal("pending_adjudication"),
-        firstStop: z
-          .object({ reason: z.string(), acceptedPoint: point, remainingPath: z.array(point) })
-          .strict()
-          .optional(),
-        automaticConsequencesApplied: z.literal(false),
-      })
-      .strict(),
-    attemptHistory: z.array(
-      z
-        .object({
-          attempt: z.number().int().positive(),
-          startedAt: z.number(),
-          finishedAt: z.number().optional(),
-          outcome: z
-            .enum(["acknowledged", "retry_scheduled", "dead_letter", "interrupted"])
-            .optional(),
-          errorCode: z.string().optional(),
-          message: z.string().optional(),
-        })
-        .strict(),
-    ),
-    createdAt: z.number(),
-    updatedAt: z.number(),
-    nextAttemptAt: z.number().optional(),
-    acknowledgementId: z.string().optional(),
-    acknowledgedAt: z.number().optional(),
-    deadLetteredAt: z.number().optional(),
-    lastFailure: z
-      .object({ code: z.string(), message: z.string(), retryable: z.boolean() })
-      .strict()
-      .optional(),
-  })
-  .strict();
-export const aiGmDeliveryListOutputSchema = z
-  .object({
-    consumerId: id,
-    hostCapability: z.enum(["invoke", "wake", "unavailable"]),
-    hostLimitation: z.string().optional(),
-    items: z.array(aiGmDeliveryItemOutputSchema),
-  })
-  .strict();

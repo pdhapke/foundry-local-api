@@ -3,6 +3,7 @@ import {
   ProtocolError,
   inspectWallTopology,
   validatePathGeometry,
+  type BurrowSurface,
   type CollisionWall,
   type CollisionDoorState,
   type ValidateTokenPathInput,
@@ -11,6 +12,7 @@ import {
   type WallTopologyResult,
 } from "@foundry-local-api/shared";
 import { registerCommand } from "../command-registry.js";
+import { sceneMovementRegions } from "../movement-event-hooks.js";
 type SceneLike = FoundryScene & { walls?: Map<string, FoundryDocument> };
 function scene(id: string): SceneLike {
   const value = (game.collections.get("Scene") as Map<string, SceneLike> | undefined)?.get(id);
@@ -30,16 +32,34 @@ function genuineRevision(value: Record<string, unknown>, fieldPath: string): str
   const stats = value["_stats"] as Record<string, unknown> | undefined;
   const modifiedTime = stats?.["modifiedTime"];
   if (
-    (typeof modifiedTime !== "number" && typeof modifiedTime !== "string") ||
-    String(modifiedTime).length === 0
+    (typeof modifiedTime === "number" || typeof modifiedTime === "string") &&
+    String(modifiedTime).length > 0
   )
+    return String(modifiedTime);
+
+  // Foundry v14 does not consistently serialize `_stats.modifiedTime` for
+  // embedded placeables (notably Tokens and Walls).  A stable digest of the
+  // complete serialized document is still a genuine content revision: it
+  // changes when any observed field changes and never degrades to the ID-only
+  // fallback that previously produced false unchanged-state evidence.
+  const serialized = stable(value);
+  const seeds = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+  const parts = seeds.map((seed, seedIndex) => {
+    let hash = seed;
+    for (let index = 0; index < serialized.length; index++) {
+      hash ^= serialized.charCodeAt(index) + seedIndex;
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  });
+  if (serialized.length === 0)
     throw new ProtocolError({
       code: "INCOMPLETE_RESULT",
-      message: `A genuine document revision is unavailable for ${fieldPath}; collision evidence cannot use an ID fallback.`,
+      message: `A genuine document revision is unavailable for ${fieldPath}.`,
       retryable: false,
       fieldPath,
     });
-  return String(modifiedTime);
+  return `semantic:${serialized.length}:${parts.join("")}`;
 }
 function walls(s: SceneLike, includeHidden: boolean): CollisionWall[] {
   const collection = s.getEmbeddedCollection("Wall");
@@ -74,6 +94,31 @@ function hasRestrictedWallTopology(s: SceneLike): boolean {
   return [...s.getEmbeddedCollection("Wall").values()].some((document) => {
     const source = data(document);
     return source["hidden"] === true || Number(source["door"] ?? 0) === 2;
+  });
+}
+function burrowSurfaces(s: SceneLike): BurrowSurface[] {
+  const documents = s.getEmbeddedCollection("Region");
+  return sceneMovementRegions(s).flatMap((region): BurrowSurface[] => {
+    if (region.burrowSurface !== true) return [];
+    const document = documents.get(region.id);
+    const revision = document ? genuineRevision(data(document), `regions.${region.id}`) : undefined;
+    const missingBounds =
+      region.bottom === undefined || region.top === undefined
+        ? ["An authoritative burrow surface requires finite elevation.bottom and elevation.top."]
+        : [];
+    return [
+      {
+        polygons: region.polygons,
+        ...(region.holes ? { holes: region.holes } : {}),
+        ...(region.bottom === undefined ? {} : { bottom: region.bottom }),
+        ...(region.top === undefined ? {} : { top: region.top }),
+        ...(region.topInclusive === undefined ? {} : { topInclusive: region.topInclusive }),
+        ...(revision ? { revision } : {}),
+        ...(region.incompleteReasons?.length || missingBounds.length
+          ? { incompleteReasons: [...(region.incompleteReasons ?? []), ...missingBounds] }
+          : {}),
+      },
+    ];
   });
 }
 function stable(value: unknown): string {
@@ -167,6 +212,7 @@ interface LiveCollisionRead {
   walls: CollisionWall[];
   grid: { type: number; size: number; diagonalRule: "euclidean" | "manhattan" | "5105" };
   fog: NonNullable<ValidateTokenPathResult["evidence"]["before"]["fog"]>;
+  burrowSurfaces: BurrowSurface[];
 }
 function liveRead(input: ValidateTokenPathInput): LiveCollisionRead {
   const s = scene(input.sceneId);
@@ -209,13 +255,26 @@ function liveRead(input: ValidateTokenPathInput): LiveCollisionRead {
     walls: walls(s, game.user.isGM),
     grid: { type: s.grid.type, size: s.grid.size, diagonalRule: diagonalRule(s) },
     fog: fogEvidence(input.sceneId),
+    burrowSurfaces: input.movementMode === "burrow" ? burrowSurfaces(s) : [],
   };
 }
 export function validateLiveTokenPath(input: ValidateTokenPathInput): ValidateTokenPathResult {
   const before = liveRead(input);
-  const result = validatePathGeometry(input, before.token, before.walls, before.grid);
+  const result = validatePathGeometry(
+    input,
+    before.token,
+    before.walls,
+    before.grid,
+    before.burrowSurfaces,
+  );
   const after = liveRead(input);
-  const afterProjection = validatePathGeometry(input, after.token, after.walls, after.grid);
+  const afterProjection = validatePathGeometry(
+    input,
+    after.token,
+    after.walls,
+    after.grid,
+    after.burrowSurfaces,
+  );
   const beforeEvidence = { ...result.evidence.before, fog: before.fog };
   const afterEvidence = { ...afterProjection.evidence.before, fog: after.fog };
   const unchanged = stable(beforeEvidence) === stable(afterEvidence);
@@ -250,7 +309,21 @@ export function validateLiveWallTopology(input: ValidateWallTopologyInput): Wall
       retryable: false,
       fieldPath: "sceneId",
     });
-  return inspectWallTopology(input.sceneId, walls(s, true));
+  const beforeWalls = walls(s, true);
+  const afterWalls = walls(s, true);
+  const before = inspectWallTopology(input.sceneId, beforeWalls);
+  const after = inspectWallTopology(input.sceneId, afterWalls);
+  const unchanged = stable(beforeWalls) === stable(afterWalls) && stable(before) === stable(after);
+  if (unchanged) return before;
+  return {
+    ...before,
+    status: "incomplete",
+    incompleteReasons: [
+      ...before.incompleteReasons,
+      "Wall topology changed between the two independent live reads.",
+    ],
+    unchanged: false,
+  };
 }
 registerCommand(COLLISION_COMMANDS.VALIDATE_PATH, validateLiveTokenPath);
 registerCommand(COLLISION_COMMANDS.VALIDATE_TOPOLOGY, validateLiveWallTopology);

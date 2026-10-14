@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import express from "express";
+import request from "supertest";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FoundryClient } from "../bridge/foundry-client.js";
 import { clientReadinessEndpointDescriptors } from "./client-readiness.js";
+import { mountRestEndpoints, registerMcpTools } from "./registry.js";
 
 const base = {
   userName: "x",
@@ -39,6 +43,8 @@ const acknowledgement = (correlationId: string) => ({
 function fake(call: FoundryClient["call"], clients = [gm, tv]): FoundryClient {
   return {
     call,
+    reserveClientIdentity: () => "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    releaseClientIdentity: () => undefined,
     getCapabilityReport: () => ({
       generatedAt: 1,
       serverVersion: "1",
@@ -50,6 +56,21 @@ function fake(call: FoundryClient["call"], clients = [gm, tv]): FoundryClient {
 }
 
 void describe("client readiness endpoints", () => {
+  void it('forwards explicit scene-view and DTT options only to exact opted-in TV',async()=>{
+    let captured:any;
+    const foundryClient=fake(((type:string,payload:any,options:any)=>{
+      captured={type,payload,options};return Promise.resolve({...acknowledgement(payload.correlationId),viewport:payload.viewport,applied:{preload:false,viewport:true}});
+    }) as FoundryClient['call']);
+    const viewport={x:100,y:200,scale:0.5};
+    await clientReadinessEndpointDescriptors[2]!.handler({clientId:'tv-client',userId:'tv',correlationId:'forest-dtt-1',sceneId:'scene',viewport,viewScene:true,digitalTabletop:true},{foundryClient} as any);
+    assert.equal(captured.options.clientId,'tv-client');assert.equal(captured.payload.viewScene,true);assert.equal(captured.payload.digitalTabletop,true);
+    assert.equal(captured.options.requestingUserId,'gm');
+  });
+  void it('preserves authenticated CSS display evidence through the strict output schema', async()=>{
+    const foundryClient=fake((()=>Promise.resolve({...acknowledgement('display-0001'),display:{cssWidth:1920,cssHeight:1080,devicePixelRatio:2,canvasReady:true}})) as FoundryClient['call']);
+    const result=await clientReadinessEndpointDescriptors[1]!.handler({clientId:'tv-client',correlationId:'display-0001'},{foundryClient} as any) as any;
+    assert.deepEqual(result.display,{cssWidth:1920,cssHeight:1080,devicePixelRatio:2,canvasReady:true});
+  });
   void it("requires receiver acknowledgement and returns negotiated client identity", async () => {
     let captured: any;
     const foundryClient = fake(((type: string, payload: unknown, options: unknown) => {
@@ -243,5 +264,274 @@ void describe("client readiness endpoints", () => {
       (error: unknown) => (error as { code?: string }).code === "UNSUPPORTED_VERSION",
     );
     assert.equal(calls, 0);
+  });
+
+  void it("adopts an absent exact GM identity under a bounded reservation", async () => {
+    const desiredClientId = "e54cdc0c-74a8-4548-96b2-27d3a1021f7d";
+    const exactGm = {
+      ...gm,
+      clientId: "6489d1c8-8937-42ce-8126-ef036fdfadd5",
+      capabilities: [...gm.capabilities, "clientIdentityAdopt"],
+    };
+    let reserved: string | undefined;
+    let released: string | undefined;
+    const foundryClient = fake(
+      ((_type: string, payload: any) =>
+        Promise.resolve({
+          correlationId: payload.correlationId,
+          acknowledged: true,
+          replayed: false,
+          acknowledgedAt: "now",
+          clientUserId: "gm",
+          executingClientId: exactGm.clientId,
+          adoptedClientId: desiredClientId,
+          reloadRequired: true,
+        })) as FoundryClient["call"],
+      [exactGm],
+    );
+    foundryClient.reserveClientIdentity = (desired) => {
+      reserved = desired;
+      return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    };
+    foundryClient.releaseClientIdentity = (desired) => {
+      released = desired;
+    };
+    const result = (await clientReadinessEndpointDescriptors[4]!.handler(
+      {
+        correlationId: "identity-adopt-server-0001",
+        expectedClientId: exactGm.clientId,
+        desiredClientId,
+        timeoutMs: 1000,
+      },
+      { foundryClient },
+    )) as any;
+    assert.equal(result.adoptedClientId, desiredClientId);
+    assert.equal(reserved, desiredClientId);
+    assert.equal(released, undefined, "successful reservations survive until matching reconnect");
+  });
+
+  void it("refuses connected identity collisions before dispatch", async () => {
+    const desired = { ...gm, clientId: "e54cdc0c-74a8-4548-96b2-27d3a1021f7d" };
+    const exactGm = {
+      ...gm,
+      clientId: "6489d1c8-8937-42ce-8126-ef036fdfadd5",
+      capabilities: [...gm.capabilities, "clientIdentityAdopt"],
+    };
+    let calls = 0;
+    await assert.rejects(
+      clientReadinessEndpointDescriptors[4]!.handler(
+        {
+          correlationId: "identity-adopt-server-0002",
+          expectedClientId: exactGm.clientId,
+          desiredClientId: desired.clientId,
+          timeoutMs: 1000,
+        },
+        {
+          foundryClient: fake(
+            (() => {
+              calls += 1;
+              return Promise.resolve({});
+            }) as FoundryClient["call"],
+            [exactGm, desired],
+          ),
+        },
+      ),
+      (error: unknown) => (error as { code?: string }).code === "IDEMPOTENCY_CONFLICT",
+    );
+    assert.equal(calls, 0);
+  });
+
+  void it("invokes identity adoption through strict REST and MCP registration", async () => {
+    const endpoint = clientReadinessEndpointDescriptors[4]!;
+    const expectedClientId = "6489d1c8-8937-42ce-8126-ef036fdfadd5";
+    const desiredClientId = "e54cdc0c-74a8-4548-96b2-27d3a1021f7d";
+    const exactGm = {
+      ...gm,
+      clientId: expectedClientId,
+      capabilities: [...gm.capabilities, "clientIdentityAdopt"],
+    };
+    const foundryClient = fake(
+      ((
+        type: string,
+        payload: { correlationId: string; identityHandoffProof: string },
+        options: { auditPayloadSummary: unknown },
+      ) => {
+        assert.equal(type, "clientIdentityAdopt");
+        assert.match(payload.identityHandoffProof, /^[A-Za-z0-9_-]{43}$/);
+        assert.equal(
+          JSON.stringify(options.auditPayloadSummary).includes(payload.identityHandoffProof),
+          false,
+        );
+        return Promise.resolve({
+          correlationId: payload.correlationId,
+          acknowledged: true,
+          replayed: false,
+          acknowledgedAt: "now",
+          clientUserId: "gm",
+          executingClientId: expectedClientId,
+          adoptedClientId: desiredClientId,
+          reloadRequired: true,
+        });
+      }) as FoundryClient["call"],
+      [exactGm],
+    );
+    const input = {
+      correlationId: "identity-adopt-transport-0001",
+      expectedClientId,
+      desiredClientId,
+      timeoutMs: 1000,
+    };
+
+    const app = express();
+    app.use(express.json());
+    const router = express.Router();
+    mountRestEndpoints(router, [endpoint]);
+    app.use("/api", router);
+    app.locals["foundryClient"] = foundryClient;
+    const rest = await request(app).post("/api/clients/adopt-gm-identity").send(input);
+    assert.equal(rest.status, 200);
+    assert.equal(rest.body.adoptedClientId, desiredClientId);
+    assert.equal("identityHandoffProof" in rest.body, false);
+
+    let callback: ((args: unknown) => Promise<{ structuredContent?: object }>) | undefined;
+    const mcp = {
+      registerTool: (
+        name: string,
+        _config: unknown,
+        handler: (args: unknown) => Promise<{ structuredContent?: object }>,
+      ) => {
+        assert.equal(name, "foundry_adopt_gm_client_identity");
+        callback = handler;
+        return {};
+      },
+    } as unknown as McpServer;
+    registerMcpTools(mcp, [endpoint], foundryClient);
+    assert.ok(callback);
+    const invoked = await callback(input);
+    assert.equal(
+      (invoked.structuredContent as { adoptedClientId?: string }).adoptedClientId,
+      desiredClientId,
+    );
+    await assert.rejects(() => callback!({ ...input, extra: true }));
+  });
+
+  void it("routes enrolled TV identity adoption only through authenticated GM authority", async () => {
+    const currentTv = {
+      ...tv,
+      clientId: "6489d1c8-8937-42ce-8126-ef036fdfadd5",
+      userId: "tv-user",
+      capabilities: [...tv.capabilities, "clientEnrolledIdentityAdopt"],
+    };
+    const desiredClientId = "9f325991-49f6-420d-9120-5c428a39d8d2";
+    let command: string | undefined;
+    let requestingUserId: string | null | undefined;
+    const foundryClient = fake(
+      ((type: string, payload: any, options: any) => {
+        command = type;
+        requestingUserId = options.requestingUserId;
+        return Promise.resolve({
+          correlationId: payload.correlationId,
+          acknowledged: true,
+          replayed: false,
+          acknowledgedAt: "now",
+          clientUserId: "tv-user",
+          executingClientId: currentTv.clientId,
+          adoptedClientId: desiredClientId,
+          reloadRequired: true,
+        });
+      }) as FoundryClient["call"],
+      [gm, currentTv],
+    );
+    const result = (await clientReadinessEndpointDescriptors[5]!.handler(
+      {
+        correlationId: "identity-adopt-tv-server-0001",
+        expectedClientId: currentTv.clientId,
+        desiredClientId,
+        expectedUserId: "tv-user",
+        expectedLane: "tv",
+        timeoutMs: 1000,
+      },
+      { foundryClient },
+    )) as any;
+    assert.equal(command, "clientEnrolledIdentityAdopt");
+    assert.equal(requestingUserId, "gm");
+    assert.equal(result.adoptedClientId, desiredClientId);
+
+    await assert.rejects(
+      clientReadinessEndpointDescriptors[5]!.handler(
+        {
+          correlationId: "identity-adopt-tv-server-0002",
+          expectedClientId: currentTv.clientId,
+          desiredClientId,
+          expectedUserId: "different-user",
+          expectedLane: "tv",
+          timeoutMs: 1000,
+        },
+        { foundryClient },
+      ),
+      (error: unknown) => (error as { code?: string }).code === "NOT_CONNECTED",
+    );
+  });
+
+  void it("invokes enrolled identity adoption through strict REST and MCP schemas", async () => {
+    const endpoint = clientReadinessEndpointDescriptors[5]!;
+    const currentTv = {
+      ...tv,
+      clientId: "6489d1c8-8937-42ce-8126-ef036fdfadd5",
+      userId: "tv-user",
+      capabilities: [...tv.capabilities, "clientEnrolledIdentityAdopt"],
+    };
+    const desiredClientId = "9f325991-49f6-420d-9120-5c428a39d8d2";
+    const foundryClient = fake(
+      ((_type: string, payload: any) =>
+        Promise.resolve({
+          correlationId: payload.correlationId,
+          acknowledged: true,
+          replayed: false,
+          acknowledgedAt: "now",
+          clientUserId: "tv-user",
+          executingClientId: currentTv.clientId,
+          adoptedClientId: desiredClientId,
+          reloadRequired: true,
+        })) as FoundryClient["call"],
+      [gm, currentTv],
+    );
+    const input = {
+      correlationId: "identity-adopt-tv-transport-0001",
+      expectedClientId: currentTv.clientId,
+      desiredClientId,
+      expectedUserId: "tv-user",
+      expectedLane: "tv",
+      timeoutMs: 1000,
+    };
+    const app = express();
+    app.use(express.json());
+    const router = express.Router();
+    mountRestEndpoints(router, [endpoint]);
+    app.use("/api", router);
+    app.locals["foundryClient"] = foundryClient;
+    const rest = await request(app).post("/api/clients/adopt-enrolled-identity").send(input);
+    assert.equal(rest.status, 200);
+
+    let callback: ((args: unknown) => Promise<{ structuredContent?: object }>) | undefined;
+    const mcp = {
+      registerTool: (
+        name: string,
+        _config: unknown,
+        handler: (args: unknown) => Promise<{ structuredContent?: object }>,
+      ) => {
+        assert.equal(name, "foundry_adopt_enrolled_client_identity");
+        callback = handler;
+        return {};
+      },
+    } as unknown as McpServer;
+    registerMcpTools(mcp, [endpoint], foundryClient);
+    assert.ok(callback);
+    const invoked = await callback(input);
+    assert.equal(
+      (invoked.structuredContent as { adoptedClientId?: string }).adoptedClientId,
+      desiredClientId,
+    );
+    await assert.rejects(() => callback!({ ...input, expectedLane: "gm" }));
   });
 });

@@ -30,7 +30,7 @@
 // redundant.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { format, resolveConfig } from "prettier";
 import { z, type ZodType } from "zod";
@@ -237,7 +237,7 @@ function buildOperation(
   };
 }
 
-function buildOpenApiDocument(): JsonSchemaObject {
+export function buildOpenApiDocument(): JsonSchemaObject {
   const paths: Record<string, JsonSchemaObject> = {};
 
   for (const descriptor of allEndpointDescriptors) {
@@ -517,4 +517,5 @@ async function main(): Promise<void> {
   console.log(`Wrote ${mcpDocsPath}`);
 }
 
-await main();
+const invokedPath = process.argv[1];
+if (invokedPath && pathToFileURL(invokedPath).href === import.meta.url) await main();

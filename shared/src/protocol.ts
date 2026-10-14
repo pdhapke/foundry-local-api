@@ -7,6 +7,8 @@
 
 /** A request sent over the bridge WebSocket, in either direction. */
 export interface BridgeRequest<TPayload = unknown> {
+  /** Diagnostic correlation only; never execution authority. */
+  traceId?: string;
   /** Correlation ID, unique per in-flight request. */
   id: string;
   /** Command name, looked up in the receiving side's command registry. */
@@ -16,7 +18,14 @@ export interface BridgeRequest<TPayload = unknown> {
 }
 
 /** A successful reply to a {@link BridgeRequest} with the same `id`. */
+export interface NativeLatency {
+  traceId: string; nativeExecutionMs: number; nativeStartMs: number; nativeEndMs: number; clockId: string;
+  spans?: { stage: string; durationMs: number }[];
+  instrumentationBuild?: string;
+}
+export interface CommandTiming { record(stage: string, durationMs: number): void }
 export interface BridgeSuccessResponse<TResult = unknown> {
+  latency?: NativeLatency;
   id: string;
   ok: true;
   result: TResult;
@@ -35,6 +44,7 @@ export interface BridgeError {
 
 /** A failed reply to a {@link BridgeRequest} with the same `id`. */
 export interface BridgeErrorResponse {
+  latency?: NativeLatency;
   id: string;
   ok: false;
   error: BridgeError;

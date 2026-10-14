@@ -24,6 +24,12 @@ export interface BridgeVersionInfo {
 /** First application message sent by every module client after opening the socket. */
 export interface BridgeHelloMessage {
   kind: "hello";
+  /** Browser-tab identity used only to reject concurrent same-profile claimants. */
+  browserSessionId: string;
+  /** One-time, session-scoped proof for an exact-client identity handoff. */
+  identityHandoffProof?: string | undefined;
+  /** Exact active world claimed by the client and independently verified for the GM lane. */
+  worldId?: string | undefined;
   identity: BridgeClientIdentity;
   versions: BridgeVersionInfo;
   capabilities: string[];
@@ -54,6 +60,10 @@ export type ProtocolErrorCode =
   | "NO_CONNECTED_GM"
   | "ENROLLMENT_REQUIRED"
   | "ENROLLMENT_INVALID"
+  | "FOUNDRY_SESSION_REQUIRED"
+  | "FOUNDRY_SESSION_REJECTED"
+  | "FOUNDRY_SESSION_UNAVAILABLE"
+  | "FOUNDRY_IDENTITY_MISMATCH"
   | "ENROLLMENT_EXPIRED"
   | "ENROLLMENT_REPLAYED"
   | "ENROLLMENT_USER_MISMATCH"

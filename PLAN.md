@@ -146,10 +146,12 @@ is the durable, load-bearing summary for anyone building Phase 38+.
 - **3 — Bridge Transport Protocol & Server-Side WS Gateway.** `/bridge` WS
   gateway; `FoundryClient.call(command, payload)` is a promise-based,
   correlation-id round-trip with a 10s default timeout.
-- **4 — Security Hardening Pass 1.** Static `.env` API key, fail-closed on
-  startup if unset; CORS deny-by-default allow-list; rate limiting; `zod`
-  validation wired into every route from here on; the `/bridge` WS itself
-  gated by the same key via `?apiKey=`.
+- **4 — Security Hardening Pass 1 (historical, superseded for `/bridge`).**
+  Static `.env` API key, fail-closed on startup if unset; CORS
+  deny-by-default allow-list; rate limiting; `zod` validation wired into every
+  route from here on. The original `/bridge?apiKey=` design has been retired:
+  the API key now remains REST/MCP-only, while each GM bridge socket is
+  independently authenticated with its existing Foundry session.
 - **5 — MCP Server Interface Scaffold.** MCP server sharing the same
   `FoundryClient`. **Established the endpoint-descriptor pattern** —
   `{name, method, path, inputSchema, description, handler}` generates both

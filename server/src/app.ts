@@ -2,6 +2,8 @@
 // `http.listen` + process lifecycle) so the app itself is trivially
 // testable later (e.g. with `supertest`) without binding a real port.
 import cors from "cors";
+import { latencyDiagnostics } from "./latency-trace.js";
+import { startupBuildIdentity } from "./build-identity.js";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 
@@ -10,6 +12,7 @@ import type { FoundryEventBus } from "./events/event-bus.js";
 import type { IntegrationManager } from "./integrations/manager.js";
 import type { FoundationRuntime } from "./foundations/runtime.js";
 import { mountMcpHttp } from "./mcp/http-transport.js";
+import type { ExtensionRoute } from "./extensions/host.js";
 import { createApiKeyAuth } from "./middleware/auth.js";
 import { apiRouter } from "./routes/api.js";
 import { readPackageVersion } from "./version.js";
@@ -66,6 +69,8 @@ interface ErrorResponseBody {
 }
 
 export interface CreateAppOptions {
+  /** Explicit extension routes own their authentication and bounded parsing. */
+  extensionRoutes?: readonly ExtensionRoute[];
   isDevelopment: boolean;
   requestLogger?: RequestLogger;
   /** Static API key required on every `/api/*` request (Phase 4). */
@@ -105,6 +110,14 @@ export function createApp(options: CreateAppOptions): Express {
   const app = express();
 
   app.disable("x-powered-by");
+  // Extensions must enforce their own authorization and bounded parsing. Their
+  // routes run before shared parsers and request logging to protect private data.
+  for (const route of options.extensionRoutes ?? []) {
+    app.use((request, response, next) => {
+      if (request.path === route.path) route.handler(request, response, next);
+      else next();
+    });
+  }
   // Phase 24's file-upload endpoint carries a base64-encoded file (~33%
   // larger than the raw file) in its JSON body, which needs a much higher
   // limit than every other route. Phase 29 audit: raising the limit to
@@ -145,6 +158,8 @@ export function createApp(options: CreateAppOptions): Express {
       status: "ok",
       uptime: process.uptime(),
       version: readPackageVersion(),
+      latency: latencyDiagnostics(),
+      build: startupBuildIdentity,
     });
   });
 
@@ -231,10 +246,16 @@ export function createApp(options: CreateAppOptions): Express {
     const message =
       err instanceof HttpError || status < 500 ? (err as Error).message : "Internal server error";
 
-    if (isDevelopment) {
-      console.error(err);
+    if (err instanceof HttpError) {
+      // Keep the user-owned HTTP-error audit signal, but never echo an
+      // endpoint's message: validation failures can be derived from
+      // caller-controlled input and may contain an API key or one-time
+      // enrollment credential.
+      console.error(`${status} ${code ?? "HTTP_ERROR"}`);
+    } else if (isDevelopment) {
+      console.error(err instanceof Error ? err.name : "Unknown error");
     } else {
-      console.error(err instanceof Error ? err.message : "Unknown error");
+      console.error("Internal server error");
     }
 
     const body: ErrorResponseBody = {

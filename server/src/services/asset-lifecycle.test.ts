@@ -143,6 +143,8 @@ void describe("asset lifecycle", () => {
     });
     const info = await service.inspect({ root: "data", path: "fixtures/run1/a.png" });
     assert.equal(info.decodable, false);
+    assert.equal(await service.exists({ root: "data", path: "fixtures/run1/a.png" }), true);
+    assert.equal(await service.exists({ root: "data", path: "fixtures/run1/missing.png" }), false);
     await assert.rejects(
       service.move(
         {

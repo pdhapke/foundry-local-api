@@ -14,7 +14,7 @@ import { registerBridgeEnrollmentQuery } from "./bridge-enrollment.js";
 
 function installGlobals(consent: boolean) {
   const settings = new Map<string, unknown>([["foundry-local-api.allowRemoteControl", consent]]);
-  Object.defineProperty(globalThis, "sessionStorage", {
+  Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
     value: {
       values: new Map<string, string>([["foundry-local-api.clientId", "player-client"]]),

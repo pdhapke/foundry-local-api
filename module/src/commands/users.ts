@@ -67,8 +67,31 @@ function requireGM(action: string): void {
   }
 }
 
+/**
+ * User source data deliberately represents every password as an empty string.
+ * Foundry's normal Document diff therefore drops an explicit request to clear
+ * a password unless diffing is disabled. Keep that exception entirely inside
+ * this GM-only command: callers cannot select update options, and ordinary
+ * User updates retain Foundry's default diff behavior.
+ */
+function userUpdateOptions(changes: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!Object.hasOwn(changes, "password")) return undefined;
+  if (typeof changes["password"] !== "string") {
+    throw new Error("A User password update must be a string.");
+  }
+  return { diff: false };
+}
+
+function safeUserData(user: { toObject(): Record<string, unknown> }): DocumentData {
+  const data = user.toObject();
+  // Do not rely on Foundry's current blank-password projection as the API's
+  // secrecy boundary. Password material is never useful in a response.
+  delete data["password"];
+  return data;
+}
+
 registerCommand(USER_COMMANDS.GET, ({ userId }: UserIdInput): DocumentData =>
-  requireUser(userId).toObject(),
+  safeUserData(requireUser(userId)),
 );
 
 registerCommand(USER_COMMANDS.CREATE, async ({ data }: UserCreateInput): Promise<DocumentData> => {
@@ -77,7 +100,7 @@ registerCommand(USER_COMMANDS.CREATE, async ({ data }: UserCreateInput): Promise
   if (!created) {
     throw new Error("Failed to create user");
   }
-  return created.toObject();
+  return safeUserData(created);
 });
 
 registerCommand(
@@ -85,8 +108,8 @@ registerCommand(
   async ({ userId, changes }: UserUpdateInput): Promise<DocumentData> => {
     requireGM("update a user");
     const user = requireUser(userId);
-    await user.update(changes);
-    return user.toObject();
+    await user.update(changes, userUpdateOptions(changes));
+    return safeUserData(user);
   },
 );
 
