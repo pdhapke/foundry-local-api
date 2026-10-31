@@ -38,6 +38,15 @@ export interface ApiExtensionContext {
     name: string,
     handler: (payload: unknown, metadata: FoundryClientEventMetadata) => void | Promise<void>,
   ): () => void;
+  /**
+   * Watches a forwarded bridge event without consuming it. Unlike
+   * {@link registerEventHandler}, observers never hide the event from the
+   * event bus, SSE stream, or other observers. Several may watch one name.
+   */
+  observeEvent(
+    name: string,
+    handler: (payload: unknown, metadata: FoundryClientEventMetadata) => void | Promise<void>,
+  ): () => void;
   onConnectionEstablished(handler: (client: ConnectedBridgeClient) => void): () => void;
   onConnectionLost(handler: (client: ConnectedBridgeClient) => void): () => void;
   registerRoute(path: string, handler: RequestHandler): () => void;
@@ -64,6 +73,10 @@ export class ApiExtensionHost {
   private readonly events = new Map<
     string,
     (payload: unknown, metadata: FoundryClientEventMetadata) => void | Promise<void>
+  >();
+  private readonly observers = new Map<
+    string,
+    Set<(payload: unknown, metadata: FoundryClientEventMetadata) => void | Promise<void>>
   >();
   private readonly routes = new Map<string, RequestHandler>();
   private readonly disposers: (() => void)[] = [];
@@ -134,6 +147,22 @@ export class ApiExtensionHost {
           if (this.events.get(name) === handler) this.events.delete(name);
         });
       },
+      observeEvent: (name, handler) => {
+        requireOpen();
+        if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(name) || typeof handler !== "function")
+          throw new Error("Extension event observer is invalid.");
+        let handlers = this.observers.get(name);
+        if (!handlers) {
+          handlers = new Set();
+          this.observers.set(name, handlers);
+        }
+        handlers.add(handler);
+        return own(() => {
+          const current = this.observers.get(name);
+          current?.delete(handler);
+          if (current?.size === 0) this.observers.delete(name);
+        });
+      },
       onConnectionEstablished: (handler) => {
         requireOpen();
         return own(options.gateway.onConnectionEstablished(handler));
@@ -178,6 +207,19 @@ export class ApiExtensionHost {
       },
     }));
   }
+  /** Notifies non-consuming observers. Never throws and never exposes payloads in errors. */
+  notifyObservers(name: string, payload: unknown, metadata: FoundryClientEventMetadata): void {
+    if (this.closed) return;
+    const handlers = this.observers.get(name);
+    if (!handlers) return;
+    for (const handler of [...handlers]) {
+      try {
+        void Promise.resolve(handler(payload, metadata)).catch(() => undefined);
+      } catch {
+        /* Extension errors never expose payloads. */
+      }
+    }
+  }
   consumeEvent(name: string, payload: unknown, metadata: FoundryClientEventMetadata): boolean {
     const handler = !this.closed && this.events.get(name);
     if (!handler) return false;
@@ -210,6 +252,7 @@ export class ApiExtensionHost {
     this.closed = true;
     // Revoke route/event access before awaiting extension lifecycle cleanup.
     this.events.clear();
+    this.observers.clear();
     this.routes.clear();
     const handlers = [...this.shutdownHandlers];
     let disposalFailed = false;

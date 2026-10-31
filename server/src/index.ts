@@ -189,6 +189,7 @@ export async function main(): Promise<void> {
   }
 
   foundryClient.onEvent((event, payload, metadata) => {
+    extensions.notifyObservers(event, payload, metadata);
     if (extensions.consumeEvent(event, payload, metadata)) return;
     if (event !== MOVEMENT_EVENT_NAME) {
       eventBus.publish(event, payload);

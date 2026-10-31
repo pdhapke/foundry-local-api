@@ -13,6 +13,14 @@ log that documents every non-obvious design decision made along the way.
 
 ## [Unreleased]
 
+### Extension event observers
+
+- Added `observeEvent(name, handler)` to the API extension context. Observers
+  see every forwarded bridge event (for example `createChatMessage`) without
+  consuming it, so the event still reaches the event bus, SSE, and the events
+  MCP tool. Multiple observers per event are allowed; handler errors are
+  isolated and observers are released on extension shutdown.
+
 ### MCP requirements extension — source integrated, acceptance open
 
 - Added explicit negotiated GM/player/TV bridge lanes, typed safe protocol
