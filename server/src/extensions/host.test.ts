@@ -166,3 +166,29 @@ void test("one registration cleanup failure cannot skip extension-owned shutdown
   assert.equal(stopped, true);
   assert.throws(() => host.context.call("fixtureUnbind", {}, {}), /closed/);
 });
+
+void test("event observers see forwarded events without consuming them", async () => {
+  const { host } = fixture();
+  const metadata = { clientId: "client", userId: "gm", lane: "gm" as const };
+  const seen: string[] = [];
+  const stopFirst = host.context.observeEvent("createChatMessage", (payload) => {
+    seen.push(`first:${String((payload as { id?: string }).id)}`);
+  });
+  host.context.observeEvent("createChatMessage", () => {
+    throw new Error("synthetic observer failure");
+  });
+  host.context.observeEvent("createChatMessage", (payload) => {
+    seen.push(`second:${String((payload as { id?: string }).id)}`);
+  });
+  host.notifyObservers("createChatMessage", { id: "m1" }, metadata);
+  assert.deepEqual(seen, ["first:m1", "second:m1"]);
+  // Observing never claims the event, so the event bus still publishes it.
+  assert.equal(host.consumeEvent("createChatMessage", { id: "m1" }, metadata), false);
+  stopFirst();
+  host.notifyObservers("createChatMessage", { id: "m2" }, metadata);
+  assert.deepEqual(seen, ["first:m1", "second:m1", "second:m2"]);
+  assert.throws(() => host.context.observeEvent("bad name!", () => undefined), /invalid/);
+  await host.shutdown();
+  host.notifyObservers("createChatMessage", { id: "m3" }, metadata);
+  assert.equal(seen.length, 3);
+});
