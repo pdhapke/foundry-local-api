@@ -5,12 +5,13 @@
 // (server/src/endpoints/scenes.ts) and the module's scene command handlers
 // (module/src/commands/scenes.ts).
 
-// Phase 46 added fog-of-war reset (`RESET_FOG`), wrapping Foundry's own
-// `Scene#resetFog()`. Foundry's implementation resolves purely off the
-// target Scene document's own id (it clears that scene's FogExploration
-// records, not anything tied to whichever scene is currently viewed), so
-// this operates on any scene by id, same as `ACTIVATE`/`GET_DIMENSIONS`
-// above — no "must be the active scene" restriction was needed.
+// Phase 46 added fog-of-war reset (`RESET_FOG`). It emits Foundry's own
+// GM-only `resetFog` socket event (the one `canvas.fog.reset()` sends) for
+// the target Scene id; Foundry's server deletes that Scene's FogExploration
+// records for every user and Level and tells connected clients to drop
+// their in-memory fog. It is keyed purely off the Scene id (not whichever
+// scene is currently viewed), so this operates on any scene by id, same as
+// `ACTIVATE`/`GET_DIMENSIONS` — no "must be the active scene" restriction was needed.
 export const SCENE_COMMANDS = {
   ACTIVATE: "sceneActivate",
   ALIGN_GRID: "sceneAlignGrid",
@@ -67,9 +68,13 @@ export interface SceneIdInput {
   id: string;
 }
 
-/** `Scene#resetFog()` itself resolves with no meaningful data (it's a fire-and-forget socket request); this just confirms which scene was targeted. */
+/** Foundry's `resetFog` socket event is fire-and-forget; the command verifies it by re-reading the world database. */
 export interface SceneResetFogResult {
   id: string;
+  /** FogExploration documents (all users, all Levels) that existed for the Scene before the reset. */
+  deletedDocumentCount: number;
+  /** FogExploration documents still present for the Scene after the reset; always 0 on success. */
+  remainingDocumentCount: number;
 }
 
 /** A scene's grid config plus its computed pixel dimensions. */

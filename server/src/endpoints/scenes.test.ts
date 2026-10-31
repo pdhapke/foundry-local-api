@@ -194,14 +194,18 @@ void describe("Phase 11 scenes", () => {
     const app = buildApp(((type: string, payload: SceneIdInput) => {
       assert.equal(type, "sceneResetFog");
       assert.deepEqual(payload, { id: "s1" });
-      const result: SceneResetFogResult = { id: "s1" };
+      const result: SceneResetFogResult = {
+        id: "s1",
+        deletedDocumentCount: 2,
+        remainingDocumentCount: 0,
+      };
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
     const res = await request(app).post("/api/scenes/s1/reset-fog").set(API_KEY_HEADER, API_KEY);
 
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { id: "s1" });
+    assert.deepEqual(res.body, { id: "s1", deletedDocumentCount: 2, remainingDocumentCount: 0 });
   });
 
   void it("rejects a request with a missing/incorrect API key with 401", async () => {

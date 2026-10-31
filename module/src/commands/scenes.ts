@@ -21,6 +21,7 @@ import {
 } from "@foundry-local-api/shared";
 
 import { registerCommand } from "../command-registry.js";
+import { queryFogDocuments } from "../fog-documents.js";
 
 function requireScene(id: string): FoundryScene {
   const collection = game.collections.get("Scene") as Map<string, FoundryScene> | undefined;
@@ -196,14 +197,51 @@ registerCommand(SCENE_COMMANDS.ACTIVATE, async ({ id }: SceneIdInput): Promise<D
   return scene.toObject();
 });
 
-registerCommand(
-  SCENE_COMMANDS.RESET_FOG,
-  async ({ id }: SceneIdInput): Promise<SceneResetFogResult> => {
-    const scene = requireScene(id);
-    await scene.resetFog();
-    return { id };
-  },
-);
+const RESET_FOG_TIMEOUT_MS = 10_000;
+const RESET_FOG_POLL_MS = 100;
+
+/**
+ * Reset explored fog of war for every user (and, on Foundry v14+, every Level) of one Scene.
+ *
+ * Foundry has no `Scene#resetFog()`; `canvas.fog.reset()` only emits the GM-only `resetFog` socket
+ * event for the *viewed* Scene. The server handler deletes every FogExploration for the Scene and
+ * broadcasts `resetFog` so connected clients drop their in-memory fog. The event has no
+ * acknowledgement, so the result is verified by re-reading the world database until no fog
+ * documents remain for the Scene.
+ */
+export async function resetSceneFog(
+  { id }: SceneIdInput,
+  { timeoutMs = RESET_FOG_TIMEOUT_MS, pollMs = RESET_FOG_POLL_MS } = {},
+): Promise<SceneResetFogResult> {
+  if (!game.user.isGM) {
+    throw new ProtocolError({
+      code: "PERMISSION_DENIED",
+      message: "Resetting fog of war requires an executing GM client.",
+      retryable: false,
+    });
+  }
+  requireScene(id);
+  const before = await queryFogDocuments(id);
+  game.socket.emit("resetFog", id);
+  const deadline = Date.now() + timeoutMs;
+  let remaining = before.length;
+  for (;;) {
+    remaining = (await queryFogDocuments(id)).length;
+    if (remaining === 0 || Date.now() >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  if (remaining > 0) {
+    throw new ProtocolError({
+      code: "INCOMPLETE_RESULT",
+      message: "Foundry did not delete every FogExploration document for the Scene.",
+      retryable: true,
+      details: { beforeCount: before.length, remainingCount: remaining },
+    });
+  }
+  return { id, deletedDocumentCount: before.length, remainingDocumentCount: 0 };
+}
+
+registerCommand(SCENE_COMMANDS.RESET_FOG, (input: SceneIdInput) => resetSceneFog(input));
 
 registerCommand(SCENE_COMMANDS.ALIGN_GRID, alignSceneGrid);
 

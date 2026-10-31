@@ -3104,8 +3104,8 @@
     "/api/scenes/fog": {
       "get": {
         "operationId": "foundry_get_scene_fog",
-        "summary": "Reads the exact FogExploration state and revision for one Scene and user through the connected GM lane.",
-        "description": "Reads the exact FogExploration state and revision for one Scene and user through the connected GM lane.",
+        "summary": "Reads the exact persisted FogExploration state and revision for one Scene, user, and (Foundry v14+) Scene Level through the connected GM lane.",
+        "description": "Reads the exact persisted FogExploration state and revision for one Scene, user, and (Foundry v14+) Scene Level through the connected GM lane. level defaults to the Scene's only Level, else the GM's viewed Level, else the initial Level.",
         "tags": ["scenes"],
         "security": [{ "apiKeyAuth": [] }],
         "parameters": [
@@ -3120,6 +3120,12 @@
             "in": "query",
             "required": true,
             "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
           }
         ],
         "responses": {
@@ -3132,8 +3138,8 @@
       },
       "post": {
         "operationId": "foundry_update_scene_fog",
-        "summary": "Revision-checked, idempotent replace or explicit merge of one user's FogExploration.",
-        "description": "Revision-checked, idempotent replace or explicit merge of one user's FogExploration. Merge preserves the explored texture unless supplied; removeDocument restores a previously absent record.\n\n**Warning:** this operation is destructive/irreversible (see MCP tool annotations).",
+        "summary": "Revision-checked, idempotent replace or explicit merge of one user's FogExploration on one Scene Level (same level default as foundry_get_scene_fog).",
+        "description": "Revision-checked, idempotent replace or explicit merge of one user's FogExploration on one Scene Level (same level default as foundry_get_scene_fog). Merge preserves the explored texture unless supplied; removeDocument restores a previously absent record.\n\n**Warning:** this operation is destructive/irreversible (see MCP tool annotations).",
         "tags": ["scenes"],
         "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
@@ -3145,6 +3151,7 @@
                 "properties": {
                   "sceneId": { "type": "string", "minLength": 1, "maxLength": 128 },
                   "userId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "level": { "type": "string", "minLength": 1, "maxLength": 128 },
                   "mode": { "type": "string", "enum": ["replace", "merge"] },
                   "state": {
                     "type": "object",
@@ -8568,8 +8575,8 @@
     "/api/scenes/{id}/reset-fog": {
       "post": {
         "operationId": "foundry_reset_scene_fog",
-        "summary": "Clears a scene's explored fog-of-war for every connected client.",
-        "description": "Clears a scene's explored fog-of-war for every connected client.",
+        "summary": "Clears a scene's explored fog-of-war for every user and Level through Foundry's own resetFog flow, then verifies no FogExploration documents remain.",
+        "description": "Clears a scene's explored fog-of-war for every user and Level through Foundry's own resetFog flow, then verifies no FogExploration documents remain. Requires a GM client.",
         "tags": ["scenes"],
         "security": [{ "apiKeyAuth": [] }],
         "parameters": [

@@ -11,9 +11,17 @@ export interface FogExplorationState {
 export interface FogExplorationGetInput {
   sceneId: string;
   userId: string;
+  /**
+   * Foundry v14+ stores one FogExploration per Scene Level. Omit to use the Scene's only Level,
+   * else the GM's viewed Level, else the Scene's initial Level. Ignored (must be omitted) on
+   * Foundry versions without Scene Levels.
+   */
+  level?: string | undefined;
 }
 
-export interface FogExplorationSnapshot extends FogExplorationGetInput {
+export interface FogExplorationSnapshot extends Omit<FogExplorationGetInput, "level"> {
+  /** The resolved Scene Level the snapshot belongs to; null on Foundry versions without Levels. */
+  level: string | null;
   exists: boolean;
   documentId: string | null;
   revision: string;

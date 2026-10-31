@@ -109,7 +109,8 @@ const alignGridDescriptor: EndpointDescriptor<SceneGridAlignmentInput, SceneGrid
 
 const resetFogDescriptor: EndpointDescriptor<SceneIdInput, SceneResetFogResult> = {
   name: "foundry_reset_scene_fog",
-  description: "Clears a scene's explored fog-of-war for every connected client.",
+  description:
+    "Clears a scene's explored fog-of-war for every user and Level through Foundry's own resetFog flow, then verifies no FogExploration documents remain. Requires a GM client.",
   method: "post",
   path: "/scenes/:id/reset-fog",
   inputSchema: idSchema,

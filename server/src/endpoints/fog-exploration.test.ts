@@ -65,6 +65,36 @@ void describe("fog exploration endpoints", () => {
     assert.equal((calls[0]?.options as { clientId: string }).clientId, "gm-client");
   });
 
+  void it("accepts an optional Scene Level and rejects unknown fields", () => {
+    const schema = fogExplorationEndpointDescriptors[0]!.inputSchema!;
+    assert.deepEqual(schema.parse({ sceneId: "scene", userId: "player", level: "level-a" }), {
+      sceneId: "scene",
+      userId: "player",
+      level: "level-a",
+    });
+    assert.equal(
+      schema.safeParse({ sceneId: "scene", userId: "player", level: "" }).success,
+      false,
+    );
+    assert.equal(
+      schema.safeParse({ sceneId: "scene", userId: "player", floor: "level-a" }).success,
+      false,
+    );
+    const updateSchema = fogExplorationEndpointDescriptors[1]!.inputSchema!;
+    assert.equal(
+      updateSchema.safeParse({
+        sceneId: "scene",
+        userId: "player",
+        level: "level-a",
+        mode: "replace",
+        state: {},
+        expectedRevision: "fog-1",
+        idempotencyKey: "fog-endpoint-0002",
+      }).success,
+      true,
+    );
+  });
+
   void it("fails explicitly without a connected GM", async () => {
     await assert.rejects(
       async () =>

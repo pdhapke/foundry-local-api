@@ -46,7 +46,6 @@ const scene = {
     return scene;
   },
   activate: async () => scene,
-  resetFog: async () => undefined,
 };
 
 Object.assign(globalThis, {

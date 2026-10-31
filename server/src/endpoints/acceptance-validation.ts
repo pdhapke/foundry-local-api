@@ -227,6 +227,7 @@ const fogSnapshotSchema = z
   .object({
     sceneId: id,
     userId: id,
+    level: id.nullable().optional(),
     exists: z.boolean(),
     documentId: id.nullable(),
     revision: z.string().min(1).max(128),

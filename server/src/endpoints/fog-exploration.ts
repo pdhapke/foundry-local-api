@@ -23,7 +23,7 @@ const state = z
     positions: z.record(z.string().min(1).max(128), position).optional(),
   })
   .strict();
-const getSchema = z.object({ sceneId: id, userId: id }).strict();
+const getSchema = z.object({ sceneId: id, userId: id, level: id.optional() }).strict();
 const updateSchema = getSchema
   .extend({
     mode: z.enum(["replace", "merge"]),
@@ -59,7 +59,7 @@ export const fogExplorationEndpointDescriptors: AnyEndpointDescriptor[] = [
   {
     name: "foundry_get_scene_fog",
     description:
-      "Reads the exact FogExploration state and revision for one Scene and user through the connected GM lane.",
+      "Reads the exact persisted FogExploration state and revision for one Scene, user, and (Foundry v14+) Scene Level through the connected GM lane. level defaults to the Scene's only Level, else the GM's viewed Level, else the initial Level.",
     method: "get",
     path: "/scenes/fog",
     inputSchema: getSchema,
@@ -75,7 +75,7 @@ export const fogExplorationEndpointDescriptors: AnyEndpointDescriptor[] = [
   {
     name: "foundry_update_scene_fog",
     description:
-      "Revision-checked, idempotent replace or explicit merge of one user's FogExploration. Merge preserves the explored texture unless supplied; removeDocument restores a previously absent record.",
+      "Revision-checked, idempotent replace or explicit merge of one user's FogExploration on one Scene Level (same level default as foundry_get_scene_fog). Merge preserves the explored texture unless supplied; removeDocument restores a previously absent record.",
     method: "post",
     path: "/scenes/fog",
     inputSchema: updateSchema,
