@@ -332,3 +332,199 @@ void describe("fog exploration commands", () => {
     );
   });
 });
+
+interface DatabaseFogOptions {
+  levels: string[];
+  view?: string | null;
+  fogs?: Array<{ id: string; user: string; level: string; explored: string | null }>;
+}
+
+/**
+ * Foundry v14-shaped fixture: fog lives in the world database (reachable through
+ * `documentClass.database.get`), the GM client's FogExploration collection only caches its own
+ * documents, and the backend throws when it applies a mutation to an uncached document.
+ */
+function installDatabase({ levels, view = null, fogs = [] }: DatabaseFogOptions) {
+  const db = new Map<string, Record<string, unknown>>();
+  const collection = new Map<string, any>();
+  let created = 0;
+  const instance = (id: string) => {
+    const document: any = {
+      id,
+      toObject: () => structuredClone(db.get(id) ?? {}),
+      update: (changes: Record<string, unknown>) => {
+        if (collection.get(id) !== document) throw new Error("FogExploration is not cached");
+        Object.assign(db.get(id)!, structuredClone(changes));
+        return Promise.resolve(document);
+      },
+      delete: () => {
+        if (collection.get(id) !== document) throw new Error("FogExploration is not cached");
+        db.delete(id);
+        collection.delete(id);
+        return Promise.resolve(document);
+      },
+    };
+    return document;
+  };
+  for (const fog of fogs) {
+    db.set(fog.id, {
+      _id: fog.id,
+      scene: "scene",
+      user: fog.user,
+      level: fog.level,
+      explored: fog.explored,
+      positions: {},
+    });
+  }
+  const scene = {
+    id: "scene",
+    levels: new Map(levels.map((level) => [level, { id: level }])),
+    _view: view,
+    initialLevel: levels[0] ? { id: levels[0] } : null,
+    firstLevel: levels[0] ? { id: levels[0] } : null,
+  };
+  Object.defineProperty(globalThis, "game", {
+    configurable: true,
+    value: {
+      user: { id: "gm", isGM: true },
+      users: new Map([
+        ["gm", { id: "gm" }],
+        ["player", { id: "player" }],
+      ]),
+      collections: new Map<string, unknown>([
+        ["Scene", new Map([["scene", scene]])],
+        ["FogExploration", collection],
+      ]),
+    },
+  });
+  Object.defineProperty(globalThis, "CONFIG", {
+    configurable: true,
+    value: {
+      FogExploration: {
+        documentClass: {
+          create: (data: Record<string, unknown>, options?: Record<string, unknown>) => {
+            const id =
+              options?.["keepId"] === true && typeof data["_id"] === "string"
+                ? data["_id"]
+                : `fog-created-${++created}`;
+            db.set(id, {
+              explored: null,
+              positions: {},
+              ...structuredClone(data),
+              _id: id,
+            });
+            const document = instance(id);
+            collection.set(id, document);
+            return Promise.resolve(document);
+          },
+          database: {
+            get: (_documentClass: unknown, operation: Record<string, unknown>) => {
+              const query = (operation["query"] ?? {}) as Record<string, unknown>;
+              return Promise.resolve(
+                [...db.values()]
+                  .filter((source) =>
+                    Object.entries(query).every(([key, value]) => source[key] === value),
+                  )
+                  .map((source) => instance(source["_id"] as string)),
+              );
+            },
+          },
+        },
+      },
+    },
+  });
+  return { db, collection };
+}
+
+void describe("fog exploration on Foundry v14 (database-backed, per Level)", () => {
+  void it("reads and edits another user's fog that the GM client does not cache", async () => {
+    const { db, collection } = installDatabase({
+      levels: ["level-a"],
+      fogs: [{ id: "fog-1", user: "player", level: "level-a", explored: "seen" }],
+    });
+    const before = await getFogExploration({ sceneId: "scene", userId: "player" });
+    assert.equal(before.exists, true);
+    assert.equal(before.level, "level-a");
+    assert.equal(before.documentId, "fog-1");
+    assert.equal(before.state.explored, "seen");
+
+    const replaced = await updateFogExploration({
+      sceneId: "scene",
+      userId: "player",
+      mode: "replace",
+      state: { explored: "updated", positions: { p: { x: 1, y: 1 } } },
+      expectedRevision: before.revision,
+      idempotencyKey: "fog-v14-replace-0001",
+    });
+    assert.equal(replaced.after.state.explored, "updated");
+    assert.equal(db.get("fog-1")!["explored"], "updated");
+    assert.equal(collection.size, 0, "another user's fog is not left in the GM cache");
+
+    const removed = await updateFogExploration({
+      sceneId: "scene",
+      userId: "player",
+      mode: "replace",
+      state: { explored: null, positions: {} },
+      removeDocument: true,
+      expectedRevision: replaced.after.revision,
+      idempotencyKey: "fog-v14-remove-0001",
+    });
+    assert.equal(removed.after.exists, false);
+    assert.equal(db.size, 0);
+    assert.equal(collection.size, 0);
+  });
+
+  void it("creates another user's fog on the resolved Level without caching it", async () => {
+    const { db, collection } = installDatabase({ levels: ["level-a"] });
+    const before = await getFogExploration({ sceneId: "scene", userId: "player" });
+    assert.equal(before.exists, false);
+    const created = await updateFogExploration({
+      sceneId: "scene",
+      userId: "player",
+      mode: "merge",
+      state: { positions: { p: { x: 2, y: 3 } } },
+      expectedRevision: before.revision,
+      idempotencyKey: "fog-v14-create-0001",
+    });
+    assert.equal(created.after.exists, true);
+    assert.equal(created.after.level, "level-a");
+    const [stored] = [...db.values()];
+    assert.equal(stored!["user"], "player");
+    assert.equal(stored!["scene"], "scene");
+    assert.equal(stored!["level"], "level-a");
+    assert.equal(collection.size, 0);
+  });
+
+  void it("keys fog per Level and defaults to the viewed Level", async () => {
+    installDatabase({
+      levels: ["level-a", "level-b"],
+      view: "level-b",
+      fogs: [
+        { id: "fog-a", user: "player", level: "level-a", explored: "same" },
+        { id: "fog-b", user: "player", level: "level-b", explored: "same" },
+      ],
+    });
+    const viewed = await getFogExploration({ sceneId: "scene", userId: "player" });
+    assert.equal(viewed.level, "level-b");
+    assert.equal(viewed.documentId, "fog-b");
+    const levelA = await getFogExploration({
+      sceneId: "scene",
+      userId: "player",
+      level: "level-a",
+    });
+    assert.equal(levelA.documentId, "fog-a");
+    assert.notEqual(levelA.revision, viewed.revision, "revisions are bound to the Level");
+    await assert.rejects(
+      getFogExploration({ sceneId: "scene", userId: "player", level: "missing" }),
+      (error: unknown) => (error as { code?: string }).code === "NOT_FOUND",
+    );
+  });
+
+  void it("rejects a Level on Scenes without Levels", async () => {
+    install();
+    await assert.rejects(
+      getFogExploration({ sceneId: "scene", userId: "player", level: "level-a" }),
+      (error: unknown) => (error as { code?: string }).code === "INVALID_PAYLOAD",
+    );
+  });
+});

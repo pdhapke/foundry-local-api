@@ -166,8 +166,10 @@
 // back the camera-view-broadcast send side (module/src/commands/
 // placeables.ts's `canvasPushView`) and receive side (module/src/socket.ts).
 //
-// Phase 46 added `FoundryScene#resetFog()` to back the fog-of-war reset
-// command handler (module/src/commands/scenes.ts).
+// Phase 46's fog-of-war reset (module/src/commands/scenes.ts) emits Foundry's
+// own `resetFog` socket event (what `canvas.fog.reset()` does) - Scene has no
+// `resetFog()` method. Foundry v14 Scene Levels (`levels`, `_view`,
+// `initialLevel`, `firstLevel`) are optional so pre-v14 worlds still type-check.
 //
 // Phase 44 added `FoundryUser#targets` (a Set of Token placeables),
 // `FoundryPlaceable#setTarget()`, and `canvas.tokens.placeables` (every
@@ -322,6 +324,23 @@ interface FoundryDocumentClass {
   ): Promise<FoundryDocument[]>;
   /** Deletes many documents of this type by id in one call, returning the ids actually deleted. */
   deleteDocuments(ids: string[], options?: Record<string, unknown>): Promise<string[]>;
+  /**
+   * The client database backend. `get()` queries the world database directly, which is the only
+   * way a GM client can read documents Foundry does not cache locally (e.g. other users' fog).
+   */
+  database?: {
+    get(
+      documentClass: FoundryDocumentClass,
+      operation: Record<string, unknown>,
+    ): Promise<FoundryDocument[]>;
+  };
+}
+
+/** A Scene's embedded Level collection (Foundry v14+). */
+interface FoundrySceneLevels {
+  size: number;
+  has(id: string): boolean;
+  keys(): IterableIterator<string>;
 }
 
 /** A loaded Actor document — the `FoundryDocument` subset plus the actor-specific API Phase 9 drives. */
@@ -380,8 +399,14 @@ interface FoundryScene extends FoundryDocument {
   };
   /** Makes this the world's active/viewed scene. */
   activate(): Promise<FoundryScene>;
-  /** Clears this scene's explored fog-of-war for every connected client (Phase 46). */
-  resetFog(): Promise<void>;
+  /** Foundry v14+ embedded Scene Levels; absent on earlier versions. */
+  levels?: FoundrySceneLevels;
+  /** Foundry v14+: the Level this client is viewing, or null when the Scene is not viewed. */
+  _view?: string | null;
+  /** Foundry v14+: the Level a viewer starts on. */
+  initialLevel?: { id: string } | null;
+  /** Foundry v14+: the first Level of the Scene. */
+  firstLevel?: { id: string } | null;
   /** The scene's embedded Token documents. */
   tokens: Map<string, FoundryDocument>;
   /** Creates one or more embedded documents of the given type (e.g. "Token") on this scene. */
@@ -685,7 +710,11 @@ declare const canvas:
       /** Current zoom factor. */
       scale: number;
       /** Applies an immediate view without relying on the renderer animation ticker. */
-      pan(view: { x?: number | undefined; y?: number | undefined; scale?: number | undefined }): void;
+      pan(view: {
+        x?: number | undefined;
+        y?: number | undefined;
+        scale?: number | undefined;
+      }): void;
       /** Pans/zooms the view; omitted fields keep their current value. */
       animatePan(view: {
         x?: number | undefined;

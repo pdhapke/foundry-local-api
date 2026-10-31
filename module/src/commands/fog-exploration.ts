@@ -9,8 +9,16 @@ import {
 } from "@foundry-local-api/shared";
 
 import { registerCommand } from "../command-registry.js";
+import { fogCollection, fogDatabaseAvailable, queryFogDocuments } from "../fog-documents.js";
 
 type FogDocument = FoundryDocument;
+
+/** A resolved (Scene, user, Level) target. `level` is null on Foundry versions without Scene Levels. */
+interface FogTarget {
+  sceneId: string;
+  userId: string;
+  level: string | null;
+}
 
 const replays = new Map<string, { input: string; result: FogExplorationUpdateResult }>();
 
@@ -40,28 +48,114 @@ function requireGm(): void {
   }
 }
 
-function validateTarget({ sceneId, userId }: FogExplorationGetInput): void {
-  if (!game.collections.get("Scene")?.has(sceneId)) {
+function sceneLevels(scene: FoundryScene): FoundrySceneLevels | null {
+  const levels = scene.levels;
+  return levels && typeof levels.has === "function" ? levels : null;
+}
+
+/**
+ * Foundry v14 keys FogExploration by (Scene, Level, user). Resolve the Level the caller means:
+ * an explicit one, else the Scene's only Level, else the Level this GM client is viewing, else the
+ * Scene's initial Level. Scenes without Levels (Foundry v13 and earlier) resolve to null.
+ */
+function resolveLevel(scene: FoundryScene, requested: string | undefined): string | null {
+  const levels = sceneLevels(scene);
+  if (!levels) {
+    if (requested !== undefined) {
+      throw new ProtocolError({
+        code: "INVALID_PAYLOAD",
+        message: "This Foundry version has no Scene Levels; omit level.",
+        retryable: false,
+        fieldPath: "level",
+      });
+    }
+    return null;
+  }
+  if (requested !== undefined) {
+    if (!levels.has(requested)) {
+      throw new ProtocolError({
+        code: "NOT_FOUND",
+        message: "Scene Level not found.",
+        retryable: false,
+        fieldPath: "level",
+      });
+    }
+    return requested;
+  }
+  if (levels.size === 1) {
+    const only = levels.keys().next().value;
+    if (typeof only === "string") return only;
+  }
+  if (typeof scene._view === "string" && levels.has(scene._view)) return scene._view;
+  return scene.initialLevel?.id ?? scene.firstLevel?.id ?? null;
+}
+
+function resolveTarget({ sceneId, userId, level }: FogExplorationGetInput): FogTarget {
+  const scene = game.collections.get("Scene")?.get(sceneId) as FoundryScene | undefined;
+  if (!scene) {
     throw new ProtocolError({ code: "NOT_FOUND", message: "Scene not found.", retryable: false });
   }
   if (!game.users.has(userId)) {
     throw new ProtocolError({ code: "NOT_FOUND", message: "User not found.", retryable: false });
   }
+  return { sceneId, userId, level: resolveLevel(scene, level) };
 }
 
-function fogDocuments(): FogDocument[] {
-  return Array.from(game.collections.get("FogExploration")?.values() ?? []) as FogDocument[];
+function fogDocumentClass(): FoundryDocumentClass {
+  const documentClass = CONFIG["FogExploration"]?.documentClass;
+  if (!documentClass) {
+    throw new ProtocolError({
+      code: "HANDLER_ERROR",
+      message: "FogExploration document class is unavailable.",
+      retryable: false,
+    });
+  }
+  return documentClass;
 }
 
-function findFog(sceneId: string, userId: string): FogDocument | undefined {
-  return matchingFogDocuments(sceneId, userId)[0];
+async function matchingFogDocuments(target: FogTarget): Promise<FogDocument[]> {
+  const documents = await queryFogDocuments(target.sceneId, target.userId);
+  if (target.level === null) return documents;
+  return documents.filter((document) => document.toObject()["level"] === target.level);
 }
 
-function matchingFogDocuments(sceneId: string, userId: string): FogDocument[] {
-  return fogDocuments().filter((document) => {
-    const source = document.toObject();
-    return source["scene"] === sceneId && source["user"] === userId;
-  });
+/**
+ * Foundry's client database backend applies update/delete responses to the document cached in
+ * the world collection and throws when it is missing. Database-fetched fog documents for other
+ * users are not cached on a GM client, so cache the instance for the duration of the mutation and
+ * drop it afterwards if it was not cached before (mirroring `FogExploration.load`).
+ */
+async function withCachedDocument<T>(
+  document: FogDocument,
+  mutate: (live: FogDocument) => Promise<T>,
+): Promise<T> {
+  const collection = fogDatabaseAvailable() ? fogCollection() : undefined;
+  const cached = collection?.get(document.id);
+  if (!collection || cached) return mutate(cached ?? document);
+  collection.set(document.id, document);
+  try {
+    return await mutate(document);
+  } finally {
+    if (collection.get(document.id) === document && document.toObject()["user"] !== game.user.id)
+      collection.delete(document.id);
+  }
+}
+
+async function createFogDocument(
+  data: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): Promise<FogDocument | undefined> {
+  const created = await fogDocumentClass().create(data, options);
+  // Without a database backend the collection is the only store; keep everything cached.
+  const collection = fogDatabaseAvailable() ? fogCollection() : undefined;
+  if (
+    created &&
+    collection &&
+    data["user"] !== game.user.id &&
+    collection.get(created.id) === created
+  )
+    collection.delete(created.id);
+  return created;
 }
 
 function stateOf(document: FogDocument | undefined): FogExplorationState {
@@ -76,37 +170,58 @@ function stateOf(document: FogDocument | undefined): FogExplorationState {
   };
 }
 
-async function snapshot(sceneId: string, userId: string): Promise<FogExplorationSnapshot> {
-  const matches = matchingFogDocuments(sceneId, userId);
+async function snapshotOf(
+  target: FogTarget,
+  matches: FogDocument[],
+): Promise<FogExplorationSnapshot> {
   if (matches.length > 1)
     throw new ProtocolError({
       code: "INCOMPLETE_RESULT",
-      message: "Fog exploration is ambiguous for the requested Scene and user.",
+      message: "Fog exploration is ambiguous for the requested Scene, Level, and user.",
       retryable: false,
+      details: { matchingDocumentCount: matches.length },
     });
   const document = matches[0];
   const state = stateOf(document);
+  const exists = document !== undefined;
   return {
-    sceneId,
-    userId,
-    exists: document !== undefined,
+    sceneId: target.sceneId,
+    userId: target.userId,
+    level: target.level,
+    exists,
     documentId: document?.id ?? null,
-    revision: await revision({ exists: document !== undefined, state }),
+    // Pre-Levels revisions are unchanged; v14 revisions also bind the Level.
+    revision: await revision(
+      target.level === null ? { exists, state } : { exists, state, level: target.level },
+    ),
     state,
   };
+}
+
+async function snapshot(target: FogTarget): Promise<FogExplorationSnapshot> {
+  return snapshotOf(target, await matchingFogDocuments(target));
 }
 
 const EMPTY_STATE: FogExplorationState = { explored: null, positions: {} };
 
 async function assertExactTarget(
-  sceneId: string,
-  userId: string,
+  target: FogTarget,
   expected: { exists: boolean; documentId: string | null; state: FogExplorationState },
 ): Promise<FogExplorationSnapshot> {
-  const matches = matchingFogDocuments(sceneId, userId);
-  const actual = await snapshot(sceneId, userId);
+  const matches = await matchingFogDocuments(target);
+  if (matches.length !== (expected.exists ? 1 : 0)) {
+    throw new ProtocolError({
+      code: "INCOMPLETE_RESULT",
+      message: "Foundry fog exploration did not match the exact requested post-write state.",
+      retryable: false,
+      details: {
+        expectedExists: expected.exists,
+        matchingDocumentCount: matches.length,
+      },
+    });
+  }
+  const actual = await snapshotOf(target, matches);
   if (
-    matches.length !== (expected.exists ? 1 : 0) ||
     actual.exists !== expected.exists ||
     actual.documentId !== expected.documentId ||
     stable(actual.state) !== stable(expected.state)
@@ -127,48 +242,41 @@ async function assertExactTarget(
   return actual;
 }
 
-function fogDocumentClass(): FoundryDocumentClass {
-  const documentClass = CONFIG["FogExploration"]?.documentClass;
-  if (!documentClass) {
-    throw new ProtocolError({
-      code: "HANDLER_ERROR",
-      message: "FogExploration document class is unavailable.",
-      retryable: false,
-    });
-  }
-  return documentClass;
-}
-
 async function compensateFogMutation(
+  target: FogTarget,
   before: FogExplorationSnapshot,
   beforeSource: Record<string, unknown> | null,
   mutatedDocument: FogDocument | null,
   originalError: unknown,
 ): Promise<never> {
   try {
-    const matches = matchingFogDocuments(before.sceneId, before.userId);
+    const matches = await matchingFogDocuments(target);
     if (!before.exists) {
-      for (const document of matches) await document.delete();
-      if (mutatedDocument && !matches.includes(mutatedDocument)) await mutatedDocument.delete();
-      await assertExactTarget(before.sceneId, before.userId, {
-        exists: false,
-        documentId: null,
-        state: EMPTY_STATE,
-      });
+      for (const document of matches) await withCachedDocument(document, (live) => live.delete());
+      if (mutatedDocument && !matches.some((document) => document.id === mutatedDocument.id)) {
+        const stillPresent = (await queryFogDocuments(target.sceneId, target.userId)).find(
+          (document) => document.id === mutatedDocument.id,
+        );
+        if (stillPresent) await withCachedDocument(stillPresent, (live) => live.delete());
+      }
+      await assertExactTarget(target, { exists: false, documentId: null, state: EMPTY_STATE });
     } else {
       if (!beforeSource || !before.documentId) throw new Error("Missing fog before-image.");
       let original = matches.find((document) => document.id === before.documentId);
       for (const document of matches) {
-        if (document.id !== before.documentId) await document.delete();
+        if (document.id !== before.documentId)
+          await withCachedDocument(document, (live) => live.delete());
       }
       if (original) {
-        await original.update(beforeSource, { diff: false, recursive: false });
+        await withCachedDocument(original, (live) =>
+          live.update(beforeSource, { diff: false, recursive: false }),
+        );
       } else {
-        original = await fogDocumentClass().create(beforeSource, { keepId: true });
+        original = await createFogDocument(beforeSource, { keepId: true });
         if (!original || original.id !== before.documentId)
           throw new Error("Fog recreation did not preserve its document ID.");
       }
-      await assertExactTarget(before.sceneId, before.userId, {
+      await assertExactTarget(target, {
         exists: true,
         documentId: before.documentId,
         state: before.state,
@@ -218,15 +326,14 @@ export async function getFogExploration(
   input: FogExplorationGetInput,
 ): Promise<FogExplorationSnapshot> {
   requireGm();
-  validateTarget(input);
-  return snapshot(input.sceneId, input.userId);
+  return snapshot(resolveTarget(input));
 }
 
 export async function updateFogExploration(
   input: FogExplorationUpdateInput,
 ): Promise<FogExplorationUpdateResult> {
   requireGm();
-  validateTarget(input);
+  const target = resolveTarget(input);
   assertState(input.state);
   if (input.mode === "merge" && Object.hasOwn(input.state, "explored")) {
     throw new ProtocolError({
@@ -250,7 +357,8 @@ export async function updateFogExploration(
     }
     return { ...structuredClone(replay.result), replayed: true };
   }
-  const before = await snapshot(input.sceneId, input.userId);
+  const matches = await matchingFogDocuments(target);
+  const before = await snapshotOf(target, matches);
   if (before.revision !== input.expectedRevision) {
     throw new ProtocolError({
       code: "STALE_REVISION",
@@ -273,14 +381,14 @@ export async function updateFogExploration(
       fieldPath: "removeDocument",
     });
   }
-  const existing = findFog(input.sceneId, input.userId);
+  const existing = matches[0];
   const beforeSource = existing?.toObject() ?? null;
   let mutatedDocument: FogDocument | null = null;
   let expected: { exists: boolean; documentId: string | null; state: FogExplorationState };
   try {
     if (input.removeDocument) {
       mutatedDocument = existing ?? null;
-      await existing?.delete();
+      if (existing) await withCachedDocument(existing, (live) => live.delete());
       expected = { exists: false, documentId: null, state: EMPTY_STATE };
     } else {
       const next: FogExplorationState =
@@ -292,12 +400,15 @@ export async function updateFogExploration(
             };
       if (existing) {
         mutatedDocument = existing;
-        await existing.update({ ...beforeSource, ...next }, { diff: false, recursive: false });
+        await withCachedDocument(existing, (live) =>
+          live.update({ ...beforeSource, ...next }, { diff: false, recursive: false }),
+        );
         expected = { exists: true, documentId: existing.id, state: next };
       } else {
-        const created = await fogDocumentClass().create({
-          scene: input.sceneId,
-          user: input.userId,
+        const created = await createFogDocument({
+          scene: target.sceneId,
+          user: target.userId,
+          ...(target.level === null ? {} : { level: target.level }),
           ...next,
         });
         if (!created) {
@@ -313,7 +424,7 @@ export async function updateFogExploration(
     }
     const result: FogExplorationUpdateResult = {
       before,
-      after: await assertExactTarget(input.sceneId, input.userId, expected),
+      after: await assertExactTarget(target, expected),
       mode: input.mode,
       idempotencyKey: input.idempotencyKey,
       replayed: false,
@@ -322,7 +433,7 @@ export async function updateFogExploration(
     if (replays.size > 200) replays.delete(replays.keys().next().value as string);
     return result;
   } catch (error) {
-    return compensateFogMutation(before, beforeSource, mutatedDocument, error);
+    return compensateFogMutation(target, before, beforeSource, mutatedDocument, error);
   }
 }
 
