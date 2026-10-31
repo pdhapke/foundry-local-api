@@ -10,7 +10,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createApp, createDefaultRequestLogger } from "./app.js";
 import { FoundryClient } from "./bridge/foundry-client.js";
 import { BridgeGateway } from "./bridge/gateway.js";
-import { EnrollmentStore } from "./bridge/enrollment-store.js";
+import { EnrollmentStore, resolveBridgeSessionTtlMs } from "./bridge/enrollment-store.js";
 import { LocalFoundrySessionVerifier } from "./bridge/foundry-session-verifier.js";
 import { ConfigError, loadConfig, type AppConfig } from "./config.js";
 import { FoundryEventBus } from "./events/event-bus.js";
@@ -58,7 +58,16 @@ export async function main(): Promise<void> {
   // from Phase 6 onward to round-trip commands to the connected module.
   // The GM lane is authenticated independently against the browser's existing
   // Foundry session. The administrative API key remains REST/MCP-only.
+  const bridgeSessionTtl = resolveBridgeSessionTtlMs(process.env["BRIDGE_SESSION_TTL_MS"]);
+  if (bridgeSessionTtl.source === "invalid") {
+    console.error(
+      "BRIDGE_SESSION_TTL_MS is not a positive integer; using the default bridge session lifetime.",
+    );
+  } else if (bridgeSessionTtl.source === "clamped") {
+    console.error("BRIDGE_SESSION_TTL_MS exceeds 24 hours; clamping the bridge session lifetime.");
+  }
   const enrollmentStore = new EnrollmentStore({
+    sessionTtlMs: bridgeSessionTtl.ttlMs,
     laneCommandAllowlist: {
       player: [
         "effectiveUserExecute",

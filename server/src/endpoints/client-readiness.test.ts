@@ -267,7 +267,7 @@ void describe("client readiness endpoints", () => {
   });
 
   void it("adopts an absent exact GM identity under a bounded reservation", async () => {
-    const desiredClientId = "e54cdc0c-74a8-4548-96b2-27d3a1021f7d";
+    const desiredClientId = "00000000-0000-4000-8000-000000000001";
     const exactGm = {
       ...gm,
       clientId: "6489d1c8-8937-42ce-8126-ef036fdfadd5",
@@ -311,7 +311,7 @@ void describe("client readiness endpoints", () => {
   });
 
   void it("refuses connected identity collisions before dispatch", async () => {
-    const desired = { ...gm, clientId: "e54cdc0c-74a8-4548-96b2-27d3a1021f7d" };
+    const desired = { ...gm, clientId: "00000000-0000-4000-8000-000000000001" };
     const exactGm = {
       ...gm,
       clientId: "6489d1c8-8937-42ce-8126-ef036fdfadd5",
@@ -344,7 +344,7 @@ void describe("client readiness endpoints", () => {
   void it("invokes identity adoption through strict REST and MCP registration", async () => {
     const endpoint = clientReadinessEndpointDescriptors[4]!;
     const expectedClientId = "6489d1c8-8937-42ce-8126-ef036fdfadd5";
-    const desiredClientId = "e54cdc0c-74a8-4548-96b2-27d3a1021f7d";
+    const desiredClientId = "00000000-0000-4000-8000-000000000001";
     const exactGm = {
       ...gm,
       clientId: expectedClientId,
@@ -422,7 +422,7 @@ void describe("client readiness endpoints", () => {
       userId: "tv-user",
       capabilities: [...tv.capabilities, "clientEnrolledIdentityAdopt"],
     };
-    const desiredClientId = "9f325991-49f6-420d-9120-5c428a39d8d2";
+    const desiredClientId = "00000000-0000-4000-8000-000000000003";
     let command: string | undefined;
     let requestingUserId: string | null | undefined;
     const foundryClient = fake(
@@ -481,7 +481,7 @@ void describe("client readiness endpoints", () => {
       userId: "tv-user",
       capabilities: [...tv.capabilities, "clientEnrolledIdentityAdopt"],
     };
-    const desiredClientId = "9f325991-49f6-420d-9120-5c428a39d8d2";
+    const desiredClientId = "00000000-0000-4000-8000-000000000003";
     const foundryClient = fake(
       ((_type: string, payload: any) =>
         Promise.resolve({

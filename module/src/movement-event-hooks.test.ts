@@ -497,7 +497,7 @@ void describe("automatic movement hook capture", () => {
   void it("suppresses a GM initiator observed by a different GM unless explicitly authorized", () => {
     const reportingGm = { id: "gm-reporter", isGM: true };
     const initiatingGm = { id: "gm-initiator", isGM: true };
-    const player = { id: "izzy", isGM: false };
+    const player = { id: "player-1", isGM: false };
     Object.defineProperty(globalThis, "game", {
       configurable: true,
       value: {
@@ -528,7 +528,165 @@ void describe("automatic movement hook capture", () => {
       initiatingGm.id,
     );
     assert.equal(completeTokenMovement(token, initiatingGm.id)?.eventId, "gm-allowed");
-    captureTokenMovement(token, { x: 1 }, { correlationId: "izzy" }, player.id);
-    assert.equal(completeTokenMovement(token, player.id)?.eventId, "izzy");
+    captureTokenMovement(token, { x: 1 }, { correlationId: "player-1" }, player.id);
+    assert.equal(completeTokenMovement(token, player.id)?.eventId, "player-1");
+  });
+});
+
+void describe("GM observation of moves authored on another client", () => {
+  type Payload = {
+    eventId: string;
+    userId: string;
+    from: { x: number; y: number; elevation?: number };
+    to: { x: number; y: number; elevation?: number };
+    waypoints: Array<{ x: number; y: number; elevation?: number }>;
+  };
+
+  function setup(currentUser: { id: string; isGM: boolean }) {
+    const callbacks = new Map<string, (...args: unknown[]) => void>();
+    Object.defineProperty(globalThis, "Hooks", {
+      configurable: true,
+      value: {
+        on: (name: string, callback: (...args: unknown[]) => void) => {
+          callbacks.set(name, callback);
+          return callbacks.size;
+        },
+      },
+    });
+    Object.defineProperty(globalThis, "game", {
+      configurable: true,
+      value: {
+        user: currentUser,
+        users: new Map([
+          ["gm", { id: "gm", isGM: true }],
+          ["player-1", { id: "player-1", isGM: false }],
+          ["stranger", { id: "stranger", isGM: false }],
+        ]),
+      },
+    });
+    const sent: Payload[] = [];
+    registerMovementEventHooks({
+      sendEvent: (_name: string, payload: unknown) => sent.push(payload as Payload),
+    } as unknown as BridgeClient);
+    const scene = {
+      id: "scene-1",
+      grid: { size: 40 },
+      getEmbeddedCollection: () => new Map(),
+    } as unknown as FoundryScene;
+    let position = { x: 440, y: 680, elevation: 0 };
+    const token = {
+      id: "token-1",
+      parent: scene,
+      toObject: () => ({ _id: "token-1", ...position, width: 1, height: 1 }),
+      testUserPermission: (user: { id: string }) => user.id === "player-1",
+    };
+    const moveTo = (next: { x: number; y: number }) => {
+      position = { ...position, ...next };
+    };
+    return { callbacks, sent, token, moveTo };
+  }
+
+  const playerMovement = {
+    _movement: {
+      "token-1": {
+        id: "move-1",
+        origin: { x: 440, y: 680, elevation: 0 },
+        passed: {
+          waypoints: [
+            { x: 520, y: 680, elevation: 0 },
+            { x: 520, y: 760, elevation: 0 },
+          ],
+        },
+      },
+    },
+  };
+
+  void it("emits one event for a player drag the GM only sees via updateToken", () => {
+    const { callbacks, sent, token, moveTo } = setup({ id: "gm", isGM: true });
+    // The player's own browser ran preUpdateToken; the GM client only gets updateToken.
+    moveTo({ x: 520, y: 760 });
+    callbacks.get("updateToken")!(token, { x: 520, y: 760 }, playerMovement, "player-1");
+    assert.equal(sent.length, 1);
+    const event = sent[0]!;
+    assert.equal(event.userId, "player-1");
+    assert.deepEqual(event.from, { x: 440, y: 680, elevation: 0 });
+    assert.deepEqual(event.to, { x: 520, y: 760, elevation: 0 });
+    assert.deepEqual(event.waypoints, [
+      { x: 440, y: 680, elevation: 0 },
+      { x: 520, y: 680, elevation: 0 },
+      { x: 520, y: 760, elevation: 0 },
+    ]);
+    assert.equal(event.eventId, "scene-1:token-1:move-1");
+  });
+
+  void it("emits a GM's own authorized move exactly once when both hooks fire", () => {
+    const { callbacks, sent, token, moveTo } = setup({ id: "gm", isGM: true });
+    const options = {
+      ...playerMovement,
+      correlationId: "gm-move",
+      foundryLocalApi: { authorizedGmMovement: true },
+    };
+    callbacks.get("preUpdateToken")!(token, { x: 520, y: 760 }, options, "gm");
+    moveTo({ x: 520, y: 760 });
+    callbacks.get("updateToken")!(token, { x: 520, y: 760 }, options, "gm");
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0]!.eventId, "gm-move");
+    assert.equal(sent[0]!.userId, "gm");
+  });
+
+  void it("keeps GM-authored, setup, unowned, and origin-less moves suppressed", () => {
+    const { callbacks, sent, token, moveTo } = setup({ id: "gm", isGM: true });
+    moveTo({ x: 520, y: 760 });
+    // Unauthorized GM move, both with and without the pre-hook on this client.
+    callbacks.get("preUpdateToken")!(token, { x: 520, y: 760 }, playerMovement, "gm");
+    callbacks.get("updateToken")!(token, { x: 520, y: 760 }, playerMovement, "gm");
+    callbacks.get("updateToken")!(token, { x: 520, y: 760 }, playerMovement, "gm");
+    // Setup move by a player.
+    callbacks.get("updateToken")!(
+      token,
+      { x: 520, y: 760 },
+      { ...playerMovement, foundryLocalApi: { setup: true } },
+      "player-1",
+    );
+    // A user without ownership.
+    callbacks.get("updateToken")!(token, { x: 520, y: 760 }, playerMovement, "stranger");
+    // No broadcast origin: nothing is guessed.
+    callbacks.get("updateToken")!(token, { x: 520, y: 760 }, {}, "player-1");
+    callbacks.get("updateToken")!(
+      token,
+      { x: 520, y: 760 },
+      { _movement: { "token-1": { passed: { waypoints: [] } } } },
+      "player-1",
+    );
+    assert.equal(sent.length, 0);
+  });
+
+  void it("does not emit from a non-GM observer", () => {
+    const { callbacks, sent, token, moveTo } = setup({ id: "player-1", isGM: false });
+    moveTo({ x: 520, y: 760 });
+    callbacks.get("updateToken")!(token, { x: 520, y: 760 }, playerMovement, "player-1");
+    assert.equal(sent.length, 0);
+  });
+
+  void it("a GM pre-hook whose update never completed does not swallow a later player move", () => {
+    const { callbacks, sent, token, moveTo } = setup({ id: "gm", isGM: true });
+    const realNow = Date.now;
+    try {
+      let now = 1_000_000;
+      Date.now = () => now;
+      callbacks.get("preUpdateToken")!(
+        token,
+        { x: 600 },
+        { foundryLocalApi: { authorizedGmMovement: true } },
+        "gm",
+      );
+      now += 60_000;
+      moveTo({ x: 520, y: 760 });
+      callbacks.get("updateToken")!(token, { x: 520, y: 760 }, playerMovement, "player-1");
+    } finally {
+      Date.now = realNow;
+    }
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0]!.userId, "player-1");
   });
 });

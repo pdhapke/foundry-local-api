@@ -431,10 +431,10 @@ void describe("MCP-REQ-003 module schema commands", () => {
     }
     (globalThis as unknown as { CONFIG: Record<string, unknown> }).CONFIG.Actor = { documentClass: OwnershipActor };
     const run = (ownership: unknown, extra: Record<string, unknown> = {}) => validateDocumentSchema({ ...VERSION_LOCK, documentType: "Actor", mode: "create", data: { name: "Owned observer", ownership, ...extra } });
-    const good = run({ default: 0, edtBL96Yu3058QAT: 3 });
+    const good = run({ default: 0, FakePlayerUser01: 3 });
     assert.equal(good.results[0]?.valid, true); assert.deepEqual(good.results[0]?.warnings, []);
-    assert.deepEqual(good.results[0]?.normalized.ownership, { default: 0, edtBL96Yu3058QAT: 3 });
-    for (const invalid of [{ "invalid-id": 3 }, { default: 99 }, { edtBL96Yu3058QAT: "3" }]) assert.ok(run(invalid).results[0]?.errors.some(({ code, path }) => code === "NATIVE_VALIDATION" && path === "ownership"));
+    assert.deepEqual(good.results[0]?.normalized.ownership, { default: 0, FakePlayerUser01: 3 });
+    for (const invalid of [{ "invalid-id": 3 }, { default: 99 }, { FakePlayerUser01: "3" }]) assert.ok(run(invalid).results[0]?.errors.some(({ code, path }) => code === "NATIVE_VALIDATION" && path === "ownership"));
     assert.ok(run({ default: 0 }, { forged: { secret: true } }).results[0]?.warnings.some(({ code, path }) => code === "UNKNOWN_FIELD" && path === "forged"));
     assert.deepEqual(mutationCalls, []);
   });

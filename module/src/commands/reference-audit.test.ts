@@ -118,6 +118,28 @@ void describe("reference audit", () => {
     assert.equal(result.clean, null);
   });
 
+  void it("reports duplicate campaign IDs under any world flag key", () => {
+    (globalThis as any).game.collections = new Map([
+      [
+        "Actor",
+        new Map(
+          ["a", "b"].map((id) => [
+            id,
+            {
+              uuid: `Actor.${id}`,
+              documentName: "Actor",
+              toObject: () => ({ flags: { world: { exampleCampaignId: "shared" } } }),
+            },
+          ]),
+        ),
+      ],
+    ]);
+    const duplicate = auditReferences({}).issues.find(
+      (issue) => issue.code === "DUPLICATE_STABLE_ID",
+    );
+    assert.equal(duplicate?.fieldPath, "flags.world.exampleCampaignId");
+  });
+
   void it("fails closed when a document cannot be scanned", () => {
     (globalThis as any).game.collections = new Map([
       [

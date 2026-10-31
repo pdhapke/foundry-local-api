@@ -31,6 +31,13 @@ interface PendingMovement {
 }
 
 const pending = new Map<string, PendingMovement>();
+// Updates whose preUpdateToken hook already ran on this (GM) client. Their
+// capture decision, including deliberate suppression, is authoritative, so the
+// updateToken fallback must not re-derive and emit them a second time.
+// Entries older than PRE_OBSERVED_TTL_MS belong to an update that never
+// completed (e.g. rejected by the server) and are ignored.
+const preObserved = new Map<string, number>();
+const PRE_OBSERVED_TTL_MS = 30_000;
 let eventCounter = 0;
 
 function numeric(value: unknown, fallback: number): number {
@@ -446,33 +453,37 @@ function key(sceneId: string, tokenId: string): string {
   return `${sceneId}:${tokenId}`;
 }
 
-export function captureTokenMovement(
+function prepareMovement(
   token: TokenLike,
   changes: Record<string, unknown>,
   options: Record<string, unknown>,
   userId: string,
-): void {
-  if (!("x" in changes || "y" in changes || "elevation" in changes)) return;
+  resolveStart: (source: Record<string, unknown>) => CollisionPoint | undefined,
+  endBase: (source: Record<string, unknown>, start: CollisionPoint) => CollisionPoint,
+  fallbackEventId?: string,
+): PendingMovement | undefined {
+  if (!("x" in changes || "y" in changes || "elevation" in changes)) return undefined;
   const sceneId = token.parent?.id;
-  if (!sceneId || !userId) return;
+  if (!sceneId || !userId) return undefined;
   const control = options["foundryLocalApi"];
   const policy = control && typeof control === "object" ? (control as Record<string, unknown>) : {};
-  if (policy["suppressMovementEvent"] === true || policy["setup"] === true) return;
+  if (policy["suppressMovementEvent"] === true || policy["setup"] === true) return undefined;
   // The canonical GM observer may report player-authored moves. GM-authored setup or
   // automation is accepted only when it deliberately opts in.
   const initiatingUser = game.users?.get(userId);
-  if (initiatingUser?.isGM && policy["authorizedGmMovement"] !== true) return;
-  if (!initiatingUserOwnsToken(token, userId)) return;
+  if (initiatingUser?.isGM && policy["authorizedGmMovement"] !== true) return undefined;
+  if (!initiatingUserOwnsToken(token, userId)) return undefined;
   const source = token.toObject();
-  const start = point(source, { x: 0, y: 0, elevation: 0 });
-  const end = point(changes, start);
+  const start = resolveStart(source);
+  if (!start) return undefined;
+  const end = point(changes, endBase(source, start));
   const supplied = waypointList(options, token.id, start);
   const waypoints = [...supplied.waypoints];
   const samePoint = (left: CollisionPoint, right: CollisionPoint) =>
     left.x === right.x && left.y === right.y && left.elevation === right.elevation;
   if (!waypoints.length || !samePoint(waypoints[0]!, start)) waypoints.unshift(start);
   if (!samePoint(waypoints.at(-1)!, end)) waypoints.push(end);
-  if (waypoints.length < 2) return;
+  if (waypoints.length < 2) return undefined;
   const movementFields = (["x", "y", "elevation"] as const).filter((field) => field in changes);
   const gridSize = numeric(token.parent?.grid?.size, 1);
   const footprint = {
@@ -481,8 +492,9 @@ export function captureTokenMovement(
   };
   const correlation =
     typeof options["correlationId"] === "string" ? options["correlationId"] : undefined;
-  pending.set(key(sceneId, token.id), {
-    eventId: correlation ?? `${sceneId}:${token.id}:${Date.now()}:${eventCounter++}`,
+  return {
+    eventId:
+      correlation ?? fallbackEventId ?? `${sceneId}:${token.id}:${Date.now()}:${eventCounter++}`,
     sceneId,
     tokenId: token.id,
     userId,
@@ -491,7 +503,67 @@ export function captureTokenMovement(
     movementFields,
     footprint,
     incompleteReasons: supplied.incompleteReasons,
-  });
+  };
+}
+
+export function captureTokenMovement(
+  token: TokenLike,
+  changes: Record<string, unknown>,
+  options: Record<string, unknown>,
+  userId: string,
+): void {
+  const movement = prepareMovement(
+    token,
+    changes,
+    options,
+    userId,
+    (source) => point(source, { x: 0, y: 0, elevation: 0 }),
+    (_source, start) => start,
+  );
+  if (movement) pending.set(key(movement.sceneId, movement.tokenId), movement);
+}
+
+/**
+ * Builds the movement event on the GM observer from updateToken data alone.
+ *
+ * preUpdateToken only runs on the client that requested the change, so when a
+ * player drags their token the GM client never sees the pre-hook and has no
+ * pending capture. Foundry v13+ broadcasts the prepared movement in
+ * `options._movement[tokenId]` (origin plus passed waypoints) to every client,
+ * which is enough to reconstruct the path after the fact. Without a readable
+ * origin nothing is emitted rather than guessing a start point.
+ */
+export function observeTokenMovement(
+  token: TokenLike,
+  changes: Record<string, unknown>,
+  options: Record<string, unknown>,
+  userId: string,
+): CompactMovementEvent | undefined {
+  const scene = token.parent;
+  if (!scene) return undefined;
+  const prepared = keyedValue(options["_movement"], token.id);
+  const record =
+    prepared && typeof prepared === "object" ? (prepared as Record<string, unknown>) : undefined;
+  const origin = record?.["origin"];
+  const movementId = typeof record?.["id"] === "string" ? record["id"] : undefined;
+  const movement = prepareMovement(
+    token,
+    changes,
+    options,
+    userId,
+    () => {
+      if (!origin || typeof origin !== "object") return undefined;
+      const value = origin as Record<string, unknown>;
+      if (!Number.isFinite(Number(value["x"])) || !Number.isFinite(Number(value["y"])))
+        return undefined;
+      return point(value, { x: 0, y: 0, elevation: 0 });
+    },
+    // The document is already updated here, so unchanged fields come from it.
+    (source, start) => point(source, start),
+    movementId ? `${scene.id}:${token.id}:${movementId}` : undefined,
+  );
+  if (!movement) return undefined;
+  return buildMovementEvent({ ...movement, regions: sceneMovementRegions(scene) });
 }
 
 export function completeTokenMovement(
@@ -523,19 +595,42 @@ export function registerMovementEventHooks(client: BridgeClient): void {
       options &&
       typeof options === "object" &&
       typeof userId === "string"
-    )
+    ) {
+      const document = token as TokenLike;
+      if (document.parent?.id) preObserved.set(key(document.parent.id, document.id), Date.now());
       captureTokenMovement(
-        token as TokenLike,
+        document,
         changes as Record<string, unknown>,
         options as Record<string, unknown>,
         userId,
       );
+    }
   });
   Hooks.on("updateToken", (...args: unknown[]) => {
     if (!game.user?.isGM) return;
-    const [token, _changes, _options, userId] = args;
+    const [token, changes, options, userId] = args;
     if (!token || typeof token !== "object" || typeof userId !== "string") return;
-    const event = completeTokenMovement(token as TokenLike, userId);
+    const document = token as TokenLike;
+    const sceneId = document.parent?.id;
+    const updateKey = sceneId ? key(sceneId, document.id) : undefined;
+    const observedAt = updateKey === undefined ? undefined : preObserved.get(updateKey);
+    if (updateKey !== undefined) preObserved.delete(updateKey);
+    const sawPreHook = observedAt !== undefined && Date.now() - observedAt <= PRE_OBSERVED_TTL_MS;
+    // A capture left behind by an update that never completed must not
+    // swallow this one.
+    if (!sawPreHook && updateKey !== undefined) pending.delete(updateKey);
+    // Exactly one path per update: the pre-hook capture when this GM client
+    // authored the change, otherwise the broadcast movement data.
+    const event = sawPreHook
+      ? completeTokenMovement(document, userId)
+      : changes && typeof changes === "object" && options && typeof options === "object"
+        ? observeTokenMovement(
+            document,
+            changes as Record<string, unknown>,
+            options as Record<string, unknown>,
+            userId,
+          )
+        : undefined;
     if (event) client.sendEvent(MOVEMENT_EVENT_NAME, event);
   });
 }

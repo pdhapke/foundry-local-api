@@ -43,7 +43,7 @@ log that documents every non-obvious design decision made along the way.
   delivery using an ephemeral RSA-OAEP browser key. Player browsers no longer
   require or read the administrative API key.
 - Phase 0R passed independent source/test security review but remains live
-  blocked until the actual Izzy and TV tabs reload the current module bundle and
+  blocked until the actual player and TV tabs reload the current module bundle and
   all three clients complete acceptance; the GM lane is connected.
 - Added `foundry_reload_client` with identity/correlation/delay-bound
   acknowledgement before a scheduled page reload. Player and TV access remains

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { AssetLifecycleService } from "./asset-lifecycle.js";
+import { AssetLifecycleService, matchesPathPrefix } from "./asset-lifecycle.js";
 
 function png(width: number, height: number, payload = Buffer.from([0x78, 0x9c, 0x00])): Buffer {
   const chunk = (type: string, data: Buffer) => {
@@ -496,5 +496,16 @@ void describe("asset lifecycle", () => {
       ),
       (error: unknown) => (error as { code?: string }).code === "PERMISSION_DENIED",
     );
+  });
+});
+
+void describe("asset path prefixes", () => {
+  void it("matches exact prefixes and one-segment wildcards", () => {
+    assert.equal(matchesPathPrefix("modules/x/a.png", "modules"), true);
+    assert.equal(matchesPathPrefix("modulesx/a.png", "modules"), false);
+    assert.equal(matchesPathPrefix("worlds/test-world/data/actors.db", "worlds/*/data"), true);
+    assert.equal(matchesPathPrefix("worlds/test-world/world.json", "worlds/*/world.json"), true);
+    assert.equal(matchesPathPrefix("worlds/test-world/assets/a.png", "worlds/*/data"), false);
+    assert.equal(matchesPathPrefix("worlds/data", "worlds/*/data"), false);
   });
 });

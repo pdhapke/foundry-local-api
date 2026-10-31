@@ -28,6 +28,8 @@ interface Dependencies {
   topology: AnyEndpointDescriptor;
   collision: AnyEndpointDescriptor;
   movementDiagnostics: () => MovementStoreDiagnostics;
+  /** Defaults to {@link resolveAcceptanceConfig}, read per request. */
+  acceptance?: () => AcceptanceConfig;
 }
 
 interface PathCase {
@@ -54,19 +56,48 @@ interface ValidationInput {
   };
 }
 
+/**
+ * Placeholder identities. The live world's IDs come from the local .env
+ * (ACCEPTANCE_* keys) so no real world data is committed.
+ */
 export const ACCEPTANCE_IDENTITIES = {
-  gm: { userId: "X7X4KK7zca5U2Ics", clientId: "e54cdc0c-74a8-4548-96b2-27d3a1021f7d" },
-  player: {
-    userId: "edtBL96Yu3058QAT",
-    clientId: "1a52d0d2-b880-43e3-b5fc-34a72b643dee",
-  },
-  tv: { userId: "4Nv47EuKFy06C6eO", clientId: "9f325991-49f6-420d-9120-5c428a39d8d2" },
+  gm: { userId: "FakeGmUserId0001", clientId: "00000000-0000-4000-8000-000000000001" },
+  player: { userId: "FakePlayerUser01", clientId: "00000000-0000-4000-8000-000000000002" },
+  tv: { userId: "FakeTvUserId0001", clientId: "00000000-0000-4000-8000-000000000003" },
 } as const;
 
 export const ACCEPTANCE_TARGET = {
-  sceneId: "Nbj38PEdvw1zX1J9",
-  playerTokenId: "5afpFlCHHnclifNw",
+  sceneId: "FakeSceneId00001",
+  playerTokenId: "FakeTokenId00001",
 } as const;
+
+type AcceptanceLane = "gm" | "player" | "tv";
+
+export interface AcceptanceConfig {
+  identities: Record<AcceptanceLane, { userId: string; clientId: string }>;
+  target: { sceneId: string; playerTokenId: string };
+}
+
+/** Reads the ACCEPTANCE_* keys, falling back to the placeholders for any unset key. */
+export function resolveAcceptanceConfig(
+  environment: Record<string, string | undefined> = process.env,
+): AcceptanceConfig {
+  const read = (key: string, fallback: string) => environment[key]?.trim() || fallback;
+  const identity = (lane: AcceptanceLane) => {
+    const prefix = `ACCEPTANCE_${lane.toUpperCase()}`;
+    return {
+      userId: read(`${prefix}_USER_ID`, ACCEPTANCE_IDENTITIES[lane].userId),
+      clientId: read(`${prefix}_CLIENT_ID`, ACCEPTANCE_IDENTITIES[lane].clientId),
+    };
+  };
+  return {
+    identities: { gm: identity("gm"), player: identity("player"), tv: identity("tv") },
+    target: {
+      sceneId: read("ACCEPTANCE_SCENE_ID", ACCEPTANCE_TARGET.sceneId),
+      playerTokenId: read("ACCEPTANCE_PLAYER_TOKEN_ID", ACCEPTANCE_TARGET.playerTokenId),
+    },
+  };
+}
 
 const EXPECTED_RUNTIME = {
   protocolVersion: 2,
@@ -85,12 +116,12 @@ const point = z
     elevation: z.number().finite().optional(),
   })
   .strict();
-const validationInputSchema = z
+const baseValidationInputSchema = z
   .object({
-    sceneId: z.literal(ACCEPTANCE_TARGET.sceneId),
-    playerUserId: z.literal(ACCEPTANCE_IDENTITIES.player.userId),
-    playerTokenId: z.literal(ACCEPTANCE_TARGET.playerTokenId),
-    playerClientId: z.literal(ACCEPTANCE_IDENTITIES.player.clientId),
+    sceneId: id,
+    playerUserId: id,
+    playerTokenId: id,
+    playerClientId: id,
     correlationId: z
       .string()
       .min(8)
@@ -660,9 +691,30 @@ function count(checks: ValidationCheck[], status: ValidationStatus): number {
   return checks.filter((check) => check.status === status).length;
 }
 
+/** Pins the input to the configured Scene, player, Token, and client. */
+function validationInputSchemaFor(acceptance: () => AcceptanceConfig) {
+  return baseValidationInputSchema.superRefine((value, context) => {
+    const { identities, target } = acceptance();
+    const expected = {
+      sceneId: target.sceneId,
+      playerUserId: identities.player.userId,
+      playerTokenId: target.playerTokenId,
+      playerClientId: identities.player.clientId,
+    };
+    for (const [field, want] of Object.entries(expected) as Array<[keyof typeof expected, string]>)
+      if (value[field] !== want)
+        context.addIssue({
+          code: "custom",
+          path: [field],
+          message: `${field} must be the configured acceptance value.`,
+        });
+  });
+}
+
 export function createAcceptanceValidationEndpointDescriptors(
   dependencies: Dependencies,
 ): AnyEndpointDescriptor[] {
+  const acceptance = dependencies.acceptance ?? (() => resolveAcceptanceConfig());
   return [
     {
       name: "foundry_validate_acceptance_failures",
@@ -670,14 +722,14 @@ export function createAcceptanceValidationEndpointDescriptors(
         "Runs a read-only, failure-isolated acceptance diagnostic for the exact player client and Scene. It validates the connected client matrix, player readiness, fog/visibility, campaign references, wall topology and optional path cases, durable movement storage. It never impersonates a user, substitutes a GM render, moves a Token, changes fog, or mutates campaign documents.",
       method: "post",
       path: "/acceptance/validate-failures",
-      inputSchema: validationInputSchema,
+      inputSchema: validationInputSchemaFor(acceptance),
       outputSchema: acceptanceValidationOutputSchema,
       handler: async (input: ValidationInput, ctx: EndpointContext) => {
         const checks: ValidationCheck[] = [];
         await probe(checks, { id: "client-matrix", requirement: "MCP-REQ-011" }, async () => {
           const clients = ctx.foundryClient.getCapabilityReport().clients;
           const matrix = (
-            Object.entries(ACCEPTANCE_IDENTITIES) as Array<
+            Object.entries(acceptance().identities) as Array<
               ["gm" | "player" | "tv", { userId: string; clientId: string }]
             >
           ).map(([lane, identity]) => {
@@ -732,7 +784,7 @@ export function createAcceptanceValidationEndpointDescriptors(
             status: mismatch ? "fail" : unavailable ? "blocked" : "pass",
             message:
               !unavailable && !mismatch
-                ? "The exact GM, Izzy, and TV clients are connected, opted in, identity-bound, and version-matched."
+                ? "The exact GM, player, and TV clients are connected, opted in, identity-bound, and version-matched."
                 : mismatch
                   ? "A connected required client has an identity, privilege, lane, or runtime version mismatch."
                   : "One or more exact required clients are disconnected or have not opted in.",

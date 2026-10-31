@@ -80,13 +80,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "sceneId": { "type": "string", "const": "Nbj38PEdvw1zX1J9" },
-                  "playerUserId": { "type": "string", "const": "edtBL96Yu3058QAT" },
-                  "playerTokenId": { "type": "string", "const": "5afpFlCHHnclifNw" },
-                  "playerClientId": {
-                    "type": "string",
-                    "const": "1a52d0d2-b880-43e3-b5fc-34a72b643dee"
-                  },
+                  "sceneId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "playerUserId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "playerTokenId": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "playerClientId": { "type": "string", "minLength": 1, "maxLength": 128 },
                   "correlationId": {
                     "type": "string",
                     "minLength": 8,

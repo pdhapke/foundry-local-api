@@ -11,7 +11,7 @@ import {
 
 const INITIAL = {
   moduleVersion: "0.1.0",
-  userId: "edtBL96Yu3058QAT",
+  userId: "FakePlayerUser01",
   intendedLane: "player" as const,
   consentGranted: true,
 };
@@ -162,7 +162,7 @@ void describe("safe diagnostics projection", () => {
   void it("represents module-not-loaded only as a server observation with no client snapshot", () => {
     const observation = observeMissingClientDiagnostics({
       reason: "targeted-socket-ack-timeout",
-      expectedUserId: "4Nv47EuKFy06C6eO",
+      expectedUserId: "FakeTvUserId0001",
       intendedLane: "tv",
       observedAt: "2026-09-28T01:05:00.000Z",
     });
@@ -170,7 +170,7 @@ void describe("safe diagnostics projection", () => {
       source: "server",
       clientSnapshot: null,
       reason: "targeted-socket-ack-timeout",
-      expectedUserId: "4Nv47EuKFy06C6eO",
+      expectedUserId: "FakeTvUserId0001",
       intendedLane: "tv",
       observedAt: "2026-09-28T01:05:00.000Z",
     });

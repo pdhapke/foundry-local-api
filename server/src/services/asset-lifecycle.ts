@@ -85,8 +85,8 @@ export class AssetLifecycleService {
       });
     const normalized = relative.replaceAll("\\", "/");
     if (
-      (this.options.protectedPrefixes?.[location.root] ?? []).some(
-        (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
+      (this.options.protectedPrefixes?.[location.root] ?? []).some((prefix) =>
+        matchesPathPrefix(normalized, prefix),
       )
     )
       throw new ProtocolError({
@@ -823,4 +823,17 @@ function oggCrc(bytes: Uint8Array): number {
       crc = ((crc << 1) ^ (crc & 0x80000000 ? 0x04c11db7 : 0)) >>> 0;
   }
   return crc >>> 0;
+}
+
+/**
+ * True when `relativePath` equals `prefix` or lies under it. A `*` segment in
+ * the prefix matches exactly one non-empty path segment.
+ */
+export function matchesPathPrefix(relativePath: string, prefix: string): boolean {
+  const pathSegments = relativePath.split("/");
+  const prefixSegments = prefix.split("/");
+  if (pathSegments.length < prefixSegments.length) return false;
+  return prefixSegments.every((segment, index) =>
+    segment === "*" ? pathSegments[index] !== "" : segment === pathSegments[index],
+  );
 }

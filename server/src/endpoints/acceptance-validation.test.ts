@@ -11,6 +11,7 @@ import {
   ACCEPTANCE_TARGET,
   acceptanceValidationOutputSchema,
   createAcceptanceValidationEndpointDescriptors,
+  resolveAcceptanceConfig,
 } from "./acceptance-validation.js";
 import { mountRestEndpoints, registerMcpTools } from "./registry.js";
 import type { AnyEndpointDescriptor, EndpointContext } from "./types.js";
@@ -78,6 +79,7 @@ function dependencies(
   overrides: Partial<Parameters<typeof createAcceptanceValidationEndpointDescriptors>[0]> = {},
 ): Parameters<typeof createAcceptanceValidationEndpointDescriptors>[0] {
   return {
+    acceptance: () => resolveAcceptanceConfig({}),
     readiness: descriptor(async (input: unknown) => ({
       correlationId: (input as { correlationId: string }).correlationId,
       acknowledged: true,
@@ -115,10 +117,23 @@ function dependencies(
     })),
     visibility: descriptor(async () => ({
       capturedAt: "now",
-      observation: { version: 1, id: "11111111-1111-4111-8111-111111111111", worldId: "world", sceneId: ACCEPTANCE_TARGET.sceneId,
-        userId: ACCEPTANCE_IDENTITIES.player.userId, tokenId: ACCEPTANCE_TARGET.playerTokenId, actorId: "actor",
-        clientId: ACCEPTANCE_IDENTITIES.player.clientId, isGM: false, optedIn: true, capturedAt: "now", stateRevision: "same",
-        readiness: "ready", basis: "request-local-native-render-flags", pendingRenderFlags: 0 },
+      observation: {
+        version: 1,
+        id: "11111111-1111-4111-8111-111111111111",
+        worldId: "world",
+        sceneId: ACCEPTANCE_TARGET.sceneId,
+        userId: ACCEPTANCE_IDENTITIES.player.userId,
+        tokenId: ACCEPTANCE_TARGET.playerTokenId,
+        actorId: "actor",
+        clientId: ACCEPTANCE_IDENTITIES.player.clientId,
+        isGM: false,
+        optedIn: true,
+        capturedAt: "now",
+        stateRevision: "same",
+        readiness: "ready",
+        basis: "request-local-native-render-flags",
+        pendingRenderFlags: 0,
+      },
       sceneId: ACCEPTANCE_TARGET.sceneId,
       effectiveUserId: ACCEPTANCE_IDENTITIES.player.userId,
       tokenId: ACCEPTANCE_TARGET.playerTokenId,
@@ -722,5 +737,25 @@ void describe("acceptance failure validator", () => {
     assert.equal(mcp.structuredContent?.["correlationId"], input.correlationId);
     assert.equal(mcp.structuredContent?.["overall"], "pass");
     await assert.rejects(() => callback!({ ...input, extra: true }));
+  });
+
+  void it("pins the input to the acceptance IDs from the environment", () => {
+    assert.deepEqual(resolveAcceptanceConfig({}), {
+      identities: ACCEPTANCE_IDENTITIES,
+      target: ACCEPTANCE_TARGET,
+    });
+    const config = resolveAcceptanceConfig({
+      ACCEPTANCE_SCENE_ID: "OtherSceneId0001",
+      ACCEPTANCE_PLAYER_TOKEN_ID: " ",
+    });
+    assert.equal(config.target.playerTokenId, ACCEPTANCE_TARGET.playerTokenId);
+    const [endpoint] = createAcceptanceValidationEndpointDescriptors(
+      dependencies({ acceptance: () => config }),
+    );
+    assert.equal(endpoint?.inputSchema?.safeParse(input).success, false);
+    assert.equal(
+      endpoint?.inputSchema?.safeParse({ ...input, sceneId: "OtherSceneId0001" }).success,
+      true,
+    );
   });
 });

@@ -101,7 +101,7 @@ void describe("Phase 25 users & client state", () => {
     const app = buildApp(((type: string, payload: UserUpdateInput) => {
       assert.equal(type, "userUpdate");
       assert.deepEqual(payload, { userId: "u1", changes: { password: "" } });
-      const result: DocumentData = { _id: "u1", name: "Izzy" };
+      const result: DocumentData = { _id: "u1", name: "Test Player" };
       return Promise.resolve(result);
     }) as FoundryClient["call"]);
 
@@ -111,7 +111,7 @@ void describe("Phase 25 users & client state", () => {
       .send({ changes: { password: "" } });
 
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { _id: "u1", name: "Izzy" });
+    assert.deepEqual(res.body, { _id: "u1", name: "Test Player" });
     assert.equal("password" in res.body, false);
   });
 
