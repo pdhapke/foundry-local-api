@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  DEFAULT_BRIDGE_SESSION_TTL_MS,
   EnrollmentIssueError,
   EnrollmentStore,
+  MAX_BRIDGE_SESSION_TTL_MS,
+  resolveBridgeSessionTtlMs,
   type EnrollmentIssueRequest,
   type EnrollmentLane,
 } from "./enrollment-store.js";
@@ -18,7 +21,7 @@ const gm = {
 function issueRequest(lane: EnrollmentLane = "player"): EnrollmentIssueRequest {
   return {
     issuer: gm,
-    expectedUserId: lane === "player" ? "edtBL96Yu3058QAT" : "4Nv47EuKFy06C6eO",
+    expectedUserId: lane === "player" ? "FakePlayerUser01" : "FakeTvUserId0001",
     expectedClientId: `${lane}-client`,
     lane,
     protocolVersion: 2,
@@ -34,7 +37,7 @@ function redeemRequest(
 ) {
   return {
     credential,
-    userId: lane === "player" ? "edtBL96Yu3058QAT" : "4Nv47EuKFy06C6eO",
+    userId: lane === "player" ? "FakePlayerUser01" : "FakeTvUserId0001",
     lane,
     protocolVersion: 2,
     moduleVersion: "0.1.0",
@@ -66,8 +69,8 @@ void describe("EnrollmentStore", () => {
     assert.deepEqual(
       store.listActive().map(({ lane, expectedUserId }) => ({ lane, expectedUserId })),
       [
-        { lane: "player", expectedUserId: "edtBL96Yu3058QAT" },
-        { lane: "tv", expectedUserId: "4Nv47EuKFy06C6eO" },
+        { lane: "player", expectedUserId: "FakePlayerUser01" },
+        { lane: "tv", expectedUserId: "FakeTvUserId0001" },
       ],
     );
   });
@@ -184,15 +187,15 @@ void describe("EnrollmentStore", () => {
 
   void it("binds active authorization to the exact client, user, lane, and expiry", () => {
     let now = 1_000;
-    const store = new EnrollmentStore({ now: () => now });
+    const store = new EnrollmentStore({ now: () => now, sessionTtlMs: 1_000 });
     const issued = store.issue({ ...issueRequest(), ttlMs: 1_000 });
     assert.equal(store.redeem(redeemRequest(issued.credential)).ok, true);
-    assert.equal(store.isClientAuthorized("player-client", "edtBL96Yu3058QAT", "player"), true);
-    assert.equal(store.isClientAuthorized("other-client", "edtBL96Yu3058QAT", "player"), false);
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), true);
+    assert.equal(store.isClientAuthorized("other-client", "FakePlayerUser01", "player"), false);
     assert.equal(store.isClientAuthorized("player-client", "other-user", "player"), false);
-    assert.equal(store.isClientAuthorized("player-client", "edtBL96Yu3058QAT", "tv"), false);
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "tv"), false);
     now = 2_000;
-    assert.equal(store.isClientAuthorized("player-client", "edtBL96Yu3058QAT", "player"), false);
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), false);
     assert.equal(store.listActive().length, 0);
   });
 
@@ -268,5 +271,135 @@ void describe("EnrollmentStore", () => {
     assert.equal(store.pendingCount(), 1);
     assert.deepEqual(store.listPending(), [issued.enrollment]);
     assert.equal("connectedClientId" in store.listPending()[0]!, false);
+  });
+});
+
+void describe("EnrollmentStore session lifetime", () => {
+  void it("keeps an accepted session alive past the one-time credential TTL", () => {
+    let now = 1_000;
+    const store = new EnrollmentStore({ now: () => now });
+    const issued = store.issue({ ...issueRequest(), ttlMs: 10 * 60 * 1000 });
+    now = 2_000;
+    const redeemed = store.redeem(redeemRequest(issued.credential));
+    assert.equal(redeemed.ok, true);
+    assert.equal(
+      redeemed.ok && redeemed.authorization.expiresAt,
+      2_000 + DEFAULT_BRIDGE_SESSION_TTL_MS,
+    );
+
+    // Well past the 10 minute credential window, e.g. 20 minutes and 7 hours in.
+    now = 1_000 + 20 * 60 * 1000;
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), true);
+    now = 2_000 + 7 * 60 * 60 * 1000;
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), true);
+    assert.equal(store.listActive().length, 1);
+
+    // The session still ends at its own expiry.
+    now = 2_000 + DEFAULT_BRIDGE_SESSION_TTL_MS;
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), false);
+    assert.equal(store.listActive().length, 0);
+  });
+
+  void it("honours a configured session TTL", () => {
+    let now = 0;
+    const store = new EnrollmentStore({ now: () => now, sessionTtlMs: 30 * 60 * 1000 });
+    const issued = store.issue(issueRequest());
+    assert.equal(store.redeem(redeemRequest(issued.credential)).ok, true);
+    now = 29 * 60 * 1000;
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), true);
+    now = 30 * 60 * 1000;
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), false);
+  });
+
+  void it("rejects an out-of-range session TTL option", () => {
+    assert.throws(() => new EnrollmentStore({ sessionTtlMs: 0 }));
+    assert.throws(() => new EnrollmentStore({ sessionTtlMs: MAX_BRIDGE_SESSION_TTL_MS + 1 }));
+  });
+
+  void it("still refuses a credential after its own expiry, even with a long session TTL", () => {
+    let now = 1_000;
+    const store = new EnrollmentStore({ now: () => now });
+    const issued = store.issue({ ...issueRequest(), ttlMs: 60_000 });
+    now = 61_000;
+    assert.deepEqual(store.redeem(redeemRequest(issued.credential)), {
+      ok: false,
+      code: "credential_expired",
+    });
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), false);
+  });
+
+  void it("still refuses replay of a redeemed credential during the long session", () => {
+    let now = 1_000;
+    const store = new EnrollmentStore({ now: () => now });
+    const issued = store.issue(issueRequest());
+    assert.equal(store.redeem(redeemRequest(issued.credential)).ok, true);
+    assert.deepEqual(store.redeem(redeemRequest(issued.credential)), {
+      ok: false,
+      code: "credential_replayed",
+    });
+    now = 1_000 + 60 * 60 * 1000;
+    assert.deepEqual(
+      store.redeem(redeemRequest(issued.credential, "player", { clientId: "second-tab" })),
+      { ok: false, code: "credential_reused_by_second_client" },
+    );
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), true);
+  });
+
+  void it("revocation still ends a long session immediately", () => {
+    const store = new EnrollmentStore();
+    const first = store.issue(issueRequest());
+    assert.equal(store.redeem(redeemRequest(first.credential)).ok, true);
+    assert.equal(store.invalidateClient("player-client"), 1);
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), false);
+
+    const second = store.issue(issueRequest());
+    assert.equal(store.redeem(redeemRequest(second.credential)).ok, true);
+    store.rotate(issueRequest());
+    assert.equal(store.isClientAuthorized("player-client", "FakePlayerUser01", "player"), false);
+
+    const third = store.issue(issueRequest());
+    assert.equal(store.redeem(redeemRequest(third.credential)).ok, true);
+    assert.equal(store.invalidateForRestart(), 1);
+    assert.equal(store.listActive().length, 0);
+  });
+});
+
+void describe("resolveBridgeSessionTtlMs", () => {
+  void it("defaults to 8 hours when unset or blank", () => {
+    assert.equal(DEFAULT_BRIDGE_SESSION_TTL_MS, 8 * 60 * 60 * 1000);
+    assert.deepEqual(resolveBridgeSessionTtlMs(undefined), {
+      ttlMs: DEFAULT_BRIDGE_SESSION_TTL_MS,
+      source: "default",
+    });
+    assert.deepEqual(resolveBridgeSessionTtlMs("  "), {
+      ttlMs: DEFAULT_BRIDGE_SESSION_TTL_MS,
+      source: "default",
+    });
+  });
+
+  void it("accepts a positive integer override", () => {
+    assert.deepEqual(resolveBridgeSessionTtlMs("3600000"), { ttlMs: 3_600_000, source: "env" });
+    assert.deepEqual(resolveBridgeSessionTtlMs(" 900000 "), { ttlMs: 900_000, source: "env" });
+  });
+
+  void it("falls back to the default for invalid values", () => {
+    for (const raw of ["0", "-5", "abc", "1.5", "1e6", "NaN", "12ms"]) {
+      assert.deepEqual(
+        resolveBridgeSessionTtlMs(raw),
+        { ttlMs: DEFAULT_BRIDGE_SESSION_TTL_MS, source: "invalid" },
+        raw,
+      );
+    }
+  });
+
+  void it("clamps values above 24 hours", () => {
+    assert.deepEqual(resolveBridgeSessionTtlMs(String(MAX_BRIDGE_SESSION_TTL_MS + 1)), {
+      ttlMs: MAX_BRIDGE_SESSION_TTL_MS,
+      source: "clamped",
+    });
+    assert.deepEqual(resolveBridgeSessionTtlMs("99999999999999999999"), {
+      ttlMs: MAX_BRIDGE_SESSION_TTL_MS,
+      source: "clamped",
+    });
   });
 });

@@ -144,6 +144,13 @@ export type EnrollmentInvalidationReason =
 export interface EnrollmentStoreOptions {
   defaultTtlMs?: number;
   maxTtlMs?: number;
+  /**
+   * Lifetime of an accepted (redeemed) bridge session, measured from
+   * acceptance. Independent of the short one-time credential TTL so a client
+   * that enrolled inside the credential window stays authorized for a full
+   * play session. Defaults to 8 hours; must not exceed 24 hours.
+   */
+  sessionTtlMs?: number;
   maxEvents?: number;
   now?: () => number;
   laneCommandAllowlist?: Partial<Record<EnrollmentLane, readonly string[]>>;
@@ -179,6 +186,40 @@ const CREDENTIAL_PATTERN = /^fle1_([A-Za-z0-9_-]{22})_([A-Za-z0-9_-]{43})$/;
 const DEFAULT_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_MAX_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_MAX_EVENTS = 500;
+export const DEFAULT_BRIDGE_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+export const MAX_BRIDGE_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+export type BridgeSessionTtlSource = "default" | "env" | "clamped" | "invalid";
+
+/**
+ * Resolves the accepted bridge session lifetime from an optional raw env value
+ * (BRIDGE_SESSION_TTL_MS). Unset/blank uses the 8 hour default; a value that is
+ * not a positive integer falls back to the default; values above 24 hours are
+ * clamped to 24 hours.
+ */
+export function resolveBridgeSessionTtlMs(raw: string | undefined): {
+  ttlMs: number;
+  source: BridgeSessionTtlSource;
+} {
+  if (raw === undefined || raw.trim() === "") {
+    return { ttlMs: DEFAULT_BRIDGE_SESSION_TTL_MS, source: "default" };
+  }
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return { ttlMs: DEFAULT_BRIDGE_SESSION_TTL_MS, source: "invalid" };
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return { ttlMs: MAX_BRIDGE_SESSION_TTL_MS, source: "clamped" };
+    }
+    return { ttlMs: DEFAULT_BRIDGE_SESSION_TTL_MS, source: "invalid" };
+  }
+  if (parsed > MAX_BRIDGE_SESSION_TTL_MS) {
+    return { ttlMs: MAX_BRIDGE_SESSION_TTL_MS, source: "clamped" };
+  }
+  return { ttlMs: parsed, source: "env" };
+}
 
 /**
  * In-memory, restart-scoped one-time bridge enrollment store.
@@ -186,6 +227,11 @@ const DEFAULT_MAX_EVENTS = 500;
  * Raw credentials are returned only from issue/rotate and are never retained.
  * Records contain a SHA-256 digest plus non-secret binding metadata. A new store
  * after process restart therefore has no credentials or active authorizations.
+ *
+ * The one-time credential expires quickly (default 2 min, max 10 min), but once
+ * redeemed the accepted session gets its own lifetime (sessionTtlMs, default
+ * 8 h) measured from acceptance. Rotation, disconnect, restart, and
+ * administrative invalidation still end a session immediately.
  */
 export class EnrollmentStore {
   private readonly records = new Map<string, EnrollmentRecord>();
@@ -193,6 +239,7 @@ export class EnrollmentStore {
   private readonly now: () => number;
   private readonly defaultTtlMs: number;
   private readonly maxTtlMs: number;
+  private readonly sessionTtlMs: number;
   private readonly maxEvents: number;
   private readonly allowlists: Record<EnrollmentLane, readonly string[]>;
 
@@ -201,6 +248,14 @@ export class EnrollmentStore {
     this.defaultTtlMs = options.defaultTtlMs ?? DEFAULT_TTL_MS;
     this.maxTtlMs = options.maxTtlMs ?? DEFAULT_MAX_TTL_MS;
     this.maxEvents = options.maxEvents ?? DEFAULT_MAX_EVENTS;
+    this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_BRIDGE_SESSION_TTL_MS;
+    if (
+      !Number.isSafeInteger(this.sessionTtlMs) ||
+      this.sessionTtlMs <= 0 ||
+      this.sessionTtlMs > MAX_BRIDGE_SESSION_TTL_MS
+    ) {
+      throw new Error("Enrollment session TTL configuration is invalid");
+    }
     if (this.defaultTtlMs <= 0 || this.maxTtlMs <= 0 || this.defaultTtlMs > this.maxTtlMs) {
       throw new Error("Enrollment TTL configuration is invalid");
     }
@@ -315,6 +370,10 @@ export class EnrollmentStore {
     record.status = "accepted";
     record.connectedClientId = request.clientId;
     record.acceptedAt = acceptedAt;
+    // The credential window only gates redemption; the accepted session gets
+    // its own lifetime from acceptance so play is not cut off at the
+    // credential's (<= 10 min) expiry.
+    record.expiresAt = acceptedAt + this.sessionTtlMs;
     this.recordEvent({ action: "accepted", ...expected, ...observed });
     return {
       ok: true,
