@@ -313,7 +313,7 @@ export class FoundryClient {
           liveVerified: commandsVerified(["sceneRenderSnapshot", "sceneVisibilityInspect"]),
           notes: [
             "Structured player-context visibility, bounded redaction, and typed incomplete/error outcomes are source-implemented.",
-            "Acceptance still requires separate real GM and Izzy evidence for Regions, barriers, secret doors/exits, fog, light, darkness, vision, failures, and no persistence.",
+            "Acceptance still requires separate real GM and player evidence for Regions, barriers, secret doors/exits, fog, light, darkness, vision, failures, and no persistence.",
           ],
         },
         {
@@ -434,7 +434,7 @@ export class FoundryClient {
           notes: [
             "Live verification requires an automatically forwarded durable movement event.",
             "Durable client outbox delivery, exact gaps, persistent deduplication, movement filters, Region geometry, and first-stop pending state are source-implemented.",
-            "Real Izzy movement, disconnect/retry, corruption/restart recovery, suppression, and pending-adjudication acceptance remain open.",
+            "Real player movement, disconnect/retry, corruption/restart recovery, suppression, and pending-adjudication acceptance remain open.",
           ],
         },
       ],

@@ -13,10 +13,10 @@ function installUser(options: {
   source?: Record<string, unknown>;
   update: (changes: Record<string, unknown>, updateOptions?: Record<string, unknown>) => void;
 }): void {
-  const source = options.source ?? { _id: "u1", name: "Izzy", password: "redacted-value" };
+  const source = options.source ?? { _id: "u1", name: "Test Player", password: "redacted-value" };
   const user = {
     id: "u1",
-    name: "Izzy",
+    name: "Test Player",
     role: 1,
     isGM: false,
     active: false,
@@ -64,7 +64,7 @@ void describe("User command password updates", () => {
     assert.equal(response.ok, true);
     assert.deepEqual(deliveredChanges, { password: "" });
     assert.deepEqual(deliveredOptions, { diff: false });
-    assert.deepEqual(response.result, { _id: "u1", name: "Izzy" });
+    assert.deepEqual(response.result, { _id: "u1", name: "Test Player" });
   });
 
   void it("retains normal diff behavior when password was not explicitly supplied", async () => {
@@ -74,7 +74,7 @@ void describe("User command password updates", () => {
     const response = await dispatch({
       id: "request-2",
       type: USER_COMMANDS.UPDATE,
-      payload: { userId: "u1", changes: { name: "Isabetta" } },
+      payload: { userId: "u1", changes: { name: "Test Hero" } },
     });
 
     assert.equal(response.ok, true);

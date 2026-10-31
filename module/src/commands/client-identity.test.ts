@@ -4,7 +4,7 @@ import { afterEach, describe, it } from "node:test";
 import { adoptExactClientIdentity, adoptExactEnrolledClientIdentity } from "./client-identity.js";
 
 const current = "6489d1c8-8937-42ce-8126-ef036fdfadd5";
-const desired = "e54cdc0c-74a8-4548-96b2-27d3a1021f7d";
+const desired = "00000000-0000-4000-8000-000000000001";
 const proof = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 const savedGame = Object.getOwnPropertyDescriptor(globalThis, "game");
 const savedLocal = Object.getOwnPropertyDescriptor(globalThis, "localStorage");

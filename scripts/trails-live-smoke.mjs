@@ -15,7 +15,8 @@ const baseUrl = process.env.SMOKE_BASE_URL ?? "http://127.0.0.1:3940";
 const mode = process.argv[2] ?? "rest-http-remote";
 const results = [];
 const permissionFixturePath =
-  process.env.SMOKE_FIXTURE_FILE ?? "C:/dev/FoundryVtt/tmp/trails-permission-fixtures.json";
+  process.env.SMOKE_FIXTURE_FILE ??
+  resolve(root, "../../../../tmp/trails-permission-fixtures.json");
 
 function record(surface, operation, status, note = "") {
   results.push({ surface, operation, status, ...(note ? { note } : {}) });

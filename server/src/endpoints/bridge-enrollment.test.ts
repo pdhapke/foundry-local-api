@@ -25,7 +25,7 @@ const enrollmentPublicKey = generateKeyPairSync("rsa", { modulusLength: 2048 })
 
 const gm = {
   clientId: "gm-client",
-  userId: "X7X4KK7zca5U2Ics",
+  userId: "FakeGmUserId0001",
   userName: "Gamemaster",
   isGM: true,
   lane: "gm" as const,
@@ -101,7 +101,7 @@ void describe("Phase 0R enrollment endpoints", () => {
     });
     const descriptor = bridgeEnrollmentEndpointDescriptors[0]!;
     const result = (await descriptor.handler(
-      { userId: "edtBL96Yu3058QAT", lane: "player", ttlMs: 30_000 },
+      { userId: "FakePlayerUser01", lane: "player", ttlMs: 30_000 },
       {
         foundryClient,
         foundations: { enrollments } as never,
@@ -126,7 +126,7 @@ void describe("Phase 0R enrollment endpoints", () => {
     const noGmEnrollments = new EnrollmentStore();
     await assert.rejects(
       descriptor.handler(
-        { userId: "edtBL96Yu3058QAT", lane: "player" },
+        { userId: "FakePlayerUser01", lane: "player" },
         {
           foundryClient: { getCapabilityReport: () => report(false) } as FoundryClient,
           foundations: { enrollments: noGmEnrollments } as never,
@@ -138,7 +138,7 @@ void describe("Phase 0R enrollment endpoints", () => {
     const noConsentEnrollments = new EnrollmentStore();
     await assert.rejects(
       descriptor.handler(
-        { userId: "edtBL96Yu3058QAT", lane: "player" },
+        { userId: "FakePlayerUser01", lane: "player" },
         {
           foundryClient: {
             getCapabilityReport: () => report(),

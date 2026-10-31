@@ -12,7 +12,7 @@ import {
 } from "./enrollment-store.js";
 
 const gm = {
-  userId: "X7X4KK7zca5U2Ics",
+  userId: "FakeGmUserId0001",
   clientId: "gm-client",
   isGM: true,
   connected: true,

@@ -41,7 +41,7 @@ passes 44 shared, 477 server, and 235 module tests plus typecheck, lint,
 formatting, build, manifest synchronization, and diff checks. The running
 catalog exposes the required concrete output contracts and enforces complete
 input refinements. No requirement is considered live-complete until the
-dedicated Foundry fixtures and separate GM/Izzy/TV clients satisfy its full
+dedicated Foundry fixtures and separate GM/player/TV clients satisfy its full
 ledger acceptance. MCP-REQ-004 remains partial because strict verified
 compensation is neither database isolation nor crash-safe atomicity; FIX-006 is
 blocked because the current host cannot automatically wake/invoke the active
@@ -60,7 +60,7 @@ advertised-capability/allowlist intersection, replay and duplicate rejection,
 disconnect/restart invalidation, and secrecy-safe diagnostics.
 
 Source tests and independent security review pass. After the rebuilt bridge
-restart the GM lane is connected, while Izzy and TV remain absent. Live Phase
+restart the GM lane is connected, while the player and TV remain absent. Live Phase
 0R and fixture mutation stay blocked until those tabs reload the built bundle
 and all three lanes appear in fresh REST and MCP capability reports.
 

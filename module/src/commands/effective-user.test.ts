@@ -197,7 +197,7 @@ void describe("effective-user player command", () => {
     const token = document(
       "token-1",
       {
-        name: "Isabetta",
+        name: "Test Hero",
         actorId: "actor-1",
         hidden: false,
         x: 100,
@@ -221,7 +221,7 @@ void describe("effective-user player command", () => {
       kind: "sceneToken",
       sceneId: "scene-1",
       tokenId: "token-1",
-      name: "Isabetta",
+      name: "Test Hero",
       actorId: "actor-1",
       canObserve: true,
       canControl: true,

@@ -32,7 +32,7 @@ Native perception continues updating these sources when tokens, walls, lighting 
 
 ### Native source evidence
 
-Evidence below was read from physical files in the installed **Foundry 14.368** application under `C:/dev/FoundryVtt/App`; these are source inspections, not live runtime acceptance or virtual sourcemap locations. For example, `C:/dev/FoundryVtt/App/client/canvas/placeables/token.mjs` and `C:/dev/FoundryVtt/App/client/canvas/groups/visibility.mjs` both exist on disk. The same `_isVisionSource` predicate is also present in the executable aggregate `C:/dev/FoundryVtt/App/public/scripts/foundry.mjs:162833` through line 162852. Line references below are to that installed version.
+Evidence below was read from physical files in the installed **Foundry 14.368** application under `<foundry-app>`; these are source inspections, not live runtime acceptance or virtual sourcemap locations. For example, `<foundry-app>/client/canvas/placeables/token.mjs` and `<foundry-app>/client/canvas/groups/visibility.mjs` both exist on disk. The same `_isVisionSource` predicate is also present in the executable aggregate `<foundry-app>/public/scripts/foundry.mjs:162833` through line 162852. Line references below are to that installed version.
 
 | Source and line | Native fact used by the mechanism |
 | --- | --- |

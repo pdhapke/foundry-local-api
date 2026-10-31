@@ -100,18 +100,18 @@ void describe("Track 0 durable foundations", () => {
     ]);
     registry.recordFile("test-track0-fixture-0001", {
       root: "data",
-      path: "worlds/izzy-campaign/assets/mcp-test/test-track0-fixture-0001/a.png",
+      path: "worlds/test-world/assets/mcp-test/test-track0-fixture-0001/a.png",
       sha256: "a".repeat(64),
     });
     registry.moveFile(
       "test-track0-fixture-0001",
       {
         root: "data",
-        path: "worlds/izzy-campaign/assets/mcp-test/test-track0-fixture-0001/a.png",
+        path: "worlds/test-world/assets/mcp-test/test-track0-fixture-0001/a.png",
       },
       {
         root: "data",
-        path: "worlds/izzy-campaign/assets/mcp-test/test-track0-fixture-0001/b.png",
+        path: "worlds/test-world/assets/mcp-test/test-track0-fixture-0001/b.png",
         sha256: "a".repeat(64),
       },
     );
@@ -121,7 +121,7 @@ void describe("Track 0 durable foundations", () => {
     );
     registry.removeFile("test-track0-fixture-0001", {
       root: "data",
-      path: "worlds/izzy-campaign/assets/mcp-test/test-track0-fixture-0001/b.png",
+      path: "worlds/test-world/assets/mcp-test/test-track0-fixture-0001/b.png",
     });
     assert.deepEqual(registry.cleanupPlan("test-track0-fixture-0001").files, []);
   });

@@ -37,7 +37,7 @@ function installGlobals(consent: boolean) {
   Object.defineProperty(globalThis, "game", {
     configurable: true,
     value: {
-      user: { id: "player-user", name: "Izzy", isGM: false },
+      user: { id: "player-user", name: "Test Player", isGM: false },
       release: { version: "14.368" },
       system: { id: "dnd5e", version: "6.0.3" },
       modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),

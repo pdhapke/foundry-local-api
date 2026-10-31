@@ -237,7 +237,7 @@ void describe("Track 0 bridge negotiation", () => {
     Object.defineProperty(globalThis, "game", {
       configurable: true,
       value: {
-        user: { id: "izzy", name: "Izzy", isGM: false },
+        user: { id: "player-1", name: "Test Player", isGM: false },
         release: { version: "14.368" },
         system: { id: "dnd5e", version: "6.0.3" },
         modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
@@ -245,7 +245,7 @@ void describe("Track 0 bridge negotiation", () => {
       },
     });
     const message = buildBridgeHello();
-    assert.equal(message.identity.userId, "izzy");
+    assert.equal(message.identity.userId, "player-1");
     assert.equal(message.identity.lane, "player");
     assert.equal(message.identity.optedIn, false);
     assert.equal(message.versions.foundryVersion, "14.368");
@@ -275,7 +275,7 @@ void describe("Track 0 bridge negotiation", () => {
 
   void it("sends an adoption proof only from the browser session that staged it", () => {
     const persistent = storage(
-      new Map([["foundry-local-api.clientId", "e54cdc0c-74a8-4548-96b2-27d3a1021f7d"]]),
+      new Map([["foundry-local-api.clientId", "00000000-0000-4000-8000-000000000001"]]),
     );
     const ownerSession = storage();
     Object.defineProperty(globalThis, "localStorage", { configurable: true, value: persistent });
@@ -295,7 +295,7 @@ void describe("Track 0 bridge negotiation", () => {
       },
     });
     const proof = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    stageIdentityHandoff("e54cdc0c-74a8-4548-96b2-27d3a1021f7d", proof);
+    stageIdentityHandoff("00000000-0000-4000-8000-000000000001", proof);
     const ownerHello = buildBridgeHello();
     assert.equal(ownerHello.identityHandoffProof, proof);
 
@@ -313,7 +313,7 @@ void describe("Track 0 bridge negotiation", () => {
     Object.defineProperty(globalThis, "game", {
       configurable: true,
       value: {
-        user: { id: "izzy", name: "Izzy", isGM: false },
+        user: { id: "player-1", name: "Test Player", isGM: false },
         release: { version: "14.368" },
         system: { id: "dnd5e", version: "6.0.3" },
         modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
@@ -366,7 +366,7 @@ void describe("Track 0 bridge negotiation", () => {
     Object.defineProperty(globalThis, "game", {
       configurable: true,
       value: {
-        user: { id: "izzy", name: "Izzy", isGM: false },
+        user: { id: "player-1", name: "Test Player", isGM: false },
         release: { version: "14.368" },
         system: { id: "dnd5e", version: "6.0.3" },
         modules: new Map([["foundry-local-api", { version: "0.1.0" }]]),
@@ -378,7 +378,7 @@ void describe("Track 0 bridge negotiation", () => {
       () =>
         client.acceptEnrollment({
           action: "deliver",
-          targetUserId: "izzy",
+          targetUserId: "player-1",
           expectedLane: "tv",
           expectedClientId: "player-client",
           credential: "opaque",

@@ -58,19 +58,26 @@ const transactionEndpointDescriptors = createTransactionEndpointDescriptors(
   productionTransactionJournal,
 );
 const productionAssetRoots = resolveProductionAssetRoots();
+function campaignWorldId(): string | undefined {
+  const value = process.env["FOUNDRY_CAMPAIGN_WORLD_ID"]?.trim();
+  return value && /^[A-Za-z0-9_-]{1,128}$/.test(value) ? value : undefined;
+}
+
 const assetLifecycleService = new AssetLifecycleService({
   roots: productionAssetRoots.lifecycle,
+  // Every world's database, packs, and manifest are protected.
   protectedPrefixes: {
-    data: [
-      "modules",
-      "systems",
-      "worlds/izzy-campaign/data",
-      "worlds/izzy-campaign/packs",
-      "worlds/izzy-campaign/world.json",
-    ],
+    data: ["modules", "systems", "worlds/*/data", "worlds/*/packs", "worlds/*/world.json"],
   },
-  campaignOwnedPrefixes: { data: ["worlds/izzy-campaign/assets"] },
-  fixtureOwnedPrefixes: { data: ["worlds/izzy-campaign/assets/mcp-test"] },
+  // The campaign world is named in the local .env, read per call. Unset owns nothing.
+  get campaignOwnedPrefixes() {
+    const world = campaignWorldId();
+    return { data: world ? [`worlds/${world}/assets`] : [] };
+  },
+  get fixtureOwnedPrefixes() {
+    const world = campaignWorldId();
+    return { data: world ? [`worlds/${world}/assets/mcp-test`] : [] };
+  },
   isFixtureTestRunId: (testRunId) => productionFixtureRegistry.has(testRunId),
 });
 const referenceAuditAssetService = new AssetLifecycleService({

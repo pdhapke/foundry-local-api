@@ -26,12 +26,12 @@ class FailingStorage extends MemoryStorage {
   }
 }
 
-const sender = { clientId: "izzy-tab", userId: "izzy", lane: "player" as const };
+const sender = { clientId: "player-tab", userId: "player-1", lane: "player" as const };
 const movement = (eventId = "move-1") => ({
   eventId,
   sceneId: "scene-1",
   tokenId: "token-1",
-  userId: "izzy",
+  userId: "player-1",
   waypoints: [
     { x: 0, y: 0 },
     { x: 1, y: 1 },
@@ -196,9 +196,9 @@ void describe("BridgeEventOutbox", () => {
     assert.equal(
       isBridgeEventAcknowledgement({
         kind: "event-ack",
-        deliveryId: "movement:izzy:move-1",
+        deliveryId: "movement:player-1:move-1",
         accepted: true,
-        clientId: "izzy-tab",
+        clientId: "player-tab",
       }),
       true,
     );
@@ -209,9 +209,9 @@ void describe("BridgeEventOutbox", () => {
     assert.equal(
       isBridgeEventAcknowledgement({
         kind: "event-ack",
-        deliveryId: "movement:izzy:move-1",
+        deliveryId: "movement:player-1:move-1",
         accepted: true,
-        clientId: "izzy-tab",
+        clientId: "player-tab",
         unexpected: "field",
       }),
       false,

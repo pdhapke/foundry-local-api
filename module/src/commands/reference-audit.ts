@@ -333,10 +333,15 @@ export function auditReferences(input: ReferenceAuditInput): ReferenceAuditResul
           });
         const flags = data["flags"] as any;
         // The recursive pass above includes the top-level document.
-        const campaignId = flags?.world?.izzyCampaignId as string | undefined;
-        if (campaignId) {
-          const key = `izzy:${campaignId}`;
-          recordStableId(key, uuid, "flags.world.izzyCampaignId");
+        // Any world flag named *CampaignId carries a campaign-wide stable ID.
+        const worldFlags =
+          typeof flags?.world === "object" && flags.world !== null
+            ? (flags.world as Record<string, unknown>)
+            : {};
+        for (const [flagKey, campaignId] of Object.entries(worldFlags)) {
+          if (!flagKey.endsWith("CampaignId") || typeof campaignId !== "string" || !campaignId)
+            continue;
+          recordStableId(`world-flag:${flagKey}:${campaignId}`, uuid, `flags.world.${flagKey}`);
         }
         if (type === "RollTable") {
           const results = data["results"];

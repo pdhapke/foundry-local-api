@@ -497,7 +497,7 @@ void describe("automatic movement hook capture", () => {
   void it("suppresses a GM initiator observed by a different GM unless explicitly authorized", () => {
     const reportingGm = { id: "gm-reporter", isGM: true };
     const initiatingGm = { id: "gm-initiator", isGM: true };
-    const player = { id: "izzy", isGM: false };
+    const player = { id: "player-1", isGM: false };
     Object.defineProperty(globalThis, "game", {
       configurable: true,
       value: {
@@ -528,8 +528,8 @@ void describe("automatic movement hook capture", () => {
       initiatingGm.id,
     );
     assert.equal(completeTokenMovement(token, initiatingGm.id)?.eventId, "gm-allowed");
-    captureTokenMovement(token, { x: 1 }, { correlationId: "izzy" }, player.id);
-    assert.equal(completeTokenMovement(token, player.id)?.eventId, "izzy");
+    captureTokenMovement(token, { x: 1 }, { correlationId: "player-1" }, player.id);
+    assert.equal(completeTokenMovement(token, player.id)?.eventId, "player-1");
   });
 });
 
